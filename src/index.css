@@ -40,7 +40,7 @@ body {
 .dark-mode {
   color-scheme: dark;
   --color-brand-gray: #050d18;
-  --color-brand-dark: #f9f9fa;
+  --color-brand-dark: #0f2544;
 }
 
 /* Update baseline document colors */

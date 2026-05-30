@@ -75,6 +75,16 @@ export default function DashboardView({
         </div>
       </div>
 
+      {/* Featured Promotional Banner */}
+      <div className="relative rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white hover:shadow transition-all group duration-300">
+        <img 
+          src="https://i.ibb.co/cS43nRT9/image.png" 
+          alt="بنر منصة بن عون التعليمية" 
+          className="w-full h-auto object-cover rounded-2xl block transform group-hover:scale-[1.01] transition-transform duration-300"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+
       {/* Upcoming Exams Section: الاختبارات القادمة */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
