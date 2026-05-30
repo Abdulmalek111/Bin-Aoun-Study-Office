@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
+  
+  /* Brand color palette from the image specs */
+  --color-brand-dark: #0D1B2A;
+  --color-brand-blue: #1B365D;
+  --color-brand-gold: #C9A24A;
+  --color-brand-gray: #F4F6F8;
+}
+
+html {
+  font-family: var(--font-sans);
+  direction: rtl;
+  background-color: #F4F6F8;
+  color: #0D1B2A;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
