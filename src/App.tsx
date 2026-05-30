@@ -22,6 +22,47 @@ export default function App() {
   const [subjects, setSubjects] = useState<Subject[]>(initialSubjects);
   const [examHistory, setExamHistory] = useState<{ examTitle: string; scorePct: number; date: string; timeUsed: string }[]>([]);
   const [authScreen, setAuthScreen] = useState<'welcome' | 'login' | 'register'>('welcome');
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('school_dark_mode') === 'true';
+  });
+
+  // Apply dark mode theme class
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark-mode');
+      localStorage.setItem('school_dark_mode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+      localStorage.setItem('school_dark_mode', 'false');
+    }
+  }, [darkMode]);
+
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Capture PWA installation event
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) {
+      alert("الجهاز الحالي أو المتصفح مثبت عليه التطبيق بالفعل أو لا يدعم التثبيت الفوري. في حال استخدامك لمتصفح سفاري على آيفون، يرجى الضغط على زر مشاركة واختيار 'إضافة إلى الشاشة الرئيسية'.");
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`PWA Installation outcome: ${outcome}`);
+    setDeferredPrompt(null);
+  };
 
   // Load state from local storage on mount
   useEffect(() => {
@@ -195,6 +236,10 @@ export default function App() {
                   onLogout={handleLogout}
                   onUpdateEmail={handleUpdateEmail}
                   onNavigateToTab={setActiveTab}
+                  darkMode={darkMode}
+                  onToggleDarkMode={setDarkMode}
+                  deferredPrompt={deferredPrompt}
+                  onInstallApp={handleInstallApp}
                 />
               )}
             </div>

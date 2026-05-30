@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check } from 'lucide-react';
+import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download } from 'lucide-react';
 import { User as UserType } from '../types';
 
 interface ProfileViewProps {
@@ -8,9 +8,13 @@ interface ProfileViewProps {
   onLogout: () => void;
   onUpdateEmail: (newEmail: string) => void;
   onNavigateToTab: (tab: 'home' | 'exams' | 'subjects' | 'profile') => void;
+  darkMode: boolean;
+  onToggleDarkMode: (enabled: boolean) => void;
+  deferredPrompt: any;
+  onInstallApp: () => void;
 }
 
-type ActiveSection = 'none' | 'account' | 'subscription' | 'notifications' | 'support';
+type ActiveSection = 'none' | 'account' | 'subscription' | 'notifications' | 'support' | 'install';
 
 export default function ProfileView({
   user,
@@ -18,6 +22,10 @@ export default function ProfileView({
   onLogout,
   onUpdateEmail,
   onNavigateToTab,
+  darkMode,
+  onToggleDarkMode,
+  deferredPrompt,
+  onInstallApp,
 }: ProfileViewProps) {
   const [activeSubSection, setActiveSubSection] = useState<ActiveSection>('none');
   const [emailInput, setEmailInput] = useState(user.email);
@@ -214,6 +222,50 @@ export default function ProfileView({
               )}
             </form>
           )}
+
+          {/* PWA App Installation Subview */}
+          {activeSubSection === 'install' && (
+            <div className="space-y-3.5 text-xs">
+              <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-3 text-right">
+                <p className="font-bold text-gray-750 leading-normal">
+                  يمكنك تحميل منصة بن عون التعليمية كتطبيق رسمي على شاشة جهازك (سواء كمبيوتر، أندرويد، أو آيفون/آيباد) بكل سهولة والوصول إليها بضغطة زر واحدة!
+                </p>
+
+                {deferredPrompt ? (
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onInstallApp();
+                      }}
+                      className="w-full py-2.5 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Download size={15} />
+                      <span>اضغط هنا لتثبيت وتحميل التطبيق الآن</span>
+                    </button>
+                    <p className="text-[10px] text-emerald-600 mt-2 font-semibold text-center">
+                      ✓ متصفحك الحالي يدعم التثبيت المباشر بنجاح!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-gray-500 leading-relaxed bg-gray-50/50 p-3 rounded-lg border border-gray-150 space-y-2">
+                    <div className="font-bold text-brand-blue flex items-center gap-1">
+                      <span>طريقة التثبيت والتحميل لمتصفحك:</span>
+                    </div>
+                    
+                    <div className="space-y-1.5 pt-1">
+                      <p className="font-semibold text-gray-650">
+                        1. <span className="text-brand-gold">لمستخدمي جوجل كروم (أندرويد / كمبيوتر):</span> اضغط على زر القائمة (ثلاث نقاط <span className="font-sans">⋮</span> في أعلى أو أسفل المتصفح) ثم اختر <span className="font-bold">تثبيت التطبيق (Install App)</span> أو <span className="font-bold">إضافة إلى الشاشة الرئيسية</span>.
+                      </p>
+                      <p className="font-semibold text-gray-650">
+                        2. <span className="text-brand-gold">لمستخدمي سفاري (آيفون / آيباد):</span> اضغط على زر المشاركة (Share 📤) في أسفل الشاشة، ثم اختر <span className="font-bold">إضافة إلى الشاشة الرئيسية (Add to Home Screen ➕)</span>.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -285,6 +337,58 @@ export default function ProfileView({
           <div className="flex items-center gap-2 text-gray-400">
             <span className="text-xs font-medium text-gray-400">مفعلة</span>
             <ChevronLeft size={16} />
+          </div>
+        </div>
+
+        {/* Install / Download App button */}
+        <div 
+          onClick={() => setActiveSubSection(activeSubSection === 'install' ? 'none' : 'install')}
+          className="p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-50 text-amber-800 rounded-xl">
+              <Download size={18} className="stroke-[2.2] text-brand-gold animate-bounce" />
+            </div>
+            <span className="text-sm font-bold text-gray-700 font-bold">تحميل تطبيق "بن عون" على جهازك</span>
+          </div>
+          <div className="flex items-center gap-2 text-gray-400">
+            {deferredPrompt ? (
+              <span className="text-[10px] font-bold text-brand-gold bg-amber-50 px-1.5 py-0.5 rounded animate-pulse">تثبيت مباشر</span>
+            ) : (
+              <span className="text-xs font-medium text-gray-400">طريقة التثبيت</span>
+            )}
+            <ChevronLeft size={16} />
+          </div>
+        </div>
+
+        {/* Dark Mode Toggle Switch */}
+        <div 
+          className="p-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 text-indigo-800 rounded-xl">
+              {darkMode ? (
+                <Sun size={18} className="stroke-[2.2] text-brand-gold" />
+              ) : (
+                <Moon size={18} className="stroke-[2.2] text-indigo-700" />
+              )}
+            </div>
+            <span className="text-sm font-bold text-gray-700">الوضع المظلم (Dark Mode)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onToggleDarkMode(!darkMode)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-gray-200 transition-colors duration-200 ease-in-out focus:outline-none p-0.5 items-center ${
+                darkMode ? 'bg-brand-gold justify-end' : 'bg-gray-200 justify-start'
+              }`}
+              type="button"
+              role="switch"
+              aria-checked={darkMode}
+            >
+              <span
+                className="pointer-events-none inline-block h-4.5 w-4.5 rounded-full bg-white shadow-md transition duration-200"
+              />
+            </button>
           </div>
         </div>
 

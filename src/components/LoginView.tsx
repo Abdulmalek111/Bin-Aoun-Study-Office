@@ -142,7 +142,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
         )}
         
         {/* Subtle status node */}
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-[#132A43]/60 border border-brand-gold/25 rounded-full text-[10px] font-bold text-brand-gold">
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-brand-blue/60 border border-brand-gold/25 rounded-full text-[10px] font-bold text-brand-gold">
           <div className="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse" />
           <span>مكتب بن عون</span>
         </div>
@@ -167,13 +167,13 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
             </div>
 
             {/* Account Alert Badge */}
-            <div className="bg-[#132A43]/50 border border-brand-gold/20 rounded-2xl p-3.5 flex gap-2.5 items-start text-xs text-brand-gold leading-relaxed">
+            <div className="bg-brand-blue/50 border border-brand-gold/20 rounded-2xl p-3.5 flex gap-2.5 items-start text-xs text-brand-gold leading-relaxed">
               <Info size={16} className="shrink-0 mt-0.5 text-brand-gold" />
               <div>
                 <span className="font-bold">حساب تجريبي سريع:</span> 
                 <br />
-                اسم المستخدم: <code className="bg-[#0D1B2A] px-1.5 py-0.5 rounded font-mono font-bold text-white selection:bg-brand-gold">عبدالملك</code> | 
-                الرمز: <code className="bg-[#0D1B2A] px-1.5 py-0.5 rounded font-mono font-bold text-white selection:bg-brand-gold">123456</code>
+                اسم المستخدم: <code className="bg-brand-dark px-1.5 py-0.5 rounded font-mono font-bold text-white selection:bg-brand-gold">عبدالملك</code> | 
+                الرمز: <code className="bg-brand-dark px-1.5 py-0.5 rounded font-mono font-bold text-white selection:bg-brand-gold">123456</code>
               </div>
             </div>
 

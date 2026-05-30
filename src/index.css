@@ -5,18 +5,19 @@
   --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
   
   /* Brand color palette from the image specs */
-  --color-brand-dark: #0D1B2A;
-  --color-brand-blue: #1B365D;
-  --color-brand-gold: #C9A24A;
-  --color-brand-gray: #F4F6F8;
+  --color-brand-dark: #0f2544;
+  --color-brand-blue: #16325b;
+  --color-brand-gold: #c59c4b;
+  --color-brand-gray: #f9f9fa;
 }
 
 html {
   font-family: var(--font-sans);
   direction: rtl;
-  background-color: #F4F6F8;
-  color: #0D1B2A;
+  background-color: #f9f9fa;
+  color: #0f2544;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body {
@@ -35,3 +36,164 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
+/* --- Premium Dark Mode Custom Rules --- */
+.dark-mode {
+  color-scheme: dark;
+  --color-brand-gray: #050d18;
+  --color-brand-dark: #f9f9fa;
+}
+
+/* Update baseline document colors */
+.dark-mode,
+.dark-mode html,
+.dark-mode body {
+  background-color: #050d18 !important;
+  color: #f9f9fa !important;
+}
+
+/* Standard cards and wrappers */
+.dark-mode .bg-white {
+  background-color: #0b1c33 !important;
+  color: #f9f9fa !important;
+}
+
+/* Text coloring overrides */
+.dark-mode .text-brand-dark,
+.dark-mode .text-gray-900,
+.dark-mode .text-gray-800,
+.dark-mode .text-gray-700,
+.dark-mode .text-gray-650,
+.dark-mode .text-gray-600 {
+  color: #e2e8f0 !important;
+}
+
+.dark-mode .text-gray-500,
+.dark-mode .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+/* Borders and lines */
+.dark-mode .border,
+.dark-mode .border-gray-100,
+.dark-mode .border-gray-150,
+.dark-mode .border-gray-200,
+.dark-mode .border-amber-100,
+.dark-mode .border-b,
+.dark-mode .border-t,
+.dark-mode .border-b-gray-100 {
+  border-color: #1a3556 !important;
+}
+
+/* List division items */
+.dark-mode .divide-gray-100 > * + * {
+  border-color: #1a3556 !important;
+}
+
+/* Form fields, inputs, custom selects & textareas */
+.dark-mode input[type="text"],
+.dark-mode input[type="email"],
+.dark-mode input[type="password"],
+.dark-mode select,
+.dark-mode textarea {
+  background-color: #142844 !important;
+  border-color: #1a3556 !important;
+  color: #f9f9fa !important;
+}
+
+.dark-mode input::placeholder,
+.dark-mode textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Interactive item hoverings */
+.dark-mode .hover\:bg-gray-50\/50:hover,
+.dark-mode .hover\:bg-gray-100:hover,
+.dark-mode .hover\:bg-gray-50:hover,
+.dark-mode .hover\:bg-gray-50\/50:active {
+  background-color: #1a3556 !important;
+}
+
+/* Inner content block grey backgrounds */
+.dark-mode .bg-gray-50,
+.dark-mode .bg-gray-50\/50,
+.dark-mode .bg-gray-100 {
+  background-color: #142844 !important;
+}
+
+.dark-mode .bg-brand-gray {
+  background-color: #050d18 !important;
+}
+
+/* Custom themed badges */
+.dark-mode .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  color: #fca5a5 !important;
+}
+.dark-mode .text-red-600 {
+  color: #fca5a5 !important;
+}
+
+.dark-mode .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  color: #a7f3d0 !important;
+}
+.dark-mode .text-emerald-700 {
+  color: #a7f3d0 !important;
+}
+
+.dark-mode .bg-orange-50 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  color: #fde68a !important;
+}
+
+.dark-mode .bg-purple-50 {
+  background-color: rgba(139, 92, 246, 0.12) !important;
+  color: #ddd6fe !important;
+}
+
+.dark-mode .bg-teal-50 {
+  background-color: rgba(20, 184, 166, 0.12) !important;
+  color: #99f6e4 !important;
+}
+
+.dark-mode .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  color: #bfdbfe !important;
+}
+
+.dark-mode .bg-amber-50\/50,
+.dark-mode .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  color: #fde68a !important;
+}
+
+.dark-mode .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+  color: #c7d2fe !important;
+}
+
+/* Progress trackers and bars styling */
+.dark-mode .bg-gray-200 {
+  background-color: #1a3556 !important;
+}
+
+/* Lucide Icon override matches */
+.dark-mode .text-indigo-700 {
+  color: #c7d2fe !important;
+}
+
+.dark-mode .text-purple-700 {
+  color: #ddd6fe !important;
+}
+
+.dark-mode .text-emerald-700 {
+  color: #a7f3d0 !important;
+}
+
+.dark-mode .text-teal-700 {
+  color: #99f6e4 !important;
+}
+
+.dark-mode .text-brand-blue {
+  color: #bfdbfe !important;
+}
