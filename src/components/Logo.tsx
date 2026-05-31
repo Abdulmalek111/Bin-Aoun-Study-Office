@@ -6,8 +6,8 @@ interface LogoProps {
 }
 
 export default function Logo({ className = '', variant = 'full' }: LogoProps) {
-  // Use the exact high-quality image uploaded by the user
-  const logoUrl = 'https://i.ibb.co/4Rb3WTKX/Chat-GPT-Image-May-31-2026-12-39-58-AM.png';
+  // Use the exact high-quality image uploaded by the user specifically for the login/welcome screens
+  const logoUrl = 'https://i.ibb.co/ycNWS8MS/Chat-GPT-Image-May-30-2026-10-21-40-PM-removebg-preview.png';
 
   return (
     <div className={`flex flex-col items-center justify-center text-center ${className} select-none`}>

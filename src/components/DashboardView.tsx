@@ -33,7 +33,15 @@ export default function DashboardView({
           <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-brand-gold rounded-full ring-2 ring-white"></span>
         </button>
         
-        <h1 className="text-xl font-extrabold text-brand-dark tracking-tight">الرئيسية</h1>
+        <div className="flex items-center gap-2">
+          <img 
+            src="https://i.ibb.co/ycNWS8MS/Chat-GPT-Image-May-30-2026-10-21-40-PM-removebg-preview.png" 
+            alt="شعار منصة بن عون" 
+            className="h-7 w-auto object-contain block" 
+            referrerPolicy="no-referrer"
+          />
+          <h1 className="text-xl font-extrabold text-brand-dark tracking-tight">الرئيسية</h1>
+        </div>
         
         <button 
           onClick={() => onNavigateToTab('profile')}
