@@ -6,67 +6,10 @@ import SubjectIcon from './SubjectIcon';
 interface SubjectsViewProps {
   subjects: Subject[];
   onToggleLecture: (subjectId: string, lectureIndex: number) => void;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
 }
 
-// Sample lecture outline for each subject to provide real depth
-const subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]> = {
-  math: [
-    { title: 'المحاضرة 1: حساب التفاضل والتكامل المتقدم', duration: '45 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: الدوال اللوغاريتمية والأسية', duration: '30 دقيقة', type: 'pdf' },
-    { title: 'المحاضرة 3: المصفوفات والمحددات في الجبر', duration: '50 دقيقة', type: 'video' },
-    { title: 'المحاضرة 4: تطبيقات الهندسة الفراغية ثلاثية الأبعاد', duration: '40 دقيقة', type: 'video' },
-    { title: 'المحاضرة 5: مبادئ الإحصاء والاحتمالات', duration: '35 دقيقة', type: 'pdf' },
-    { title: 'المحاضرة 6: حل المعادلات التفاضلية البسيطة', duration: '48 دقيقة', type: 'video' },
-  ],
-  physics: [
-    { title: 'المحاضرة 1: الميكانيكا الكلاسيكية وقوانين الحركة والتسارع', duration: '55 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: الديناميكا الحرارية وتطبيقاتها العملي والفيزيائي', duration: '40 دقيقة', type: 'pdf' },
-    { title: 'المحاضرة 3: الكهربية الساكنة وقانون كولوم والشحنات', duration: '50 دقيقة', type: 'video' },
-    { title: 'المحاضرة 4: المغناطيسية وتطبيقات الحث الكهرومغناطيسي', duration: '45 دقيقة', type: 'video' },
-  ],
-  chemistry: [
-    { title: 'المحاضرة 1: الكيمياء العضوية وتراكيب ذرات الكربون وعلاقتها', duration: '50 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: الجدول الدوري وتوصيف الروابط التساهمية والأيونية', duration: '35 دقيقة', type: 'pdf' },
-    { title: 'المحاضرة 3: معدلات التفاعلات الكيميائية ومفهوم الاتزان الكيميائي', duration: '42 دقيقة', type: 'video' },
-    { title: 'المحاضرة 4: الأحماض والقواعد ومقياس الرقم الهيدروجيني pH', duration: '45 دقيقة', type: 'video' },
-  ],
-  english: [
-    { title: 'المحاضرة 1: قواعد الأزمنة وتراكيب الجمل الإنجليزية المعقدة', duration: '30 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: مهارات الكتابة الأكاديمية وصياغة البحوث والتقارير', duration: '40 دقيقة', type: 'pdf' },
-    { title: 'المحاضرة 3: مهارات الاستماع والمحادثة في البيئة الجامعية والمهنية', duration: '35 دقيقة', type: 'video' },
-    { title: 'المحاضرة 4: القراءة السريعة وتحليل النصوص وفك رموز الكلمات المتقدمة', duration: '45 دقيقة', type: 'video' },
-  ],
-  safety: [
-    { title: 'المحاضرة 1: مقدمة في سلامة الحياة وإدارة المخاطر والتهديدات', duration: '35 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: الإجراءات الوقائية في حالات الطوارئ وخطط الإخلاء', duration: '40 دقيقة', type: 'pdf' },
-    { title: 'المحاضرة 3: الإسعافات الأولية والتعامل الفوري مع الإصابات الطارئة', duration: '45 دقيقة', type: 'video' }
-  ],
-  programming: [
-    { title: 'المحاضرة 1: مفاهيم البرمجة الأساسية وكتابة الأنماط النظيفة', duration: '50 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: تحليل الخوارزميات وتصميم البنى البرمجية المعقدة', duration: '45 دقيقة', type: 'video' },
-    { title: 'المحاضرة 3: مبادئ البرمجة كائنية التوجه OOP وتوزيع الصفوف', duration: '55 دقيقة', type: 'pdf' }
-  ],
-  history: [
-    { title: 'المحاضرة 1: تأسيس الدولة الروسية والملوك الأوائل للبلاد', duration: '40 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: روسيا القيصرية والتحولات السياسية الكبرى في القرن الـ 19', duration: '50 دقيقة', type: 'pdf' }
-  ],
-  russian: [
-    { title: 'المحاضرة 1: الحروف الأبجدية الروسية واللفظ الصحيح للمقاطع', duration: '35 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: تراكيب الجمل الحوارية والردود السريعة اليومية', duration: '45 دقيقة', type: 'video' },
-    { title: 'المحاضرة 3: قواعد جمع الأسماء وصياغة التفضيلات اللغوية', duration: '40 دقيقة', type: 'pdf' }
-  ],
-  sports: [
-    { title: 'المحاضرة 1: اللياقة البدنية والتمارين الهوائية والصحة الغذائية المتكاملة', duration: '30 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: طرق الوقاية من التشنجات والإصابات العضلية والتأهيل الرياضي', duration: '35 دقيقة', type: 'pdf' }
-  ],
-  nanocad: [
-    { title: 'المحاضرة 1: واجهة برنامج nanoCAD وأدوات التخطيط الأساسية 2D', duration: '45 دقيقة', type: 'video' },
-    { title: 'المحاضرة 2: التعامل مع الطبقات والأبعاد وضبط الإخراج والطباعة والمقاييس', duration: '50 دقيقة', type: 'video' },
-    { title: 'المحاضرة 3: النمذجة ثلاثية الأبعاد والتصاميم الهندسية ثنائية التموضع', duration: '55 دقيقة', type: 'pdf' }
-  ]
-};
-
-export default function SubjectsView({ subjects, onToggleLecture }: SubjectsViewProps) {
+export default function SubjectsView({ subjects, onToggleLecture, subjectLecturesMap }: SubjectsViewProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
@@ -109,7 +52,7 @@ export default function SubjectsView({ subjects, onToggleLecture }: SubjectsView
       {/* Search Header */}
       <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
         <h1 className="text-xl font-extrabold text-brand-dark">المواد الدراسية</h1>
-        <p className="text-xs text-gray-500">متابعة الدروس والمحاضرات</p>
+        <p className="text-xs text-gray-500">متابعة المستندات والملفات المطلوبة</p>
       </div>
 
       {/* Styled Search Field */}
@@ -178,7 +121,7 @@ export default function SubjectsView({ subjects, onToggleLecture }: SubjectsView
                     <SubjectIcon type={sub.iconType} size={22} />
                     <div>
                       <h3 className="font-extrabold text-sm text-brand-dark">{sub.nameAr}</h3>
-                      <p className="text-[11px] text-gray-400 font-medium">عدد المحاضرات: {sub.lecturesCount} محاضرات</p>
+                      <p className="text-[11px] text-gray-400 font-medium font-sans">عدد ملفات المستندات المطلوبة: {sub.lecturesCount} مستندات</p>
                     </div>
                   </div>
 
@@ -218,10 +161,10 @@ export default function SubjectsView({ subjects, onToggleLecture }: SubjectsView
                             className={`flex-1 py-1.5 text-center text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
                               activeTabForSub === 'lectures'
                                 ? 'bg-brand-dark text-white shadow-sm dark:bg-slate-705'
-                                : 'text-gray-550 dark:text-slate-400 hover:text-brand-dark dark:hover:text-white'
+                                : 'text-gray-500 dark:text-slate-400 hover:text-brand-dark dark:hover:text-white'
                             }`}
                           >
-                            المحاضرات القياسية
+                            المستندات المطلوبة
                           </button>
                           <button
                             onClick={() => setSubTabs({ ...subTabs, [sub.id]: 'seminar' })}
@@ -317,7 +260,7 @@ export default function SubjectsView({ subjects, onToggleLecture }: SubjectsView
                       <div className="space-y-1 divide-y divide-gray-100 dark:divide-slate-800">
                         <p className="text-[11px] font-bold text-gray-400 pb-2 flex items-center gap-1">
                           <BookOpen size={13} className="text-brand-gold animate-pulse" />
-                          <span>قائمة المحاضرات ومخطط المنهج الدراسي:</span>
+                          <span>قائمة المستندات المطلوبة والمراجع المعتمدة:</span>
                         </p>
                         
                         {subLectures.map((lecture, i) => {

@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
-import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download } from 'lucide-react';
+import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield } from 'lucide-react';
 import { User as UserType } from '../types';
+import AdminDashboard from './AdminDashboard';
 
 interface ProfileViewProps {
   user: UserType;
   examHistoryCount: number;
   onLogout: () => void;
   onUpdateProfile: (updatedUser: UserType) => void;
-  onNavigateToTab: (tab: 'home' | 'exams' | 'subjects' | 'profile') => void;
+  onNavigateToTab: (tab: any) => void;
   darkMode: boolean;
   onToggleDarkMode: (enabled: boolean) => void;
   deferredPrompt: any;
   onInstallApp: () => void;
+  subjects: any[];
+  onUpdateSubjects: (updated: any[]) => void;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
+  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
 }
 
 type ActiveSection = 'none' | 'account' | 'subscription' | 'notifications' | 'support' | 'install';
@@ -26,12 +31,17 @@ export default function ProfileView({
   onToggleDarkMode,
   deferredPrompt,
   onInstallApp,
+  subjects,
+  onUpdateSubjects,
+  subjectLecturesMap,
+  onUpdateSubjectLectures,
 }: ProfileViewProps) {
   const [activeSubSection, setActiveSubSection] = useState<ActiveSection>('none');
   const [emailInput, setEmailInput] = useState(user.email);
   const [usernameInput, setUsernameInput] = useState(user.username);
   const [telegramInput, setTelegramInput] = useState(user.telegram || '');
   const [emailUpdated, setEmailUpdated] = useState(false);
+  const [profileViewTab, setProfileViewTab] = useState<'profile' | 'admin'>('profile');
   
   // Support state
   const [supportMsg, setSupportMsg] = useState('');
@@ -97,6 +107,48 @@ export default function ProfileView({
         <h1 className="text-xl font-extrabold text-brand-dark">الملف الشخصي</h1>
         <div className="w-9 h-9"></div> {/* Balancer spacer */}
       </div>
+
+      {user.email === 'abdulmlikoog@gmail.com' && (
+        <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-xl border border-gray-150 gap-1">
+          <button 
+            type="button"
+            onClick={() => setProfileViewTab('profile')}
+            className={`flex-1 py-1.5 text-center text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              profileViewTab === 'profile' 
+                ? 'bg-brand-dark dark:bg-brand-gold text-white dark:text-brand-dark shadow-sm' 
+                : 'text-gray-500 hover:text-brand-dark dark:text-gray-400 hover:bg-gray-50/50'
+            }`}
+          >
+            <User size={14} />
+            <span>عرض الحساب الشخصي</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setProfileViewTab('admin')}
+            className={`flex-1 py-1.5 text-center text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              profileViewTab === 'admin' 
+                ? 'bg-brand-dark dark:bg-brand-gold text-white dark:text-brand-dark shadow-sm' 
+                : 'text-gray-500 hover:text-brand-dark dark:text-gray-400 hover:bg-gray-50/50'
+            }`}
+          >
+            <Shield size={14} />
+            <span>لوحة التحكم في الشخصي</span>
+          </button>
+        </div>
+      )}
+
+      {user.email === 'abdulmlikoog@gmail.com' && profileViewTab === 'admin' ? (
+        <AdminDashboard 
+          user={user}
+          subjects={subjects}
+          onUpdateSubjects={onUpdateSubjects}
+          onNavigateToTab={onNavigateToTab}
+          subjectLecturesMap={subjectLecturesMap}
+          onUpdateSubjectLectures={onUpdateSubjectLectures}
+          isEmbedded={true}
+        />
+      ) : (
+        <>
 
       {/* Main Student Avatar Box */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 text-center space-y-3 shadow-sm">
@@ -492,6 +544,8 @@ export default function ProfileView({
         )}
 
       </div>
+      </>
+    )}
 
     </div>
   );

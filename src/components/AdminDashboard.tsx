@@ -30,6 +30,9 @@ interface AdminDashboardProps {
   subjects: Subject[];
   onUpdateSubjects: (updated: Subject[]) => void;
   onNavigateToTab: (tab: any) => void;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
+  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
+  isEmbedded?: boolean;
 }
 
 interface SimulatedStudent {
@@ -45,7 +48,10 @@ export default function AdminDashboard({
   user, 
   subjects, 
   onUpdateSubjects,
-  onNavigateToTab 
+  onNavigateToTab,
+  subjectLecturesMap,
+  onUpdateSubjectLectures,
+  isEmbedded = false
 }: AdminDashboardProps) {
   // Guard clause for safety
   if (user.email !== 'abdulmlikoog@gmail.com') {
@@ -80,6 +86,12 @@ export default function AdminDashboard({
   // Custom subject controls
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [editCompletedCount, setEditCompletedCount] = useState(0);
+
+  // Required documents dynamic states
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || 'math');
+  const [newDocTitle, setNewDocTitle] = useState('');
+  const [newDocDuration, setNewDocDuration] = useState('');
+  const [newDocType, setNewDocType] = useState<'pdf' | 'video'>('pdf');
 
   // Broadcast
   const [broadcastMessage, setBroadcastMessage] = useState('');
@@ -180,6 +192,46 @@ export default function AdminDashboard({
     alert('✓ تم تعديل المحاضرات المنجزة بنجاح لجميع الطلاب في سجلات المنصة.');
   };
 
+  const handlePublishDoc = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDocTitle.trim()) {
+      alert('الرجاء كتابة عنوان للمستند الجديد الدراسي.');
+      return;
+    }
+    
+    const newDoc = {
+      title: newDocTitle.trim(),
+      duration: newDocDuration.trim() || 'مستند مالي معتمد',
+      type: newDocType
+    };
+
+    const currentSubjectDocs = subjectLecturesMap[selectedSubjectId] || [];
+    const updatedDocs = [...currentSubjectDocs, newDoc];
+
+    const updatedMap = {
+      ...subjectLecturesMap,
+      [selectedSubjectId]: updatedDocs
+    };
+
+    onUpdateSubjectLectures(updatedMap);
+    
+    // Increment lecturesCount automatically for this subject of subjects list
+    const updatedSubjects = subjects.map(s => {
+      if (s.id === selectedSubjectId) {
+        return { ...s, lecturesCount: s.lecturesCount + 1 };
+      }
+      return s;
+    });
+    onUpdateSubjects(updatedSubjects);
+
+    const matchSubName = subjects.find(s => s.id === selectedSubjectId)?.nameAr || selectedSubjectId;
+    addLog(`تم نشر مستند مطلوب لمادة (${matchSubName}): ${newDoc.title}`);
+    
+    setNewDocTitle('');
+    setNewDocDuration('');
+    alert('✓ تم نشر وتعميم المستند الدراسي المطلوب بنجاح على جميع الطلاب!');
+  };
+
   const handleSendBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastMessage.trim()) return;
@@ -211,36 +263,38 @@ export default function AdminDashboard({
     <div className="space-y-6 text-right pb-10 select-none animate-fade-in" style={{ direction: 'rtl' }}>
       
       {/* Dynamic Header Badge & Real-time Info */}
-      <div className="bg-gradient-to-l from-brand-dark to-slate-800 dark:from-slate-900 dark:to-slate-950 p-5 rounded-3xl border border-brand-gold/25 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold/10 rounded-full blur-2xl" />
-        <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-brand-gold/5 rounded-full blur-xl" />
-        
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-450 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-brand-gold/20 text-brand-gold border border-brand-gold/30 px-2.5 py-0.5 rounded-full">
-                مركز التحكم المعتمد
-              </span>
+      {!isEmbedded && (
+        <div className="bg-gradient-to-l from-brand-dark to-slate-800 dark:from-slate-900 dark:to-slate-950 p-5 rounded-3xl border border-brand-gold/25 text-white shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-brand-gold/10 rounded-full blur-2xl" />
+          <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-brand-gold/5 rounded-full blur-xl" />
+          
+          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-450 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-brand-gold/20 text-brand-gold border border-brand-gold/30 px-2.5 py-0.5 rounded-full">
+                  مركز التحكم المعتمد
+                </span>
+              </div>
+              <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none font-sans">لوحة تحكم المشرف العام</h1>
+              <p className="text-[11px] text-gray-300 font-medium font-sans">
+                البريد النشط: <span className="font-mono text-brand-gold underline font-bold">abdulmlikoog@gmail.com</span>
+              </p>
             </div>
-            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none">لوحة تحكم المشرف العام</h1>
-            <p className="text-[11px] text-gray-300 font-medium">
-              البريد النشط: <span className="font-mono text-brand-gold underline font-bold">abdulmlikoog@gmail.com</span>
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2 bg-black/30 dark:bg-slate-900/40 border border-white/5 py-1.5 px-3 rounded-2xl self-start md:self-auto">
-            <Award size={16} className="text-brand-gold shrink-0 animate-bounce" />
-            <div className="text-right">
-              <p className="text-[9px] text-gray-300 font-bold leading-tight">حالة النظام المالي</p>
-              <p className="text-[11px] font-extrabold text-emerald-400">نشط ومتزامن 100%</p>
+            <div className="flex items-center gap-2 bg-black/30 dark:bg-slate-900/40 border border-white/5 py-1.5 px-3 rounded-2xl self-start md:self-auto">
+              <Award size={16} className="text-brand-gold shrink-0 animate-bounce" />
+              <div className="text-right">
+                <p className="text-[9px] text-gray-300 font-bold leading-tight">حالة النظام المالي</p>
+                <p className="text-[11px] font-extrabold text-emerald-400">نشط ومتزامن 100%</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Modern Bento Key Metric Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -304,7 +358,7 @@ export default function AdminDashboard({
       </div>
 
       {/* Grid containing Quick Telegram Broadcaster & Subjects Modification */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
         {/* Module 1: Broadcast Channel Messenger */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-4">
@@ -359,7 +413,7 @@ export default function AdminDashboard({
                 <BookMarked size={15} />
               </div>
               <div>
-                <h3 className="font-extrabold text-xs text-brand-dark dark:text-white">تجاوز نسبة محاضرات المواد الدراسية</h3>
+                <h3 className="font-extrabold text-xs text-brand-dark dark:text-white">تعديل العداد العام</h3>
                 <p className="text-[9px] text-gray-400">تعديل العداد العام لجميع المشتركين</p>
               </div>
             </div>
@@ -415,7 +469,7 @@ export default function AdminDashboard({
                         }}
                         className="text-[10px] font-black text-brand-blue hover:text-brand-gold bg-brand-blue/5 dark:bg-slate-805 px-2 py-0.5 rounded-md"
                       >
-                        تعديل العداد
+                        تعديل
                       </button>
                     </div>
                   )}
@@ -423,6 +477,82 @@ export default function AdminDashboard({
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Module 3: Dynamic Required Document Publisher */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-105 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-brand-blue flex items-center justify-center">
+                <PlusCircle size={15} className="text-brand-gold" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xs text-brand-dark dark:text-white">نشر مستند مطلوب جديد</h3>
+                <p className="text-[9px] text-gray-400">إدراج أوراق العمل والمذكرات للمادة</p>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handlePublishDoc} className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[9px] font-bold text-gray-400 block mb-1">المادة</label>
+                <select 
+                  value={selectedSubjectId}
+                  onChange={(e) => setSelectedSubjectId(e.target.value)}
+                  className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[10px] py-1.5 px-2 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-bold"
+                >
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.nameAr}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-gray-400 block mb-1">النوع</label>
+                <select 
+                  value={newDocType}
+                  onChange={(e) => setNewDocType(e.target.value as 'pdf' | 'video')}
+                  className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[10px] py-1.5 px-2 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-bold"
+                >
+                  <option value="pdf">ملف مرجعي / PDF</option>
+                  <option value="video">شرح مرئي / فيديو</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[9px] font-bold text-gray-400 block mb-0.5">عنوان المستند التعليمي</label>
+              <input 
+                type="text" 
+                required
+                value={newDocTitle}
+                onChange={(e) => setNewDocTitle(e.target.value)}
+                placeholder="مثال: ورقة عمل المحاضرة الثالثة"
+                className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[10px] py-1.5 px-3 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="text-[9px] font-bold text-gray-400 block mb-0.5">ملاحظة قصيرة</label>
+              <input 
+                type="text" 
+                required
+                value={newDocDuration}
+                onChange={(e) => setNewDocDuration(e.target.value)}
+                placeholder="مثال: ملخص شامل ومعتمد"
+                className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[10px] py-1.5 px-3 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-medium"
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-[11px] font-black transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center gap-1"
+            >
+              <PlusCircle size={13} />
+              <span>حفظ ونشر المستند المطلوب للمادة</span>
+            </button>
+          </form>
         </div>
 
       </div>

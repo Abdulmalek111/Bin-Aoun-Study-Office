@@ -31,6 +31,79 @@ export default function App() {
     return saved !== 'false';
   });
 
+  // Dynamic Required Documents (previously "Standard Lectures") state
+  const [subjectLectures, setSubjectLectures] = useState<Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>>(() => {
+    const saved = localStorage.getItem('school_subject_lectures');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback below
+      }
+    }
+    return {
+      math: [
+        { title: 'المستند المطلوب 1: حساب التفاضل والتكامل المتقدم', duration: 'مستند رئيسي معتمد', type: 'pdf' },
+        { title: 'المستند المطلوب 2: الدوال اللوغاريتمية والأسية', duration: 'ملخص الباب الأول', type: 'pdf' },
+        { title: 'المستند المطلوب 3: المصفوفات والمحددات في الجبر', duration: 'ورقة عمل شاملة', type: 'pdf' },
+        { title: 'المستند المطلوب 4: تطبيقات الهندسة الفراغية ثلاثية الأبعاد', duration: 'نموذج محلول وقابل للطباعة', type: 'pdf' },
+        { title: 'المستند المطلوب 5: مبادئ الإحصاء والاحتمالات', duration: 'ملخص شامل', type: 'pdf' },
+        { title: 'المستند المطلوب 6: حل المعادلات التفاضلية البسيطة', duration: 'اختبار تجريبي', type: 'pdf' },
+      ],
+      physics: [
+        { title: 'المستند المطلوب 1: الميكانيكا الكلاسيكية وقوانين الحركة والتسارع', duration: 'مذكرة القوانين وتحضير', type: 'pdf' },
+        { title: 'المستند المطلوب 2: الديناميكا الحرارية وتطبيقاتها العملي والفيزيائي', duration: 'ملخص معتمد', type: 'pdf' },
+        { title: 'المستند المطلوب 3: الكهربية الساكنة وقانون كولوم والشحنات', duration: 'تأسيس شامل', type: 'pdf' },
+        { title: 'المستند المطلوب 4: المغناطيسية وتطبيقات الحث الكهرومغناطيسي', duration: 'مرجع كامل', type: 'pdf' },
+      ],
+      chemistry: [
+        { title: 'المستند المطلوب 1: الكيمياء العضوية وتراكيب ذرات الكربون وعلاقتها', duration: 'ملخص الباب الأول', type: 'pdf' },
+        { title: 'المستند المطلوب 2: الجدول الدوري وتوصيف الروابط التساهمية والأيونية', duration: 'توزيع معتمد', type: 'pdf' },
+        { title: 'المستند المطلوب 3: معدلات التفاعلات الكيميائية ومفهوم الاتزان الكيميائي', duration: 'ورقة تدريب', type: 'pdf' },
+        { title: 'المستند المطلوب 4: الأحماض والقواعد ومقياس الرقم الهيدروجيني pH', duration: 'مستند معملي شامل', type: 'pdf' },
+      ],
+      english: [
+        { title: 'المستند المطلوب 1: قواعد الأزمنة وتراكيب الجمل الإنجليزية المعقدة', duration: 'مذكرة القواعد المعتمدة', type: 'pdf' },
+        { title: 'المستند المطلوب 2: مهارات الكتابة الأكاديمية وصياغة البحوث والتقارير', duration: 'تعبير متميز للترم جاري', type: 'pdf' },
+        { title: 'المستند المطلوب 3: مهارات الاستماع والمحادثة في البيئة الجامعية والمهنية', duration: 'دليلك القياسي والصوتي', type: 'pdf' },
+        { title: 'المستند المطلوب 4: القراءة السريعة وتحليل النصوص وفك رموز الكلمات المتقدمة', duration: 'اختبار تجريبي قياسي', type: 'pdf' },
+      ],
+      safety: [
+        { title: 'المستند المطلوب 1: مقدمة في سلامة الحياة وإدارة المخاطر والتهديدات', duration: 'حقيبة تفصيلية', type: 'pdf' },
+        { title: 'المستند المطلوب 2: الإجراءات الوقائية في حالات الطوارئ وخطط الإخلاء', duration: 'خارطة السلامة والأمن المعتمدة', type: 'pdf' },
+        { title: 'المستند المطلوب 3: الإسعافات الأولية والتعامل الفوري مع الإصابات الطارئة', duration: 'شرح مرئي وتطبيقي', type: 'video' }
+      ],
+      programming: [
+        { title: 'المستند المطلوب 1: مفاهيم البرمجة الأساسية وكتابة الأنماط النظيفة', duration: 'تأسيس بايثون وقواعد OOP', type: 'pdf' },
+        { title: 'المستند المطلوب 2: تحليل الخوارزميات وتصميم البنى البرمجية المعقدة', duration: 'توصيف البيانات والعمليات', type: 'pdf' },
+        { title: 'المستند المطلوب 3: مبادئ البرمجة كائنية التوجه OOP وتوزيع الصفوف', duration: 'المرجع الجامعي الشامل', type: 'pdf' }
+      ],
+      history: [
+        { title: 'المستند المطلوب 1: تأسيس الدولة الروسية والملوك الأوائل للبلاد', duration: 'ملخص التاريخ', type: 'pdf' },
+        { title: 'المستند المطلوب 2: روسيا القيصرية والتحولات السياسية الكبرى في القرن الـ 19', duration: 'ملحق الأحداث والقرارات للترم الحالي', type: 'pdf' }
+      ],
+      russian: [
+        { title: 'المستند المطلوب 1: الحروف الأبجدية الروسية واللفظ الصحيح للمقاطع', duration: 'حقيبة صوتية وحروف المبتدئ', type: 'pdf' },
+        { title: 'المستند المطلوب 2: تراكيب الجمل الحوارية والردود السريعة اليومية', duration: 'دليل المحادثة الشائعة المعتمد', type: 'pdf' },
+        { title: 'المستند المطلوب 3: قواعد جمع الأسماء وصياغة التفضيلات اللغوية', duration: 'أساسيات الصرف والنحو', type: 'pdf' }
+      ],
+      sports: [
+        { title: 'المستند المطلوب 1: اللياقة البدنية والتمارين الهوائية والصحة الغذائية المتكاملة', duration: 'كابتن معتمد لتأهيل مالي', type: 'pdf' },
+        { title: 'المستند المطلوب 2: طرق الوقاية من التشنجات والإصابات العضلية والتأهيل الرياضي', duration: 'ملخص حرق وتقوية عضلية', type: 'pdf' }
+      ],
+      nanocad: [
+        { title: 'المستند المطلوب 1: واجهة برنامج nanoCAD وأدوات التخطيط الأساسية 2D', duration: 'مذكرة الرسم الهندسي', type: 'pdf' },
+        { title: 'المستند المطلوب 2: التعامل مع الطبقات والأبعاد وضبط الإخراج والطباعة والمقاييس', duration: 'خطوات الرسم 2D & 3D', type: 'pdf' },
+        { title: 'المستند المطلوب 3: النمذجة ثلاثية الأبعاد والتصاميم الهندسية ثنائية التموضع', duration: 'حقيبة التصميم التفصيلية بالبرنامج', type: 'pdf' }
+      ]
+    };
+  });
+
+  // Persist Required Documents changes automatically
+  useEffect(() => {
+    localStorage.setItem('school_subject_lectures', JSON.stringify(subjectLectures));
+  }, [subjectLectures]);
+
   // Apply dark mode theme class
   useEffect(() => {
     if (darkMode) {
@@ -288,6 +361,7 @@ export default function App() {
                 <SubjectsView
                   subjects={subjects}
                   onToggleLecture={handleToggleLecture}
+                  subjectLecturesMap={subjectLectures}
                 />
               )}
 
@@ -316,6 +390,10 @@ export default function App() {
                   onToggleDarkMode={setDarkMode}
                   deferredPrompt={deferredPrompt}
                   onInstallApp={handleInstallApp}
+                  subjects={subjects}
+                  onUpdateSubjects={handleUpdateSubjects}
+                  subjectLecturesMap={subjectLectures}
+                  onUpdateSubjectLectures={setSubjectLectures}
                 />
               )}
 
@@ -325,6 +403,8 @@ export default function App() {
                   subjects={subjects}
                   onUpdateSubjects={handleUpdateSubjects}
                   onNavigateToTab={setActiveTab}
+                  subjectLecturesMap={subjectLectures}
+                  onUpdateSubjectLectures={setSubjectLectures}
                 />
               )}
             </div>
