@@ -17,6 +17,8 @@ interface ProfileViewProps {
   onUpdateSubjects: (updated: any[]) => void;
   subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
   onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
+  supportTickets: any[];
+  onUpdateSupportTickets: (tickets: any[]) => void;
 }
 
 type ActiveSection = 'none' | 'account' | 'subscription' | 'notifications' | 'support' | 'install';
@@ -35,6 +37,8 @@ export default function ProfileView({
   onUpdateSubjects,
   subjectLecturesMap,
   onUpdateSubjectLectures,
+  supportTickets,
+  onUpdateSupportTickets,
 }: ProfileViewProps) {
   const [activeSubSection, setActiveSubSection] = useState<ActiveSection>('none');
   const [emailInput, setEmailInput] = useState(user.email);
@@ -83,15 +87,97 @@ export default function ProfileView({
     setTimeout(() => setEmailUpdated(false), 2000);
   };
 
-  const handleSendSupport = (e: React.FormEvent) => {
+  // Interactive ticket reply states
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [ticketReplyMsg, setTicketReplyMsg] = useState('');
+
+  const handleSendSupport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (supportMsg.trim() === '') return;
-    setSupportSuccess(true);
+
+    const messageText = supportMsg.trim();
+    const newTicketId = 't-' + Date.now();
+    const today = new Date();
+    const timestampStr = `${today.getFullYear()}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
+    
+    const newTicketObj = {
+      id: newTicketId,
+      studentName: user.username,
+      studentEmail: user.email,
+      studentTelegram: user.telegram || '@غير-معرف',
+      message: messageText,
+      timestamp: timestampStr,
+      replies: [
+        { sender: 'student', text: messageText, timestamp: timestampStr }
+      ],
+      status: 'open'
+    };
+
+    const updated = [...supportTickets, newTicketObj];
+    onUpdateSupportTickets(updated);
+    setSelectedTicketId(newTicketId);
     setSupportMsg('');
-    setTimeout(() => {
-      setSupportSuccess(false);
-      setActiveSubSection('none');
-    }, 2500);
+    setSupportSuccess(true);
+    setTimeout(() => setSupportSuccess(false), 3000);
+
+    // Live Integration with Telegram Bot API
+    try {
+      const tgMsg = `🔔 طلب دعم أكاديمي وتواصل 🔔\n\n👤 الطالب: ${user.username}\n📧 البريد المالي: ${user.email}\n📱 تليجرام الطالب: ${user.telegram || 'غير محدد'}\n\n💬 الرسالة:\n"${messageText}"\n\n🔗 رابط المتابعة والرد: https://t.me/binawnofficeru`;
+      const botToken = "8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk";
+      const chatId = "@binawnofficeru";
+
+      // Fire HTTP call asynchronously
+      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: tgMsg
+        })
+      }).then(r => r.json())
+        .then(data => console.log('Support telegram response:', data))
+        .catch(err => console.warn('Support telegram send warning:', err));
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const handleSendTicketReply = (ticketId: string) => {
+    if (!ticketReplyMsg.trim()) return;
+    const txt = ticketReplyMsg.trim();
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    const updated = supportTickets.map(t => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          status: 'open', // goes back to open if student replies
+          replies: [...t.replies, { sender: 'student', text: txt, timestamp: timeStr }]
+        };
+      }
+      return t;
+    });
+
+    onUpdateSupportTickets(updated);
+    setTicketReplyMsg('');
+
+    // Send brief warning to Telegram that student followed up
+    try {
+      const matchT = supportTickets.find(t => t.id === ticketId);
+      const tgMsg = `💬 متابعة دعم فني جديدة من الطالب ${user.username} 💬\n\n💬 الرسالة الجديدة:\n"${txt}"`;
+      const botToken = "8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk";
+      const chatId = "@binawnofficeru";
+      
+      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: tgMsg
+        })
+      });
+    } catch(e){}
   };
 
   return (
@@ -146,6 +232,8 @@ export default function ProfileView({
           subjectLecturesMap={subjectLecturesMap}
           onUpdateSubjectLectures={onUpdateSubjectLectures}
           isEmbedded={true}
+          supportTickets={supportTickets}
+          onUpdateSupportTickets={onUpdateSupportTickets}
         />
       ) : (
         <>
@@ -292,33 +380,170 @@ export default function ProfileView({
 
           {/* Help & Support Subview */}
           {activeSubSection === 'support' && (
-            <form onSubmit={handleSendSupport} className="space-y-2.5">
-              {supportSuccess ? (
-                <div className="text-center py-2 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100">
-                  تم إرسال بطاقة الدعم في الملف الدراسي برقم #8542. سنقوم بالرد عليك قريباً!
+            <div className="space-y-4">
+              
+              {/* Telegram Link Buttons as requested */}
+              <div className="p-3 bg-gradient-to-r from-blue-500/10 to-blue-600/15 border border-blue-400/20 rounded-2xl space-y-2 text-right" style={{ direction: 'rtl' }}>
+                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="text-[11px] font-black">الدعم الفني عبر تليجرام المباشر</span>
                 </div>
-              ) : (
-                <>
-                  <p className="text-[10px] text-gray-500 leading-normal">
-                    اكتب سؤالك أو الشكوى الخاصة بك بخصوص المواد أو الاختبارات التجريبية، وسيقوم المشرف بالتواصل معك فوراً في البريد الإلكتروني.
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed font-bold">
+                  يمكنك التواصل المباشر مع البوت المالي المعتمد والإدارة فوراً عبر معرف تليجرام الموحد:
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <a
+                    href="https://t.me/binawnofficeru"
+                    target="_blank"
+                    referrerPolicy="no-referrer"
+                    className="flex-1 py-1.5 bg-[#229ED9] hover:bg-[#1a85b8] text-white rounded-xl text-center text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                  >
+                    <span>الدخول للقناة الموحدة</span>
+                    <span className="font-mono">@binawnofficeru</span>
+                  </a>
+                  <a
+                    href="https://t.me/binawnofficerubot"
+                    target="_blank"
+                    referrerPolicy="no-referrer"
+                    className="flex-1 py-1.5 bg-[#40a7e2] hover:bg-[#3492c7] text-white rounded-xl text-center text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                  >
+                    <span>مراسلة البوت المالي المعتمد</span>
+                    <span className="font-mono">@binawnofficerubot</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* In-app tickets conversation stream */}
+              <div className="space-y-3 pt-1 text-right" style={{ direction: 'rtl' }}>
+                <h5 className="text-[11px] font-black text-brand-dark dark:text-slate-200 border-b border-gray-150 dark:border-slate-800 pb-1 flex items-center gap-1.5">
+                  <span>📨 تذاكر واستفسارات الدعم الفني الحالية بالموقع:</span>
+                </h5>
+
+                {supportTickets.filter(t => t.studentEmail === user.email).length === 0 ? (
+                  <p className="text-[10px] text-gray-400 text-center font-bold py-2">
+                    لا توجد تذاكر دعم فني سابقة لك حالياً. استخدم النموذج أدناه لطلب الدعم الفوري.
                   </p>
+                ) : (
+                  <div className="space-y-3.5 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+                    {supportTickets.filter(t => t.studentEmail === user.email).map((ticket) => {
+                      const isOpened = selectedTicketId === ticket.id;
+                      return (
+                        <div key={ticket.id} className="bg-white dark:bg-slate-900 border border-gray-150/60 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+                          {/* Ticket Header trigger */}
+                          <div 
+                            onClick={() => setSelectedTicketId(selectedTicketId === ticket.id ? null : ticket.id)}
+                            className="p-3 bg-gray-50/50 dark:bg-slate-850 flex items-center justify-between cursor-pointer hover:bg-gray-100/40"
+                          >
+                            <div className="space-y-0.5 text-right">
+                              <p className="text-[11px] font-black text-brand-dark dark:text-white line-clamp-1">
+                                {ticket.message}
+                              </p>
+                              <p className="text-[9px] text-gray-400 font-bold font-mono">
+                                تاريخ التذكرة: {ticket.timestamp}
+                              </p>
+                            </div>
+
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                              ticket.status === 'answered'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450'
+                                : 'bg-amber-50 text-brand-gold dark:bg-amber-950/25'
+                            }`}>
+                              {ticket.status === 'answered' ? 'تم الرد ✓' : 'بانتظار المشرف'}
+                            </span>
+                          </div>
+
+                          {/* Chat Window Box */}
+                          {isOpened && (
+                            <div className="p-3 border-t border-gray-100 dark:border-slate-800 space-y-3.5 bg-gray-50/20 dark:bg-slate-900/60 text-right" style={{ direction: 'rtl' }}>
+                              <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1 no-scrollbar flex flex-col">
+                                {ticket.replies.map((rep: any, idx: number) => {
+                                  const isAdmin = rep.sender === 'admin';
+                                  return (
+                                    <div 
+                                      key={idx} 
+                                      className={`flex flex-col max-w-[85%] ${
+                                        isAdmin ? 'self-start text-right' : 'self-end text-right'
+                                      }`}
+                                    >
+                                      <span className="text-[8px] text-gray-400 font-bold mb-0.5 px-1.5 block">
+                                        {isAdmin ? '🛡️ المشرف الأستاذ عبدالملك' : '👤 أنت'}
+                                      </span>
+                                      <div className={`p-2.5 rounded-2xl text-[11px] leading-relaxed ${
+                                        isAdmin
+                                          ? 'bg-amber-500/10 text-brand-dark dark:text-white border-r-2 border-brand-gold rounded-tr-none'
+                                          : 'bg-brand-dark text-white rounded-tr-none'
+                                      }`}>
+                                        {rep.text}
+                                      </div>
+                                      <span className="text-[7px] text-gray-400 font-mono mt-0.5 px-1">
+                                        {rep.timestamp}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Student Live Chat Reply Form */}
+                              <div className="flex gap-1.5 pt-1.5 border-t border-gray-100 dark:border-slate-800">
+                                <input 
+                                  type="text"
+                                  value={ticketReplyMsg}
+                                  onChange={(e) => setTicketReplyMsg(e.target.value)}
+                                  placeholder="اكتب ردك الأكاديمي أو المالي هنا..."
+                                  className="flex-1 bg-white dark:bg-slate-850 border border-gray-200 dark:border-slate-850 rounded-xl text-[11px] px-3 py-1.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white placeholder:text-[10px]"
+                                  onKeyDown={(e) => {
+                                    if(e.key === 'Enter') handleSendTicketReply(ticket.id);
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendTicketReply(ticket.id)}
+                                  className="px-3 py-1.5 bg-brand-dark dark:bg-brand-gold text-white dark:text-brand-dark font-extrabold text-[10px] rounded-xl cursor-pointer"
+                                >
+                                  إرسال
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Submit a completely new ticket forms */}
+              <div className="border-t border-gray-150 dark:border-slate-800 pt-3 space-y-2 text-right">
+                <p className="text-[11px] font-black text-brand-dark dark:text-slate-200">
+                  ✏️ فتح واستفسار ببطاقة دعم جديدة:
+                </p>
+                
+                <form onSubmit={handleSendSupport} className="space-y-2">
+                  {supportSuccess ? (
+                    <div className="text-center py-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100">
+                      ✓ تم تسجيل تذكرتك بنجاح وبثها فوراً لتليجرام الإدارة !
+                    </div>
+                  ) : null}
+
                   <textarea 
                     required 
                     value={supportMsg} 
                     onChange={(e) => setSupportMsg(e.target.value)} 
-                    rows={3} 
-                    placeholder="اكتب رسالتك أو استفسارك هنا تفصيلاً..."
-                    className="w-full bg-white border border-gray-200 rounded-lg text-xs p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold"
+                    rows={2} 
+                    placeholder="اكتب تفاصيل استفسارك أو مشكلتك الفنية والمالية هنا للرد التلقائي..."
+                    className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-[11px] p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
                   ></textarea>
+
                   <button 
                     type="submit" 
-                    className="w-full py-2 bg-brand-gold text-white rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
+                    className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-[11px] font-black transition-all cursor-pointer text-center"
                   >
-                    إرسال بطاقة الدعم الفني
+                    إرسال استفسار جديد وبثه للتلجرام
                   </button>
-                </>
-              )}
-            </form>
+                </form>
+              </div>
+
+            </div>
           )}
 
           {/* PWA App Installation Subview */}

@@ -6,7 +6,7 @@ import SubjectIcon from './SubjectIcon';
 interface SubjectsViewProps {
   subjects: Subject[];
   onToggleLecture: (subjectId: string, lectureIndex: number) => void;
-  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; link?: string }[]>;
 }
 
 export default function SubjectsView({ subjects, onToggleLecture, subjectLecturesMap }: SubjectsViewProps) {
@@ -197,7 +197,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                       <CheckCircle2 size={17} className="fill-current stroke-white" />
                                     </button>
                                     <div>
-                                      <p className={`font-bold ${isCompleted ? 'text-gray-400 line-through dark:text-slate-500' : 'text-brand-dark'}`}>
+                                      <p className={`font-bold ${isCompleted ? 'text-gray-400 line-through dark:text-slate-500' : 'text-brand-dark dark:text-gray-100'}`}>
                                         {lecture.title}
                                       </p>
                                       <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
@@ -206,12 +206,23 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                       </span>
                                     </div>
                                   </div>
-                                  <button 
-                                    onClick={() => alert(`بدء عرض المحتوى لـ ${lecture.title}...`)}
-                                    className="text-[10px] font-bold text-brand-blue hover:text-brand-gold bg-white border border-gray-100 px-2 py-0.5 rounded dark:bg-slate-800 dark:border-slate-700"
-                                  >
-                                    عرض
-                                  </button>
+                                  {lecture.link ? (
+                                    <a 
+                                      href={lecture.link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] font-black text-blue-600 hover:text-blue-500 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                                    >
+                                      تحميل 🔗
+                                    </a>
+                                  ) : (
+                                    <button 
+                                      onClick={() => alert(`بدء عرض المحتوى لـ ${lecture.title}...`)}
+                                      className="text-[10px] font-bold text-brand-blue hover:text-brand-gold bg-white border border-gray-100 px-2 py-0.5 rounded dark:bg-slate-800 dark:border-slate-700 cursor-pointer"
+                                    >
+                                      عرض
+                                    </button>
+                                  )}
                                 </div>
                               );
                             })}
@@ -282,7 +293,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                   <CheckCircle2 size={17} className="fill-current stroke-white" />
                                 </button>
                                 <div>
-                                  <p className={`font-bold ${isCompleted ? 'text-gray-400 line-through dark:text-slate-500' : 'text-brand-dark'}`}>
+                                  <p className={`font-bold ${isCompleted ? 'text-gray-400 line-through dark:text-slate-500' : 'text-brand-dark dark:text-gray-100'}`}>
                                     {lecture.title}
                                   </p>
                                   <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
@@ -292,12 +303,23 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                 </div>
                               </div>
 
-                              <button 
-                                onClick={() => alert(`بدء عرض المحتوى لـ ${lecture.title}...`)}
-                                className="text-[10px] font-bold text-brand-blue hover:text-brand-gold bg-white border border-gray-100 px-2 py-0.5 rounded dark:bg-slate-800 dark:border-slate-700"
-                              >
-                                عرض
-                              </button>
+                              {lecture.link ? (
+                                <a 
+                                  href={lecture.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] font-black text-blue-600 hover:text-blue-500 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  تحميل 🔗
+                                </a>
+                              ) : (
+                                <button 
+                                  onClick={() => alert(`بدء عرض المحتوى لـ ${lecture.title}...`)}
+                                  className="text-[10px] font-bold text-brand-blue hover:text-brand-gold bg-white border border-gray-100 px-2 py-0.5 rounded dark:bg-slate-800 dark:border-slate-700 cursor-pointer"
+                                >
+                                  عرض
+                                </button>
+                              )}
                             </div>
                           );
                         })}

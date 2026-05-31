@@ -30,9 +30,11 @@ interface AdminDashboardProps {
   subjects: Subject[];
   onUpdateSubjects: (updated: Subject[]) => void;
   onNavigateToTab: (tab: any) => void;
-  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
-  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; link?: string }[]>;
+  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; link?: string }[]>) => void;
   isEmbedded?: boolean;
+  supportTickets: any[];
+  onUpdateSupportTickets: (tickets: any[]) => void;
 }
 
 interface SimulatedStudent {
@@ -51,7 +53,9 @@ export default function AdminDashboard({
   onNavigateToTab,
   subjectLecturesMap,
   onUpdateSubjectLectures,
-  isEmbedded = false
+  isEmbedded = false,
+  supportTickets,
+  onUpdateSupportTickets
 }: AdminDashboardProps) {
   // Guard clause for safety
   if (user.email !== 'abdulmlikoog@gmail.com') {
@@ -92,6 +96,11 @@ export default function AdminDashboard({
   const [newDocTitle, setNewDocTitle] = useState('');
   const [newDocDuration, setNewDocDuration] = useState('');
   const [newDocType, setNewDocType] = useState<'pdf' | 'video'>('pdf');
+  const [newDocLink, setNewDocLink] = useState('');
+
+  // Admin Support Chat States
+  const [selectedAdminTicketId, setSelectedAdminTicketId] = useState<string | null>(null);
+  const [adminReplyText, setAdminReplyText] = useState('');
 
   // Broadcast
   const [broadcastMessage, setBroadcastMessage] = useState('');
@@ -202,7 +211,8 @@ export default function AdminDashboard({
     const newDoc = {
       title: newDocTitle.trim(),
       duration: newDocDuration.trim() || 'مستند مالي معتمد',
-      type: newDocType
+      type: newDocType,
+      link: newDocLink.trim() || undefined
     };
 
     const currentSubjectDocs = subjectLecturesMap[selectedSubjectId] || [];
@@ -229,6 +239,7 @@ export default function AdminDashboard({
     
     setNewDocTitle('');
     setNewDocDuration('');
+    setNewDocLink('');
     alert('✓ تم نشر وتعميم المستند الدراسي المطلوب بنجاح على جميع الطلاب!');
   };
 
@@ -244,6 +255,38 @@ export default function AdminDashboard({
       setBroadcastMessage('');
       alert('🚀 تم إرسال الإشعار والتنبيه المباشر لجميع قنوات وتليجرام الطلاب المسجلين بالكامل!');
     }, 1200);
+  };
+
+  // Support Ticketing Management Actions
+  const handleSendAdminReply = (ticketId: string) => {
+    if (!adminReplyText.trim()) return;
+    const txt = adminReplyText.trim();
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    const updated = supportTickets.map(t => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          status: 'answered',
+          replies: [...t.replies, { sender: 'admin', text: txt, timestamp: timeStr }]
+        };
+      }
+      return t;
+    });
+
+    onUpdateSupportTickets(updated);
+    setAdminReplyText('');
+    addLog(`تم الرد على شات تذكرة الطالب: ${ticketId}`);
+  };
+
+  const handleDeleteTicket = (ticketId: string) => {
+    if (confirm('هل أنت متأكد من حذف هذه المحادثة بالكامل نهائياً؟')) {
+      const updated = supportTickets.filter(t => t.id !== ticketId);
+      onUpdateSupportTickets(updated);
+      setSelectedAdminTicketId(null);
+      addLog(`تم حذف تذكرة الدعم: ${ticketId}`);
+    }
   };
 
   // Safe Stats Compute
@@ -545,6 +588,18 @@ export default function AdminDashboard({
               />
             </div>
 
+            <div>
+              <label className="text-[9px] font-bold text-gray-400 block mb-0.5">رابط المستند / الرابط الخارجي السريع (اختياري)</label>
+              <input 
+                type="url" 
+                value={newDocLink}
+                onChange={(e) => setNewDocLink(e.target.value)}
+                placeholder="مثال: https://drive.google.com/..."
+                className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[10px] py-1.5 px-3 rounded-xl text-left focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-medium focus:text-right"
+                style={{ direction: 'ltr' }}
+              />
+            </div>
+
             <button 
               type="submit" 
               className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-[11px] font-black transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center gap-1"
@@ -553,12 +608,197 @@ export default function AdminDashboard({
               <span>حفظ ونشر المستند المطلوب للمادة</span>
             </button>
           </form>
+
+          {/* Dynamic document controller section as requested: making admin can control all documents */}
+          <div className="border-t border-gray-100 dark:border-slate-800 pt-3 mt-2 text-right">
+            <h4 className="text-[10px] font-black text-brand-dark dark:text-slate-200 mb-2 flex items-center justify-between">
+              <span>📚 التحكم وحذف المستندات الحالية للمادة المحددة:</span>
+              <span className="text-[8px] text-gray-400">({(subjectLecturesMap[selectedSubjectId] || []).length} مستندات)</span>
+            </h4>
+            
+            <div className="space-y-1.5 max-h-[160px] overflow-y-auto no-scrollbar pr-1">
+              {(subjectLecturesMap[selectedSubjectId] || []).length === 0 ? (
+                <p className="text-[9px] text-gray-400 font-bold text-center py-2">لا توجد مستندات منشورة لهذه المادة حالياً.</p>
+              ) : (
+                (subjectLecturesMap[selectedSubjectId] || []).map((doc, dIdx) => (
+                  <div key={dIdx} className="flex items-center justify-between text-[10px] p-2 bg-gray-55/40 dark:bg-slate-850 rounded-xl border border-gray-100 dark:border-slate-800/80">
+                    <div className="space-y-0.5 text-right flex-1">
+                      <span className="font-extrabold text-gray-750 dark:text-gray-200 block line-clamp-1">{doc.title}</span>
+                      <span className="text-[8px] text-gray-400 font-bold flex items-center gap-1">
+                        <span>{doc.duration}</span>
+                        {doc.link && <span className="text-blue-500 font-black">🔗 (رابط خارجي)</span>}
+                      </span>
+                    </div>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const confirmation = window.confirm(`هل تريد بالتأكيد حذف المستند الدراسي المطلوب التالي وبثه من الفهارس الطلابية؟\n\n"${doc.title}"`);
+                        if (confirmation) {
+                          const currentMapDocs = subjectLecturesMap[selectedSubjectId] || [];
+                          const updated = currentMapDocs.filter((_, idx) => idx !== dIdx);
+                          onUpdateSubjectLectures({
+                            ...subjectLecturesMap,
+                            [selectedSubjectId]: updated
+                          });
+                          
+                          // Decrement count
+                          const updatedSubjects = subjects.map(s => {
+                            if (s.id === selectedSubjectId) {
+                              return { ...s, lecturesCount: Math.max(0, s.lecturesCount - 1) };
+                            }
+                            return s;
+                          });
+                          onUpdateSubjects(updatedSubjects);
+                          addLog(`تم حذف مستند مطلوب لمادة (${selectedSubjectId}): ${doc.title}`);
+                        }
+                      }}
+                      className="p-1 px-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg cursor-pointer transition-colors shrink-0"
+                      title="حذف المستند نهائياً"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
       </div>
 
-      {/* Main Student Database Listing & Administration Container */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-4">
+      {/* Dynamic 2-column Grid for Students Database and Support tickets messaging */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        
+        {/* Column Left: Support Chat Center (1/3 space) */}
+        <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-4 text-right" style={{ direction: 'rtl' }}>
+          <div className="flex items-center justify-between border-b border-gray-105 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                <Users size={15} className="text-rose-500" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xs text-brand-dark dark:text-white">شات واستفسارات الدعم الفني</h3>
+                <p className="text-[9px] text-gray-400">الرد ومتابعة بطاقات الطلاب الفورية</p>
+              </div>
+            </div>
+          </div>
+
+          {/* List of active tickets */}
+          <div className="space-y-2">
+            <p className="text-[10px] text-gray-400 leading-normal font-bold">📂 حدد بطاقة طالب لفتح نافذة الشات المباشر المزامنة:</p>
+            
+            <div className="space-y-1.5 max-h-[170px] overflow-y-auto no-scrollbar pr-1">
+              {supportTickets.length === 0 ? (
+                <p className="text-[10px] text-gray-400 text-center font-bold py-3">لا توجد بطاقات دعم فني واردة حالياً.</p>
+              ) : (
+                supportTickets.map((ticket) => {
+                  const isActive = selectedAdminTicketId === ticket.id;
+                  return (
+                    <div
+                      key={ticket.id}
+                      onClick={() => {
+                        setSelectedAdminTicketId(ticket.id === selectedAdminTicketId ? null : ticket.id);
+                      }}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer text-right ${
+                        isActive 
+                          ? 'bg-amber-500/10 border-brand-gold' 
+                          : 'bg-gray-50/50 dark:bg-slate-850 hover:bg-gray-100/50 dark:hover:bg-slate-800 border-gray-150/60 dark:border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-[10px] text-brand-dark dark:text-white">{ticket.studentName}</span>
+                        <span className={`text-[8px] font-black px-1.5 py-0.2 rounded-full ${
+                          ticket.status === 'answered'
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/25 dark:text-emerald-400'
+                            : 'bg-amber-50 text-brand-gold dark:bg-amber-950/20'
+                        }`}>
+                          {ticket.status === 'answered' ? 'تم الرد' : 'معلق'}
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-gray-400 truncate mt-1">"{ticket.message}"</p>
+                      <div className="flex justify-between items-center mt-1 pt-1 border-t border-gray-100/50 dark:border-slate-800/50 text-[8px] text-gray-400">
+                        <span>📱 {ticket.studentTelegram || 'لم يدخل'}</span>
+                        <span className="font-mono">{ticket.timestamp}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Chat Window Dialog for selected ticket */}
+          {selectedAdminTicketId && (
+            (() => {
+              const ticket = supportTickets.find(t => t.id === selectedAdminTicketId);
+              if (!ticket) return null;
+              return (
+                <div className="pt-3 border-t border-gray-100 dark:border-slate-800 space-y-3 bg-gray-55/35 dark:bg-slate-850/30 p-2.5 rounded-xl text-right">
+                  <div className="flex justify-between items-center text-[9px] font-bold text-gray-400">
+                    <span>💬 محادثة الطالب: {ticket.studentName}</span>
+                    <button 
+                      onClick={() => handleDeleteTicket(ticket.id)}
+                      className="text-red-550 hover:text-red-700 font-bold"
+                    >
+                      حذف الاستفسار ❌
+                    </button>
+                  </div>
+
+                  {/* Message bubbles list */}
+                  <div className="space-y-2 max-h-[140px] overflow-y-auto no-scrollbar pr-1 flex flex-col">
+                    {ticket.replies.map((rep: any, idx: number) => {
+                      const isMe = rep.sender === 'admin';
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`flex flex-col max-w-[85%] ${
+                            isMe ? 'self-start text-right' : 'self-end text-right'
+                          }`}
+                        >
+                          <span className="text-[7px] text-gray-405 font-black mb-0.5 block px-1">
+                            {isMe ? '🛡️ أنت (المشرف عبدالملك)' : `👤 ${ticket.studentName}`}
+                          </span>
+                          <div className={`p-2 rounded-xl text-[10px] leading-relaxed ${
+                            isMe 
+                              ? 'bg-brand-dark text-white rounded-tr-none' 
+                              : 'bg-amber-500/15 text-brand-dark dark:text-white border-r-2 border-brand-gold rounded-tl-none'
+                          }`}>
+                            {rep.text}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Reply Input block */}
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={adminReplyText}
+                      onChange={(e) => setAdminReplyText(e.target.value)}
+                      placeholder="اكتب رد الأستاذ عبدالملك هنا..."
+                      className="flex-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-[10px] px-2.5 py-1.5 focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white placeholder:text-[9px] text-right"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSendAdminReply(ticket.id);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSendAdminReply(ticket.id)}
+                      className="px-2.5 py-1 bg-brand-gold hover:bg-yellow-600 text-white font-extrabold text-[9px] rounded-xl flex items-center justify-center cursor-pointer shadow-sm"
+                    >
+                      إرسال الرد
+                    </button>
+                  </div>
+                </div>
+              );
+            })()
+          )}
+        </div>
+
+        {/* Column Right: Student Database and balances (2/3 space) */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-4">
         
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-105 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
@@ -707,6 +947,8 @@ export default function AdminDashboard({
           </button>
         </form>
       </div>
+
+    </div>
 
       {/* System Live Logger Console */}
       <div className="bg-brand-dark text-emerald-400 p-4 rounded-2xl font-mono text-[9px] space-y-2 shadow-inner border border-white/5">

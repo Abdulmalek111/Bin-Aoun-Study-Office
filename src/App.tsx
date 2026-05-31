@@ -104,6 +104,49 @@ export default function App() {
     localStorage.setItem('school_subject_lectures', JSON.stringify(subjectLectures));
   }, [subjectLectures]);
 
+  // Persistent Support Tickets State
+  const [supportTickets, setSupportTickets] = useState<any[]>(() => {
+    const saved = localStorage.getItem('school_support_tickets');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [
+      {
+        id: 't-1',
+        studentName: 'أحمد الصالح',
+        studentEmail: 'ahmed.salih@gmail.com',
+        studentTelegram: '@ahmed_salih99',
+        message: 'مرحباً، أواجه صعوبة في تشغيل بعض محاضرات الفيديو لمادة سلامة الحياة على جهازي.',
+        timestamp: '2026/05/31 10:15',
+        replies: [
+          { sender: 'student', text: 'مرحباً، أواجه صعوبة في تشغيل بعض محاضرات الفيديو لمادة سلامة الحياة على جهازي.', timestamp: '2026/05/31 10:15' }
+        ],
+        status: 'open'
+      },
+      {
+        id: 't-2',
+        studentName: 'سارة العتيبي',
+        studentEmail: 'sara.otb@outlook.com',
+        studentTelegram: '@sara_otb',
+        message: 'لو سمحت يا أستاذ عبدالملك، متى موعد الاختبار التجريبي النهائي في مادة البرمجة؟ وشكراً جزيلاً.',
+        timestamp: '2026/05/31 11:42',
+        replies: [
+          { sender: 'student', text: 'لو سمحت يا أستاذ عبدالملك، متى موعد الاختبار التجريبي النهائي في مادة البرمجة؟ وشكراً جزيلاً.', timestamp: '2026/05/31 11:42' },
+          { sender: 'admin', text: 'مرحباً سارة، تم إدراج الاختبار التجريبي الجديد في قائمة الاختبارات وهو متاح للتقديم في أي وقت للتدرب.', timestamp: '2026/05/31 12:00' }
+        ],
+        status: 'answered'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_support_tickets', JSON.stringify(supportTickets));
+  }, [supportTickets]);
+
   // Apply dark mode theme class
   useEffect(() => {
     if (darkMode) {
@@ -394,6 +437,8 @@ export default function App() {
                   onUpdateSubjects={handleUpdateSubjects}
                   subjectLecturesMap={subjectLectures}
                   onUpdateSubjectLectures={setSubjectLectures}
+                  supportTickets={supportTickets}
+                  onUpdateSupportTickets={setSupportTickets}
                 />
               )}
 
@@ -405,6 +450,8 @@ export default function App() {
                   onNavigateToTab={setActiveTab}
                   subjectLecturesMap={subjectLectures}
                   onUpdateSubjectLectures={setSubjectLectures}
+                  supportTickets={supportTickets}
+                  onUpdateSupportTickets={setSupportTickets}
                 />
               )}
             </div>
