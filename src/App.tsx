@@ -26,7 +26,8 @@ export default function App() {
   const [examHistory, setExamHistory] = useState<{ examTitle: string; scorePct: number; date: string; timeUsed: string }[]>([]);
   const [authScreen, setAuthScreen] = useState<'welcome' | 'login' | 'register'>('welcome');
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem('school_dark_mode') === 'true';
+    const saved = localStorage.getItem('school_dark_mode');
+    return saved !== 'false';
   });
 
   // Apply dark mode theme class
@@ -238,7 +239,7 @@ export default function App() {
       <div className={`w-full max-w-[460px] transition-all duration-500 ${!user ? 'bg-brand-dark border-transparent shadow-2xl shadow-black/40' : 'bg-white border-gray-100 shadow-2xl'} h-screen md:h-[880px] md:max-h-[880px] md:rounded-[36px] overflow-hidden flex flex-col justify-between border relative`}>
         
         {/* Main Content Area */}
-        <div className={`flex-grow overflow-y-auto no-scrollbar flex flex-col justify-between ${!user ? 'p-0' : 'px-5 py-5'}`}>
+        <div className={`flex-grow overflow-y-auto no-scrollbar flex flex-col justify-between ${!user ? 'p-0' : 'px-4 py-3.5'}`}>
           
           {!user ? (
             authScreen === 'welcome' ? (
