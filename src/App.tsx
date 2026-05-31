@@ -105,10 +105,33 @@ export default function App() {
     }
   }, []);
 
+  // Listen to Firebase Authenticated state
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    import('./firebase').then(({ auth }) => {
+      unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+        if (firebaseUser) {
+          const u: User = {
+            username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'مستخدم جوجل',
+            email: firebaseUser.email || '',
+            avatarUrl: firebaseUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(firebaseUser.displayName || 'G')}&backgroundColor=1b365d,c9a24a`,
+            isLoggedIn: true,
+          };
+          setUser(u);
+          localStorage.setItem('school_user', JSON.stringify(u));
+        }
+      });
+    }).catch(e => console.log("Firebase listener not loaded yet"));
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   // Sync state functions
-  const handleLoginSuccess = (username: string, email: string) => {
-    // Premium custom avatar generated from initial letter
-    const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=1b365d,c9a24a`;
+  const handleLoginSuccess = (username: string, email: string, customAvatarUrl?: string) => {
+    // Premium custom avatar generated from initial letter if customAvatarUrl not provided
+    const avatar = customAvatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=1b365d,c9a24a`;
     const loggedUser: User = {
       username,
       email,
@@ -129,6 +152,11 @@ export default function App() {
     localStorage.removeItem('school_remembered_user');
     localStorage.removeItem('school_remembered_pass');
     // Keep study material and exam histories linked to device for persistent enjoyment
+
+    // Sign out from Firebase Auth
+    import('./firebase').then(({ auth }) => {
+      auth.signOut().catch(err => console.error("Error signing out from Firebase:", err));
+    }).catch(e => console.log("Firebase not loaded yet"));
   };
 
   const handleUpdateEmail = (newEmail: string) => {
