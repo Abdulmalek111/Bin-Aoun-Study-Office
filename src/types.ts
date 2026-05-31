@@ -8,6 +8,7 @@ export interface User {
   email: string;
   avatarUrl?: string;
   isLoggedIn: boolean;
+  telegram?: string;
 }
 
 export interface Subject {
@@ -37,4 +38,4 @@ export interface Exam {
   timeSlot: string;
 }
 
-export type TabType = 'home' | 'exams' | 'subjects' | 'profile' | 'discussions';
+export type TabType = 'home' | 'exams' | 'subjects' | 'profile' | 'discussions' | 'admin';

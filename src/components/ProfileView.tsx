@@ -6,7 +6,7 @@ interface ProfileViewProps {
   user: UserType;
   examHistoryCount: number;
   onLogout: () => void;
-  onUpdateEmail: (newEmail: string) => void;
+  onUpdateProfile: (updatedUser: UserType) => void;
   onNavigateToTab: (tab: 'home' | 'exams' | 'subjects' | 'profile') => void;
   darkMode: boolean;
   onToggleDarkMode: (enabled: boolean) => void;
@@ -20,7 +20,7 @@ export default function ProfileView({
   user,
   examHistoryCount,
   onLogout,
-  onUpdateEmail,
+  onUpdateProfile,
   onNavigateToTab,
   darkMode,
   onToggleDarkMode,
@@ -29,6 +29,8 @@ export default function ProfileView({
 }: ProfileViewProps) {
   const [activeSubSection, setActiveSubSection] = useState<ActiveSection>('none');
   const [emailInput, setEmailInput] = useState(user.email);
+  const [usernameInput, setUsernameInput] = useState(user.username);
+  const [telegramInput, setTelegramInput] = useState(user.telegram || '');
   const [emailUpdated, setEmailUpdated] = useState(false);
   
   // Support state
@@ -40,9 +42,33 @@ export default function ProfileView({
   const [notifLectures, setNotifLectures] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const handleSaveEmail = (e: React.FormEvent) => {
+  const handleSaveAccount = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateEmail(emailInput);
+    if (!usernameInput.trim()) {
+      alert('الرجاء كتابة اسم المستخدم (حقل إلزامي)');
+      return;
+    }
+    if (!emailInput.trim()) {
+      alert('الرجاء كتابة البريد الإلكتروني (حقل إلزامي)');
+      return;
+    }
+    if (!telegramInput.trim()) {
+      alert('الرجاء كتابة اسم مستخدم تليجرام (حقل إلزامي)');
+      return;
+    }
+
+    let formattedTelegram = telegramInput.trim();
+    if (!formattedTelegram.startsWith('@')) {
+      formattedTelegram = '@' + formattedTelegram;
+    }
+
+    onUpdateProfile({
+      ...user,
+      username: usernameInput.trim(),
+      email: emailInput.trim(),
+      telegram: formattedTelegram
+    });
+    
     setEmailUpdated(true);
     setTimeout(() => setEmailUpdated(false), 2000);
   };
@@ -119,11 +145,17 @@ export default function ProfileView({
 
           {/* Account Subview */}
           {activeSubSection === 'account' && (
-            <form onSubmit={handleSaveEmail} className="space-y-3">
+            <form onSubmit={handleSaveAccount} className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 block">اسم المستخدم الحالي (غير قابل للتعديل)</label>
-                <div className="px-3 py-2 bg-gray-100 rounded-lg text-xs font-bold text-gray-600">
-                  {user.username}
+                <label className="text-[10px] font-bold text-gray-500 block">اسم المستخدم أو اللقب الدراسي</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    required
+                    value={usernameInput} 
+                    onChange={(e) => setUsernameInput(e.target.value)} 
+                    className="w-full bg-white border border-gray-200 rounded-lg text-xs px-3 py-2 text-right focus:outline-none focus:border-brand-gold"
+                  />
                 </div>
               </div>
               <div className="space-y-1">
@@ -131,9 +163,23 @@ export default function ProfileView({
                 <div className="relative">
                   <input 
                     type="email" 
+                    required
                     value={emailInput} 
                     onChange={(e) => setEmailInput(e.target.value)} 
                     className="w-full bg-white border border-gray-200 rounded-lg text-xs px-3 py-2 text-right focus:outline-none focus:border-brand-gold"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-500 block">اسم حساب التيليجرام (إلزامي ومطلوب بالرمز @)</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    required
+                    value={telegramInput} 
+                    onChange={(e) => setTelegramInput(e.target.value)} 
+                    placeholder="مثال: @abdulmlik"
+                    className="w-full bg-white border border-gray-200 rounded-lg text-xs px-3 py-2 text-left focus:outline-none focus:border-brand-gold"
                   />
                 </div>
               </div>
@@ -284,7 +330,8 @@ export default function ProfileView({
             <span className="text-sm font-bold text-gray-700">معلومات الحساب الدراسي</span>
           </div>
           <div className="flex items-center gap-2 text-gray-400">
-            <span className="text-xs font-medium text-gray-400">عبدالملك</span>
+            <span className="text-xs font-medium text-brand-gold">{user.telegram || 'مطلوب @'}</span>
+            <span className="text-xs font-medium text-gray-400">{user.username}</span>
             <ChevronLeft size={16} />
           </div>
         </div>

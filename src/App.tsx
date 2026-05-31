@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare } from 'lucide-react';
+import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from './lib/firebase';
 
@@ -17,6 +17,7 @@ import ExamsView from './components/ExamsView';
 import ActiveExamView from './components/ActiveExamView';
 import ProfileView from './components/ProfileView';
 import DiscussionsView from './components/DiscussionsView';
+import AdminDashboard from './components/AdminDashboard';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -128,6 +129,7 @@ export default function App() {
           email,
           avatarUrl,
           isLoggedIn: true,
+          telegram: '@google_user',
         };
         setUser(loggedUser);
         localStorage.setItem('school_user', JSON.stringify(loggedUser));
@@ -151,7 +153,7 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = (username: string, email: string) => {
+  const handleLoginSuccess = (username: string, email: string, telegram?: string) => {
     // Premium custom avatar generated from initial letter
     const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=1b365d,c9a24a`;
     const loggedUser: User = {
@@ -159,6 +161,7 @@ export default function App() {
       email,
       avatarUrl: avatar,
       isLoggedIn: true,
+      telegram: telegram || '@abdulmlik_ou',
     };
     setUser(loggedUser);
     localStorage.setItem('school_user', JSON.stringify(loggedUser));
@@ -181,11 +184,14 @@ export default function App() {
     }
   };
 
-  const handleUpdateEmail = (newEmail: string) => {
-    if (!user) return;
-    const updated = { ...user, email: newEmail };
-    setUser(updated);
-    localStorage.setItem('school_user', JSON.stringify(updated));
+  const handleUpdateProfile = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('school_user', JSON.stringify(updatedUser));
+  };
+
+  const handleUpdateSubjects = (updatedSubjects: Subject[]) => {
+    setSubjects(updatedSubjects);
+    localStorage.setItem('school_subjects', JSON.stringify(updatedSubjects));
   };
 
   const handleToggleLecture = (subjectId: string, lectureIndex: number) => {
@@ -304,12 +310,21 @@ export default function App() {
                   user={user}
                   examHistoryCount={examHistory.length}
                   onLogout={handleLogout}
-                  onUpdateEmail={handleUpdateEmail}
+                  onUpdateProfile={handleUpdateProfile}
                   onNavigateToTab={setActiveTab}
                   darkMode={darkMode}
                   onToggleDarkMode={setDarkMode}
                   deferredPrompt={deferredPrompt}
                   onInstallApp={handleInstallApp}
+                />
+              )}
+
+              {activeTab === 'admin' && user?.email === 'abdulmlikoog@gmail.com' && (
+                <AdminDashboard 
+                  user={user}
+                  subjects={subjects}
+                  onUpdateSubjects={handleUpdateSubjects}
+                  onNavigateToTab={setActiveTab}
                 />
               )}
             </div>
@@ -364,6 +379,19 @@ export default function App() {
               <Calendar size={20} className={activeTab === 'exams' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
               <span className="text-[10px]">الاختبارات</span>
             </button>
+
+            {/* Admin dashboard link for designated administrator email */}
+            {user?.email === 'abdulmlikoog@gmail.com' && (
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                  activeTab === 'admin' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
+                }`}
+              >
+                <Shield size={20} className={activeTab === 'admin' ? 'text-red-500 stroke-[2.2]' : 'stroke-[1.8] text-red-400'} />
+                <span className="text-[10px] text-red-500">لوحة التحكم</span>
+              </button>
+            )}
 
             {/* Profile tab button */}
             <button

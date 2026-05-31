@@ -3,7 +3,7 @@ import { User as UserIcon, Lock, Eye, EyeOff, Globe, Info, Check, ChevronRight, 
 import Logo from './Logo';
 
 interface LoginViewProps {
-  onLoginSuccess: (username: string, email: string) => void;
+  onLoginSuccess: (username: string, email: string, telegram?: string) => void;
   initialMode?: 'login' | 'register';
   onNavigateBack?: () => void;
 }
@@ -26,6 +26,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
   const [regUser, setRegUser] = useState('');
   const [regPass, setRegPass] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regTelegram, setRegTelegram] = useState('');
   const [regSuccess, setRegSuccess] = useState(false);
 
   // On mount, load remembered details if present
@@ -70,7 +71,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
         localStorage.removeItem('school_remembered_user');
         localStorage.removeItem('school_remembered_pass');
       }
-      onLoginSuccess('عبدالملك', 'abdulmlikoog@gmail.com');
+      onLoginSuccess('عبدالملك', 'abdulmlikoog@gmail.com', '@abdulmlik_ou');
     } else if (isCustomAccount) {
       if (rememberMe) {
         localStorage.setItem('school_remember_me', 'true');
@@ -82,7 +83,8 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
         localStorage.removeItem('school_remembered_pass');
       }
       const email = localStorage.getItem('custom_auth_email') || 'user@example.com';
-      onLoginSuccess(cleanUsername, email);
+      const telegram = localStorage.getItem('custom_auth_telegram') || '';
+      onLoginSuccess(cleanUsername, email, telegram);
     } else {
       setErrorMsg('اسم المستخدم أو كلمة المرور غير صحيحة! للحساب التجريبي اكتب: عبدالملك والرمز: 123456');
     }
@@ -93,8 +95,8 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
     setErrorMsg('');
     setRegSuccess(false);
 
-    if (!regUser.trim() || !regPass.trim() || !regEmail.trim()) {
-      setErrorMsg('الرجاء تعبئة جميع الحقول لإنشاء الحساب');
+    if (!regUser.trim() || !regPass.trim() || !regEmail.trim() || !regTelegram.trim()) {
+      setErrorMsg('الرجاء تعبئة جميع الحقول لإنشاء الحساب مع التليجرام الإلزامي');
       return;
     }
 
@@ -103,9 +105,15 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
       return;
     }
 
+    let telegramHandle = regTelegram.trim();
+    if (!telegramHandle.startsWith('@')) {
+      telegramHandle = '@' + telegramHandle;
+    }
+
     localStorage.setItem('custom_auth_user', regUser.trim());
     localStorage.setItem('custom_auth_pass', regPass.trim());
     localStorage.setItem('custom_auth_email', regEmail.trim());
+    localStorage.setItem('custom_auth_telegram', telegramHandle);
     
     setRegSuccess(true);
     setUsername(regUser);
@@ -117,6 +125,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
       setRegUser('');
       setRegPass('');
       setRegEmail('');
+      setRegTelegram('');
     }, 2000);
   };
 
@@ -344,6 +353,24 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
                     onChange={(e) => setRegPass(e.target.value)}
                     placeholder="اختر رمراً قوياً"
                     className="w-full pl-4 pr-12 py-3.5 bg-white/5 border border-white/10 hover:border-brand-gold/40 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold text-white rounded-2xl text-sm focus:outline-none transition-all text-right placeholder:text-gray-400"
+                  />
+                </div>
+              </div>
+
+              {/* Field D: Telegram Username (Mandatory) */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-300 block">اسم المستخدم في تيليجرام (إلزامي بالرمز @)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-brand-gold">
+                    <UserPlus size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={regTelegram}
+                    onChange={(e) => setRegTelegram(e.target.value)}
+                    placeholder="مثال: @abdulmlik"
+                    className="w-full pl-4 pr-12 py-3.5 bg-white/5 border border-white/10 hover:border-brand-gold/40 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold text-white rounded-2xl text-sm focus:outline-none transition-all text-left placeholder:text-right placeholder:text-gray-400"
                   />
                 </div>
               </div>
