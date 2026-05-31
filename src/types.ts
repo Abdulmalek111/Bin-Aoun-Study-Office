@@ -16,7 +16,7 @@ export interface Subject {
   nameEn: string;
   lecturesCount: number;
   completedLectures: number;
-  iconType: 'math' | 'physics' | 'chemistry' | 'english';
+  iconType: 'math' | 'physics' | 'chemistry' | 'english' | 'safety' | 'programming' | 'history' | 'russian' | 'sports' | 'nanocad';
 }
 
 export interface Question {
@@ -37,4 +37,4 @@ export interface Exam {
   timeSlot: string;
 }
 
-export type TabType = 'home' | 'exams' | 'subjects' | 'profile';
+export type TabType = 'home' | 'exams' | 'subjects' | 'profile' | 'discussions';

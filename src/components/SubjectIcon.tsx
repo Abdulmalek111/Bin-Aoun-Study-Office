@@ -1,8 +1,8 @@
 import React from 'react';
-import { BookOpen, Atom, FlaskConical, Languages } from 'lucide-react';
+import { BookOpen, Atom, FlaskConical, Languages, Shield, Code, History, Dumbbell, Compass } from 'lucide-react';
 
 interface SubjectIconProps {
-  type: 'math' | 'physics' | 'chemistry' | 'english';
+  type: 'math' | 'physics' | 'chemistry' | 'english' | 'safety' | 'programming' | 'history' | 'russian' | 'sports' | 'nanocad';
   className?: string;
   size?: number;
 }
@@ -29,6 +29,36 @@ export default function SubjectIcon({ type, className = '', size = 20 }: Subject
         return {
           bg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
           icon: Languages,
+        };
+      case 'safety':
+        return {
+          bg: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400',
+          icon: Shield,
+        };
+      case 'programming':
+        return {
+          bg: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400',
+          icon: Code,
+        };
+      case 'history':
+        return {
+          bg: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400',
+          icon: History,
+        };
+      case 'russian':
+        return {
+          bg: 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400',
+          icon: Languages,
+        };
+      case 'sports':
+        return {
+          bg: 'bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-400',
+          icon: Dumbbell,
+        };
+      case 'nanocad':
+        return {
+          bg: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400',
+          icon: Compass,
         };
       default:
         return {

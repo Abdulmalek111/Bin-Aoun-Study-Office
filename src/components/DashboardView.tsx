@@ -33,15 +33,7 @@ export default function DashboardView({
           <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-brand-gold rounded-full ring-2 ring-white"></span>
         </button>
         
-        <div className="flex items-center gap-2">
-          <img 
-            src="https://i.ibb.co/ycNWS8MS/Chat-GPT-Image-May-30-2026-10-21-40-PM-removebg-preview.png" 
-            alt="شعار منصة بن عون" 
-            className="h-7 w-auto object-contain block" 
-            referrerPolicy="no-referrer"
-          />
-          <h1 className="text-xl font-extrabold text-brand-dark tracking-tight">الرئيسية</h1>
-        </div>
+        <h1 className="text-xl font-extrabold text-brand-dark tracking-tight">الرئيسية</h1>
         
         <button 
           onClick={() => onNavigateToTab('profile')}
@@ -93,10 +85,10 @@ export default function DashboardView({
         />
       </div>
 
-      {/* Upcoming Exams Section: الاختبارات القادمة */}
+      {/* Leak Exams Section: تسريبات الاختبارات */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-extrabold text-brand-dark">الاختبارات القادمة</h3>
+          <h3 className="text-base font-extrabold text-brand-dark">تسريبات الاختبارات</h3>
           <button 
             onClick={() => onNavigateToTab('exams')}
             className="text-xs font-bold text-brand-gold hover:underline flex items-center gap-1"
@@ -187,13 +179,13 @@ export default function DashboardView({
       </div>
 
       {/* Quick Achievement Panel footer */}
-      <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 flex gap-3 items-center">
-        <div className="bg-amber-100 text-amber-700 p-2.5 rounded-xl">
+      <div className="achievement-card border rounded-2xl p-4 flex gap-3 items-center mb-6 transition-all duration-300">
+        <div className="achievement-icon-wrapper p-2.5 rounded-xl shrink-0 flex items-center justify-center">
           <Award size={20} className="stroke-[2.2] text-brand-gold" />
         </div>
-        <div>
-          <h4 className="font-bold text-xs text-amber-900">تقدم ملحوظ هذا الأسبوع!</h4>
-          <p className="text-[11px] text-amber-800/80 mt-0.5">لقد أنجزت 75% من المحاضرات المقررة، استمر في هذا الأداء الرائع.</p>
+        <div className="flex-1">
+          <h4 className="achievement-title font-bold text-xs">تقدم ملحوظ هذا الأسبوع!</h4>
+          <p className="achievement-desc text-[11px] mt-0.5 leading-relaxed">لقد أنجزت 75% من المحاضرات المقررة، استمر في هذا الأداء الرائع.</p>
         </div>
       </div>
     </div>

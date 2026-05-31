@@ -36,10 +36,38 @@ const subjectLecturesMap: Record<string, { title: string; duration: string; type
     { title: 'المحاضرة 3: مهارات الاستماع والمحادثة في البيئة الجامعية والمهنية', duration: '35 دقيقة', type: 'video' },
     { title: 'المحاضرة 4: القراءة السريعة وتحليل النصوص وفك رموز الكلمات المتقدمة', duration: '45 دقيقة', type: 'video' },
   ],
+  safety: [
+    { title: 'المحاضرة 1: مقدمة في سلامة الحياة وإدارة المخاطر والتهديدات', duration: '35 دقيقة', type: 'video' },
+    { title: 'المحاضرة 2: الإجراءات الوقائية في حالات الطوارئ وخطط الإخلاء', duration: '40 دقيقة', type: 'pdf' },
+    { title: 'المحاضرة 3: الإسعافات الأولية والتعامل الفوري مع الإصابات الطارئة', duration: '45 دقيقة', type: 'video' }
+  ],
+  programming: [
+    { title: 'المحاضرة 1: مفاهيم البرمجة الأساسية وكتابة الأنماط النظيفة', duration: '50 دقيقة', type: 'video' },
+    { title: 'المحاضرة 2: تحليل الخوارزميات وتصميم البنى البرمجية المعقدة', duration: '45 دقيقة', type: 'video' },
+    { title: 'المحاضرة 3: مبادئ البرمجة كائنية التوجه OOP وتوزيع الصفوف', duration: '55 دقيقة', type: 'pdf' }
+  ],
+  history: [
+    { title: 'المحاضرة 1: تأسيس الدولة الروسية والملوك الأوائل للبلاد', duration: '40 دقيقة', type: 'video' },
+    { title: 'المحاضرة 2: روسيا القيصرية والتحولات السياسية الكبرى في القرن الـ 19', duration: '50 دقيقة', type: 'pdf' }
+  ],
+  russian: [
+    { title: 'المحاضرة 1: الحروف الأبجدية الروسية واللفظ الصحيح للمقاطع', duration: '35 دقيقة', type: 'video' },
+    { title: 'المحاضرة 2: تراكيب الجمل الحوارية والردود السريعة اليومية', duration: '45 دقيقة', type: 'video' },
+    { title: 'المحاضرة 3: قواعد جمع الأسماء وصياغة التفضيلات اللغوية', duration: '40 دقيقة', type: 'pdf' }
+  ],
+  sports: [
+    { title: 'المحاضرة 1: اللياقة البدنية والتمارين الهوائية والصحة الغذائية المتكاملة', duration: '30 دقيقة', type: 'video' },
+    { title: 'المحاضرة 2: طرق الوقاية من التشنجات والإصابات العضلية والتأهيل الرياضي', duration: '35 دقيقة', type: 'pdf' }
+  ],
+  nanocad: [
+    { title: 'المحاضرة 1: واجهة برنامج nanoCAD وأدوات التخطيط الأساسية 2D', duration: '45 دقيقة', type: 'video' },
+    { title: 'المحاضرة 2: التعامل مع الطبقات والأبعاد وضبط الإخراج والطباعة والمقاييس', duration: '50 دقيقة', type: 'video' },
+    { title: 'المحاضرة 3: النمذجة ثلاثية الأبعاد والتصاميم الهندسية ثنائية التموضع', duration: '55 دقيقة', type: 'pdf' }
+  ]
 };
 
 export default function SubjectsView({ subjects, onToggleLecture }: SubjectsViewProps) {
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'math' | 'physics' | 'chemistry' | 'english'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
 
@@ -89,46 +117,19 @@ export default function SubjectsView({ subjects, onToggleLecture }: SubjectsView
         >
           الكل
         </button>
-        <button
-          onClick={() => setSelectedFilter('physics')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            selectedFilter === 'physics'
-              ? 'bg-brand-dark text-white shadow-sm'
-              : 'bg-white border border-gray-100 text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          الفيزياء
-        </button>
-        <button
-          onClick={() => setSelectedFilter('math')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            selectedFilter === 'math'
-              ? 'bg-brand-dark text-white shadow-sm'
-              : 'bg-white border border-gray-100 text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          الرياضيات
-        </button>
-        <button
-          onClick={() => setSelectedFilter('chemistry')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            selectedFilter === 'chemistry'
-              ? 'bg-brand-dark text-white shadow-sm'
-              : 'bg-white border border-gray-100 text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          الكيمياء
-        </button>
-        <button
-          onClick={() => setSelectedFilter('english')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
-            selectedFilter === 'english'
-              ? 'bg-brand-dark text-white shadow-sm'
-              : 'bg-white border border-gray-100 text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          اللغة الإنجليزية
-        </button>
+        {subjects.map((sub) => (
+          <button
+            key={sub.id}
+            onClick={() => setSelectedFilter(sub.id)}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              selectedFilter === sub.id
+                ? 'bg-brand-dark text-white shadow-sm'
+                : 'bg-white border border-gray-100 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {sub.nameAr}
+          </button>
+        ))}
       </div>
 
       {/* Materials List with Chevron Expand Details */}

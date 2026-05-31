@@ -32,6 +32,54 @@ export const initialSubjects: Subject[] = [
     lecturesCount: 15,
     completedLectures: 12,
     iconType: 'english'
+  },
+  {
+    id: 'safety',
+    nameAr: 'سلامة الحياة',
+    nameEn: 'Life Safety',
+    lecturesCount: 10,
+    completedLectures: 4,
+    iconType: 'safety'
+  },
+  {
+    id: 'programming',
+    nameAr: 'البرمجة والخوارزميات',
+    nameEn: 'Programming and Algorithms',
+    lecturesCount: 16,
+    completedLectures: 8,
+    iconType: 'programming'
+  },
+  {
+    id: 'history',
+    nameAr: 'التاريخ الروسي',
+    nameEn: 'Russian History',
+    lecturesCount: 8,
+    completedLectures: 3,
+    iconType: 'history'
+  },
+  {
+    id: 'russian',
+    nameAr: 'اللغة الروسية',
+    nameEn: 'Russian Language',
+    lecturesCount: 14,
+    completedLectures: 7,
+    iconType: 'russian'
+  },
+  {
+    id: 'sports',
+    nameAr: 'الرياضة',
+    nameEn: 'Sports',
+    lecturesCount: 6,
+    completedLectures: 2,
+    iconType: 'sports'
+  },
+  {
+    id: 'nanocad',
+    nameAr: 'نانو كاد',
+    nameEn: 'nanoCAD',
+    lecturesCount: 11,
+    completedLectures: 5,
+    iconType: 'nanocad'
   }
 ];
 

@@ -167,6 +167,19 @@ body {
   color: #fde68a !important;
 }
 
+.dark-mode .text-amber-900 {
+  color: #fee2e2 !important;
+  color: #fde68a !important;
+}
+
+.dark-mode .text-amber-800\/80 {
+  color: rgba(253, 230, 138, 0.8) !important;
+}
+
+.dark-mode .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.25) !important;
+}
+
 .dark-mode .bg-indigo-50 {
   background-color: rgba(99, 102, 241, 0.15) !important;
   color: #c7d2fe !important;
@@ -196,4 +209,34 @@ body {
 
 .dark-mode .text-brand-blue {
   color: #bfdbfe !important;
+}
+
+/* --- Achievement Card Premium Styles --- */
+.achievement-card {
+  background-color: rgba(197, 156, 75, 0.05) !important; /* Soft brand-gold tint */
+  border-color: rgba(197, 156, 75, 0.2) !important;
+}
+.achievement-icon-wrapper {
+  background-color: rgba(197, 156, 75, 0.12) !important;
+}
+.achievement-title {
+  color: #7c5e26 !important; /* Warm gold/bronze title */
+}
+.achievement-desc {
+  color: #8c6e35 !important; /* Soft readable descriptor */
+}
+
+/* --- Dark Mode specific overrides --- */
+.dark-mode .achievement-card {
+  background-color: rgba(197, 156, 75, 0.1) !important; /* Translucent gold on dark background */
+  border-color: rgba(197, 156, 75, 0.45) !important; /* Standout brand gold border */
+}
+.dark-mode .achievement-icon-wrapper {
+  background-color: rgba(197, 156, 75, 0.25) !important;
+}
+.dark-mode .achievement-title {
+  color: #fde68a !important; /* Highly readable golden-cream in dark mode */
+}
+.dark-mode .achievement-desc {
+  color: rgba(253, 230, 138, 0.85) !important; /* High contrast soft cream text */
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award } from 'lucide-react';
+import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare } from 'lucide-react';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType } from './types';
@@ -14,6 +14,7 @@ import SubjectsView from './components/SubjectsView';
 import ExamsView from './components/ExamsView';
 import ActiveExamView from './components/ActiveExamView';
 import ProfileView from './components/ProfileView';
+import DiscussionsView from './components/DiscussionsView';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -80,7 +81,16 @@ export default function App() {
 
     if (savedSubjects) {
       try {
-        setSubjects(JSON.parse(savedSubjects));
+        const parsed = JSON.parse(savedSubjects) as Subject[];
+        // Auto-merge to ensure any new subject definitions in initialSubjects are added
+        const merged = [...parsed];
+        initialSubjects.forEach(initSub => {
+          if (!merged.some(m => m.id === initSub.id)) {
+            merged.push(initSub);
+          }
+        });
+        setSubjects(merged);
+        localStorage.setItem('school_subjects', JSON.stringify(merged));
       } catch (e) {
         // Fallback to default
       }
@@ -176,10 +186,10 @@ export default function App() {
     <div className={`min-h-screen w-full transition-colors duration-500 ${!user ? 'bg-brand-dark' : 'bg-brand-gray'} text-brand-dark flex flex-col items-center justify-center md:py-8`} style={{ direction: 'rtl' }}>
       
       {/* High-quality Centered Application Container: Fills mobile screens, elegantly framed with shadows on desktops */}
-      <div className={`w-full max-w-[460px] transition-all duration-500 ${!user ? 'bg-brand-dark border-transparent shadow-2xl shadow-black/40' : 'bg-white border-gray-100 shadow-2xl'} min-h-screen md:min-h-[880px] md:rounded-[36px] overflow-hidden flex flex-col justify-between border relative`}>
+      <div className={`w-full max-w-[460px] transition-all duration-500 ${!user ? 'bg-brand-dark border-transparent shadow-2xl shadow-black/40' : 'bg-white border-gray-100 shadow-2xl'} h-screen md:h-[880px] md:max-h-[880px] md:rounded-[36px] overflow-hidden flex flex-col justify-between border relative`}>
         
         {/* Main Content Area */}
-        <div className={`flex-grow no-scrollbar flex flex-col justify-between ${!user ? 'p-0' : 'px-5 py-5'}`}>
+        <div className={`flex-grow overflow-y-auto no-scrollbar flex flex-col justify-between ${!user ? 'p-0' : 'px-5 py-5'}`}>
           
           {!user ? (
             authScreen === 'welcome' ? (
@@ -221,6 +231,12 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'discussions' && (
+                <DiscussionsView
+                  subjects={subjects}
+                />
+              )}
+
               {activeTab === 'exams' && (
                 <ExamsView
                   exams={initialExams}
@@ -249,7 +265,7 @@ export default function App() {
 
         {/* Common Bottom Mobile Navigation Dock (Hidden if in active exam screen for complete testing focus) */}
         {user && !activeExamId && (
-          <nav className="bg-white border-t border-gray-150 px-5 py-3.5 flex justify-between items-center text-gray-400 shadow-md z-30 select-none rounded-t-2xl">
+          <nav className="bg-white border-t border-gray-150 px-3 py-3.5 flex justify-around items-center text-gray-400 shadow-md z-30 select-none rounded-t-2xl shrink-0">
             
             {/* Home tab button */}
             <button
@@ -271,6 +287,17 @@ export default function App() {
             >
               <LayoutGrid size={20} className={activeTab === 'subjects' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
               <span className="text-[10px]">المواد</span>
+            </button>
+
+            {/* Discussions tab button */}
+            <button
+              onClick={() => setActiveTab('discussions')}
+              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                activeTab === 'discussions' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
+              }`}
+            >
+              <MessageSquare size={20} className={activeTab === 'discussions' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
+              <span className="text-[10px]">المناقشات</span>
             </button>
 
             {/* Exams tab button */}
