@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare } from 'lucide-react';
+import { signInWithPopup, signOut } from 'firebase/auth';
+import { auth, googleProvider } from './lib/firebase';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType } from './types';
@@ -105,33 +107,52 @@ export default function App() {
     }
   }, []);
 
-  // Listen to Firebase Authenticated state
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    import('./firebase').then(({ auth }) => {
-      unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
-        if (firebaseUser) {
-          const u: User = {
-            username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'مستخدم جوجل',
-            email: firebaseUser.email || '',
-            avatarUrl: firebaseUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(firebaseUser.displayName || 'G')}&backgroundColor=1b365d,c9a24a`,
-            isLoggedIn: true,
-          };
-          setUser(u);
-          localStorage.setItem('school_user', JSON.stringify(u));
-        }
-      });
-    }).catch(e => console.log("Firebase listener not loaded yet"));
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
   // Sync state functions
-  const handleLoginSuccess = (username: string, email: string, customAvatarUrl?: string) => {
-    // Premium custom avatar generated from initial letter if customAvatarUrl not provided
-    const avatar = customAvatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=1b365d,c9a24a`;
+  const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoggingIn(true);
+    setGoogleError(null);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      if (fbUser) {
+        const username = fbUser.displayName || fbUser.email?.split('@')[0] || 'عبدالملك';
+        const email = fbUser.email || '';
+        const avatarUrl = fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}`;
+        
+        const loggedUser: User = {
+          username,
+          email,
+          avatarUrl,
+          isLoggedIn: true,
+        };
+        setUser(loggedUser);
+        localStorage.setItem('school_user', JSON.stringify(loggedUser));
+        setAuthScreen('welcome');
+      }
+    } catch (error: any) {
+      console.error('Firebase Auth Error:', error);
+      let errorMsg = 'حدث خطأ أثناء الاتصال بجوجل. يرجى المحاولة مرة أخرى.';
+      if (error && error.code === 'auth/popup-closed-by-user') {
+        errorMsg = 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.';
+      } else if (error && error.code === 'auth/network-request-failed') {
+        errorMsg = 'فشل الاتصال بالشبكة. يرجى التحقق من اتصالك بالإنترنت.';
+      } else if (error && error.code === 'auth/unauthorized-domain') {
+        errorMsg = 'النطاق الحالي لتشغيل التطبيق غير مصرح به في إعدادات فيربيز الخاصة بك. يرجى إضافته إلى النطاقات المصرح بها (Authorized Domains).';
+      } else if (error && error.message) {
+        errorMsg = `خطأ: ${error.message}`;
+      }
+      setGoogleError(errorMsg);
+    } finally {
+      setGoogleLoggingIn(false);
+    }
+  };
+
+  const handleLoginSuccess = (username: string, email: string) => {
+    // Premium custom avatar generated from initial letter
+    const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=1b365d,c9a24a`;
     const loggedUser: User = {
       username,
       email,
@@ -152,11 +173,11 @@ export default function App() {
     localStorage.removeItem('school_remembered_user');
     localStorage.removeItem('school_remembered_pass');
     // Keep study material and exam histories linked to device for persistent enjoyment
-
-    // Sign out from Firebase Auth
-    import('./firebase').then(({ auth }) => {
-      auth.signOut().catch(err => console.error("Error signing out from Firebase:", err));
-    }).catch(e => console.log("Firebase not loaded yet"));
+    try {
+      signOut(auth);
+    } catch (e) {
+      console.error('Error signing out:', e);
+    }
   };
 
   const handleUpdateEmail = (newEmail: string) => {
@@ -224,6 +245,10 @@ export default function App() {
               <WelcomeView 
                 onNavigateToLogin={() => setAuthScreen('login')}
                 onNavigateToRegister={() => setAuthScreen('register')}
+                onGoogleLogin={handleGoogleLogin}
+                isLoggingIn={googleLoggingIn}
+                authError={googleError}
+                onClearError={() => setGoogleError(null)}
               />
             ) : (
               <LoginView 

@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { User as UserIcon, Lock, Eye, EyeOff, Globe, Info, Check, ChevronRight, Mail, UserPlus } from 'lucide-react';
 import Logo from './Logo';
-import { auth, googleProvider } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
 
 interface LoginViewProps {
-  onLoginSuccess: (username: string, email: string, avatarUrl?: string) => void;
+  onLoginSuccess: (username: string, email: string) => void;
   initialMode?: 'login' | 'register';
   onNavigateBack?: () => void;
 }
@@ -18,7 +16,6 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
   const [errorMsg, setErrorMsg] = useState('');
   const [activeLanguage, setActiveLanguage] = useState('ar');
   const [isRegistering, setIsRegistering] = useState(initialMode === 'register');
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
   // Update state when initialMode changes
   React.useEffect(() => {
@@ -123,41 +120,8 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
     }, 2000);
   };
 
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    setErrorMsg('');
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const googleUser = result.user;
-      if (googleUser) {
-        onLoginSuccess(
-          googleUser.displayName || googleUser.email?.split('@')[0] || 'مستخدم جوجل',
-          googleUser.email || '',
-          googleUser.photoURL || undefined
-        );
-      }
-    } catch (error: any) {
-      console.error("Google Sign-In Error: ", error);
-      if (error && error.code === 'auth/popup-closed-by-user') {
-        setErrorMsg('تم إغلاق نافذة تسجيل الدخول من قبل المستخدم');
-      } else if (error && error.code === 'auth/network-request-failed') {
-        setErrorMsg('فشل الاتصال بالشبكة، يرجى المحاولة مرة أخرى');
-      } else if (error && error.message) {
-        setErrorMsg(`فشل تسجيل الدخول: ${error.message}`);
-      } else {
-        setErrorMsg('فشل تسجيل الدخول عبر Google. يرجى المحاولة لاحقاً');
-      }
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
   return (
     <div className="w-full bg-brand-dark text-white flex flex-col min-h-screen md:min-h-[880px] p-8 text-center relative" style={{ direction: 'rtl' }}>
-      {/* Background radial glow */}
-      <div className="absolute top-[-10%] left-[-10%] right-[-10%] bottom-[-10%] bg-radial from-brand-blue/30 via-brand-dark/95 to-brand-dark pointer-events-none z-0" />
-      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/25 to-transparent pointer-events-none z-0" />
-
       {/* Header Bar */}
       <div className="flex items-center justify-between z-10 w-full mb-4">
         {onNavigateBack ? (
@@ -304,30 +268,6 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
               >
                 إنشاء حساب جديد
               </button>
-
-              {/* Divider */}
-              <div className="flex items-center my-4">
-                <div className="flex-grow border-t border-white/10"></div>
-                <span className="px-3 text-[11px] text-gray-400 font-bold whitespace-nowrap font-sans">أو الدخول السريع</span>
-                <div className="flex-grow border-t border-white/10"></div>
-              </div>
-
-              {/* Google Sign-in Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isGoogleLoading}
-                className={`w-full py-4 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-2xl text-[13px] font-black shadow-lg transition-all transform active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2.5 ${isGoogleLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                style={{ fontFamily: "'Cairo', sans-serif" }}
-              >
-                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#EA4335"
-                    d="M12.24 10.285V14.4h6.887c-.275 1.564-1.88 4.594-6.887 4.594-4.33 0-7.86-3.585-7.86-8s3.53-8 7.86-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.103C18.28 1.41 15.42 0 12.24 0 5.58 0 0 5.4 0 12s5.58 12 12.24 12c6.96 0 11.57-4.83 11.57-11.64 0-.81-.085-1.425-.195-2.073l-11.375-.002z"
-                  />
-                </svg>
-                <span>{isGoogleLoading ? 'جاري الاتصال بـ Google...' : 'تسجيل الدخول عبر Google'}</span>
-              </button>
             </div>
 
           </form>
@@ -428,30 +368,6 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
                 className="w-full py-4 bg-transparent border border-white/20 text-gray-300 hover:text-white rounded-2xl text-xs font-bold transition-all cursor-pointer"
               >
                 هل لديك حساب بالفعل؟ العودة لتسجيل الدخول
-              </button>
-
-              {/* Divider */}
-              <div className="flex items-center my-4">
-                <div className="flex-grow border-t border-white/10"></div>
-                <span className="px-3 text-[11px] text-gray-400 font-bold whitespace-nowrap font-sans">أو التسجيل السريع</span>
-                <div className="flex-grow border-t border-white/10"></div>
-              </div>
-
-              {/* Google Sign-in Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isGoogleLoading}
-                className={`w-full py-4 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-2xl text-[13px] font-black shadow-lg transition-all transform active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2.5 ${isGoogleLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                style={{ fontFamily: "'Cairo', sans-serif" }}
-              >
-                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#EA4335"
-                    d="M12.24 10.285V14.4h6.887c-.275 1.564-1.88 4.594-6.887 4.594-4.33 0-7.86-3.585-7.86-8s3.53-8 7.86-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.103C18.28 1.41 15.42 0 12.24 0 5.58 0 0 5.4 0 12s5.58 12 12.24 12c6.96 0 11.57-4.83 11.57-11.64 0-.81-.085-1.425-.195-2.073l-11.375-.002z"
-                  />
-                </svg>
-                <span>{isGoogleLoading ? 'جاري الاتصال بـ Google...' : 'التسجيل عبر Google'}</span>
               </button>
             </div>
 

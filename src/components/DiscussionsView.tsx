@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, Heart, User, Search, MessageCircle, AlertCircle, HelpCircle } from 'lucide-react';
 import { Subject } from '../types';
 import SubjectIcon from './SubjectIcon';
-import { db } from '../firebase';
-import { collection, getDocs, doc, query, orderBy, limit, setDoc, updateDoc } from 'firebase/firestore';
 
 interface DiscussionsViewProps {
   subjects: Subject[];
@@ -137,92 +135,31 @@ const initialForumMessages: ForumMessage[] = [
 
 export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
-  const [messages, setMessages] = useState<ForumMessage[]>([]);
-  const [isDbLoading, setIsDbLoading] = useState(false);
+  const [messages, setMessages] = useState<ForumMessage[]>(() => {
+    const saved = localStorage.getItem('bin_aoun_discussions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialForumMessages;
+      }
+    }
+    return initialForumMessages;
+  });
+
   const [newMessageText, setNewMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch discussions on mount, seed with default messages if empty, fallback to local storage
+  // Persist messages to Local Storage whenever they change
   useEffect(() => {
-    const fetchDiscussions = async () => {
-      setIsDbLoading(true);
-      try {
-        const discussionsCol = collection(db, 'discussions');
-        const q = query(discussionsCol, orderBy('createdAt', 'desc'), limit(50));
-        const snapshot = await getDocs(q);
-        
-        if (snapshot.empty) {
-          // Empty DB in Firestore, let's seed it so it's instantly active for testing
-          const promises = initialForumMessages.map(async (msg, index) => {
-            const docRef = doc(discussionsCol, msg.id);
-            await setDoc(docRef, {
-              ...msg,
-              createdAt: new Date(Date.now() - index * 60000)
-            });
-          });
-          await Promise.all(promises);
-          
-          // Re-fetch now that we seeded
-          const newSnapshot = await getDocs(q);
-          const seededData = newSnapshot.docs.map(doc => {
-            const d = doc.data();
-            return {
-              id: doc.id,
-              subjectId: d.subjectId,
-              authorName: d.authorName,
-              authorRole: d.authorRole || 'student',
-              avatarSeed: d.avatarSeed,
-              content: d.content,
-              timestamp: d.timestamp || 'منذ فترة',
-              likes: d.likes || 0,
-              likedByUser: localStorage.getItem(`liked_${doc.id}`) === 'true'
-            } as ForumMessage;
-          });
-          setMessages(seededData);
-          localStorage.setItem('bin_aoun_discussions', JSON.stringify(seededData));
-        } else {
-          const fetchedData = snapshot.docs.map(doc => {
-            const d = doc.data();
-            return {
-              id: doc.id,
-              subjectId: d.subjectId,
-              authorName: d.authorName,
-              authorRole: d.authorRole || 'student',
-              avatarSeed: d.avatarSeed,
-              content: d.content,
-              timestamp: d.timestamp || 'منذ فترة',
-              likes: d.likes || 0,
-              likedByUser: localStorage.getItem(`liked_${doc.id}`) === 'true'
-            } as ForumMessage;
-          });
-          setMessages(fetchedData);
-          localStorage.setItem('bin_aoun_discussions', JSON.stringify(fetchedData));
-        }
-      } catch (err) {
-        console.warn("Firestore access error, falling back to local storage:", err);
-        const saved = localStorage.getItem('bin_aoun_discussions');
-        if (saved) {
-          try {
-            setMessages(JSON.parse(saved));
-          } catch (e) {
-            setMessages(initialForumMessages);
-          }
-        } else {
-          setMessages(initialForumMessages);
-        }
-      } finally {
-        setIsDbLoading(false);
-      }
-    };
+    localStorage.setItem('bin_aoun_discussions', JSON.stringify(messages));
+  }, [messages]);
 
-    fetchDiscussions();
-  }, []);
-
-  const handlePostMessage = async (e: React.FormEvent) => {
+  const handlePostMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessageText.trim()) return;
 
-    // Fetch user details
+    // Fetch user name if stored or use a clean default
     const savedUserStr = localStorage.getItem('school_user');
     let author = 'طالب مناقش';
     let avatarSeedValue = 'BinAoun';
@@ -234,9 +171,8 @@ export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
       } catch (err) {}
     }
 
-    const postId = `m_${Date.now()}`;
     const newMsg: ForumMessage = {
-      id: postId,
+      id: `m_${Date.now()}`,
       subjectId: selectedSubjectId === 'all' ? (subjects[0]?.id || 'math') : selectedSubjectId,
       authorName: author,
       authorRole: 'student',
@@ -247,60 +183,22 @@ export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
       likedByUser: false,
     };
 
-    // Optimistically update UI
-    const updatedMessages = [newMsg, ...messages];
-    setMessages(updatedMessages);
-    localStorage.setItem('bin_aoun_discussions', JSON.stringify(updatedMessages));
+    setMessages([newMsg, ...messages]);
     setNewMessageText('');
-
-    // Persist to Cloud Firestore
-    try {
-      const discussionsCol = collection(db, 'discussions');
-      await setDoc(doc(discussionsCol, postId), {
-        ...newMsg,
-        createdAt: new Date()
-      });
-    } catch (err) {
-      console.warn("Could not save to Firestore, locally updated:", err);
-    }
   };
 
-  const handleToggleLike = async (msgId: string) => {
-    let targetLikes = 0;
-    let currentlyLiked = false;
-
-    const updated = messages.map(m => {
+  const handleToggleLike = (msgId: string) => {
+    setMessages(prev => prev.map(m => {
       if (m.id === msgId) {
-        currentlyLiked = !m.likedByUser;
-        targetLikes = currentlyLiked ? m.likes + 1 : m.likes - 1;
-        
-        if (currentlyLiked) {
-          localStorage.setItem(`liked_${msgId}`, 'true');
-        } else {
-          localStorage.removeItem(`liked_${msgId}`);
-        }
-        
+        const liked = !m.likedByUser;
         return {
           ...m,
-          likedByUser: currentlyLiked,
-          likes: targetLikes
+          likedByUser: liked,
+          likes: liked ? m.likes + 1 : m.likes - 1
         };
       }
       return m;
-    });
-
-    setMessages(updated);
-    localStorage.setItem('bin_aoun_discussions', JSON.stringify(updated));
-
-    // Persist Like count update to Cloud Firestore
-    try {
-      const docRef = doc(db, 'discussions', msgId);
-      await updateDoc(docRef, {
-        likes: targetLikes
-      });
-    } catch (err) {
-      console.warn("Could not sync like to Firestore:", err);
-    }
+    }));
   };
 
   // Filter messages based on Subject tab and Search text query
