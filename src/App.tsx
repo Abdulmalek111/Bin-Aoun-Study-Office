@@ -488,6 +488,9 @@ export default function App() {
                   onUpdateSubjectLectures={setSubjectLectures}
                   supportTickets={supportTickets}
                   onUpdateSupportTickets={setSupportTickets}
+                  notifications={notifications}
+                  onUpdateNotifications={setNotifications}
+                  onAddNotification={handleAddNotification}
                 />
               )}
 

@@ -19,6 +19,9 @@ interface ProfileViewProps {
   onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
   supportTickets: SupportTicket[];
   onUpdateSupportTickets: (updated: SupportTicket[]) => void;
+  notifications?: any[];
+  onUpdateNotifications?: (updated: any[]) => void;
+  onAddNotification?: (targetEmail: string, senderName: string, message: string) => void;
 }
 
 type ActiveSection = 'none' | 'account' | 'subscription' | 'notifications' | 'support' | 'install';
@@ -39,6 +42,9 @@ export default function ProfileView({
   onUpdateSubjectLectures,
   supportTickets = [],
   onUpdateSupportTickets,
+  notifications = [],
+  onUpdateNotifications,
+  onAddNotification,
 }: ProfileViewProps) {
   const [activeSubSection, setActiveSubSection] = useState<ActiveSection>('none');
   const [emailInput, setEmailInput] = useState(user.email);
@@ -311,6 +317,9 @@ export default function ProfileView({
             isEmbedded={true}
             supportTickets={supportTickets}
             onUpdateSupportTickets={onUpdateSupportTickets}
+            notifications={notifications}
+            onUpdateNotifications={onUpdateNotifications}
+            onAddNotification={onAddNotification}
           />
         </div>
       ) : (
