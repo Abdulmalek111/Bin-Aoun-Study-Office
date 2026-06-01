@@ -396,7 +396,7 @@ export default function ProfileView({
                       </p>
                       <div className="space-y-2 max-h-[160px] overflow-y-auto no-scrollbar pr-1">
                         {supportTickets.filter(t => user.email === 'abdulmlikoog@gmail.com' ? true : t.senderEmail === user.email).map((ticket) => (
-                          <div key={ticket.id} className="p-2.5 bg-gray-55 dark:bg-slate-800 border border-gray-150/40 rounded-xl space-y-1.5 text-[11px]">
+                          <div key={ticket.id} className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-gray-200/50 dark:border-slate-700/50 rounded-xl space-y-1.5 text-[11px] shadow-sm">
                             <div className="flex justify-between items-center text-[10px]">
                               <div className="flex items-center gap-1">
                                 <span className="font-extrabold text-brand-dark dark:text-brand-gold truncate max-w-[90px]">{ticket.senderName}</span>

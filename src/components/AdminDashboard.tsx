@@ -616,31 +616,31 @@ export default function AdminDashboard({
           </span>
         </div>
 
-        <div className="space-y-3 max-h-[280px] overflow-y-auto no-scrollbar pr-1">
+        <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
           {supportTickets.length > 0 ? (
             supportTickets.map((ticket) => (
-              <div key={ticket.id} className="p-3.5 bg-gray-55/60 dark:bg-slate-850/60 border border-gray-100 dark:border-slate-800/80 rounded-xl space-y-2.5 text-right text-xs">
+              <div key={ticket.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-gray-200/60 dark:border-slate-700/60 rounded-xl space-y-2.5 text-right text-xs animate-fade-in shadow-sm">
                 <div className="flex justify-between items-center sm:flex-row flex-col gap-1 text-[10px]">
                   <div className="flex items-center gap-2">
                     <span className="font-extrabold text-brand-dark dark:text-white">{ticket.senderName}</span>
-                    <span className="font-mono text-gray-400 bg-gray-100/50 dark:bg-slate-800/50 px-1.5 py-0.2 rounded">{ticket.senderEmail}</span>
+                    <span className="font-mono text-gray-500 bg-gray-100/70 dark:bg-slate-900/50 dark:text-gray-400 px-1.5 py-0.5 rounded">{ticket.senderEmail}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-gray-400">{ticket.createdAt}</span>
-                    <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-brand-gold/10'}`}>
+                    <span className="font-mono text-gray-450 dark:text-gray-400">{ticket.createdAt}</span>
+                    <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-955/40 dark:text-amber-400'}`}>
                       {ticket.reply ? '✓ تم الرد' : '🕒 بانتظار الرد'}
                     </span>
                   </div>
                 </div>
 
-                <div className="text-gray-700 dark:text-gray-300 font-bold bg-white dark:bg-slate-900 border border-gray-150/50 p-2.5 rounded-lg leading-relaxed text-[11px] select-text">
+                <div className="text-gray-850 dark:text-gray-300 font-bold bg-white dark:bg-slate-900 border border-gray-150/60 dark:border-slate-800/60 p-2.5 rounded-lg leading-relaxed text-[11px] select-text">
                   {ticket.message}
                 </div>
 
                 {ticket.reply ? (
-                  <div className="bg-emerald-50/20 dark:bg-emerald-950/15 border-r-2 border-emerald-500 p-2.5 rounded-lg text-[11px] space-y-0.5">
+                  <div className="bg-emerald-50/30 dark:bg-emerald-950/15 border-r-2 border-emerald-500 p-2.5 rounded-lg text-[11px] space-y-0.5">
                     <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-[10px]">الرد المرسل سابقاً:</div>
-                    <p className="font-bold text-gray-650 dark:text-gray-200 leading-normal">{ticket.reply}</p>
+                    <p className="font-bold text-gray-700 dark:text-gray-200 leading-normal">{ticket.reply}</p>
                     {ticket.repliedAt && <span className="block text-[8px] text-gray-400 font-mono pt-0.5">{ticket.repliedAt}</span>}
                   </div>
                 ) : (
