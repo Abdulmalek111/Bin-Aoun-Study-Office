@@ -4,7 +4,7 @@ import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from './lib/firebase';
 
 // Types and Initial Mock Data
-import { User, Subject, Exam, TabType } from './types';
+import { User, Subject, Exam, TabType, SupportTicket } from './types';
 import { initialSubjects, initialExams } from './data';
 
 // Components
@@ -30,6 +30,33 @@ export default function App() {
     const saved = localStorage.getItem('school_dark_mode');
     return saved !== 'false';
   });
+
+  // Technical Support Tickets state
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
+    const saved = localStorage.getItem('school_support_tickets');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [
+      {
+        id: '8542',
+        senderEmail: 'ahmed.salih@gmail.com',
+        senderName: 'أحمد الصالح',
+        message: 'السلام عليكم، لدي استفسار بخصوص الباب الأول في مادة الرياضيات. هل المستندات المطلوبة تغطي كافة أسئلة الامتحان النهائي؟ وشكراً لكم.',
+        createdAt: '2026-06-01 10:30',
+        reply: 'وعليكم السلام ورحمة الله وبركاته يا أحمد. نعم، كافة المستندات والملفات المرفقة تضمن تغطية المنهج بشكل كامل ومطابقة لنمط الأسئلة المعتمد.',
+        repliedAt: '2026-06-01 11:15'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_support_tickets', JSON.stringify(supportTickets));
+  }, [supportTickets]);
 
   // Dynamic Required Documents (previously "Standard Lectures") state
   const [subjectLectures, setSubjectLectures] = useState<Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>>(() => {
@@ -103,49 +130,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('school_subject_lectures', JSON.stringify(subjectLectures));
   }, [subjectLectures]);
-
-  // Persistent Support Tickets State
-  const [supportTickets, setSupportTickets] = useState<any[]>(() => {
-    const saved = localStorage.getItem('school_support_tickets');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // Fallback
-      }
-    }
-    return [
-      {
-        id: 't-1',
-        studentName: 'أحمد الصالح',
-        studentEmail: 'ahmed.salih@gmail.com',
-        studentTelegram: '@ahmed_salih99',
-        message: 'مرحباً، أواجه صعوبة في تشغيل بعض محاضرات الفيديو لمادة سلامة الحياة على جهازي.',
-        timestamp: '2026/05/31 10:15',
-        replies: [
-          { sender: 'student', text: 'مرحباً، أواجه صعوبة في تشغيل بعض محاضرات الفيديو لمادة سلامة الحياة على جهازي.', timestamp: '2026/05/31 10:15' }
-        ],
-        status: 'open'
-      },
-      {
-        id: 't-2',
-        studentName: 'سارة العتيبي',
-        studentEmail: 'sara.otb@outlook.com',
-        studentTelegram: '@sara_otb',
-        message: 'لو سمحت يا أستاذ عبدالملك، متى موعد الاختبار التجريبي النهائي في مادة البرمجة؟ وشكراً جزيلاً.',
-        timestamp: '2026/05/31 11:42',
-        replies: [
-          { sender: 'student', text: 'لو سمحت يا أستاذ عبدالملك، متى موعد الاختبار التجريبي النهائي في مادة البرمجة؟ وشكراً جزيلاً.', timestamp: '2026/05/31 11:42' },
-          { sender: 'admin', text: 'مرحباً سارة، تم إدراج الاختبار التجريبي الجديد في قائمة الاختبارات وهو متاح للتقديم في أي وقت للتدرب.', timestamp: '2026/05/31 12:00' }
-        ],
-        status: 'answered'
-      }
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('school_support_tickets', JSON.stringify(supportTickets));
-  }, [supportTickets]);
 
   // Apply dark mode theme class
   useEffect(() => {
@@ -461,7 +445,7 @@ export default function App() {
 
         {/* Common Bottom Mobile Navigation Dock (Hidden if in active exam screen for complete testing focus) */}
         {user && !activeExamId && (
-          <nav className="bg-white border-t border-gray-150 px-3 py-3.5 flex justify-around items-center text-gray-400 shadow-md z-30 select-none rounded-t-2xl shrink-0">
+          <nav className="bg-white border-t border-gray-150 px-2 sm:px-3 py-2.5 sm:py-3.5 flex justify-around items-center text-gray-400 shadow-md z-30 select-none rounded-t-2xl shrink-0">
             
             {/* Home tab button */}
             <button
@@ -507,19 +491,6 @@ export default function App() {
               <span className="text-[10px]">الاختبارات</span>
             </button>
 
-            {/* Admin dashboard link for designated administrator email */}
-            {user?.email === 'abdulmlikoog@gmail.com' && (
-              <button
-                onClick={() => setActiveTab('admin')}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === 'admin' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
-                }`}
-              >
-                <Shield size={20} className={activeTab === 'admin' ? 'text-red-500 stroke-[2.2]' : 'stroke-[1.8] text-red-400'} />
-                <span className="text-[10px] text-red-500">لوحة التحكم</span>
-              </button>
-            )}
-
             {/* Profile tab button */}
             <button
               onClick={() => setActiveTab('profile')}
@@ -528,7 +499,7 @@ export default function App() {
               }`}
             >
               <UserIcon size={20} className={activeTab === 'profile' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-              <span className="text-[10px]">الشخصي</span>
+              <span className="text-[10px]">حسابي</span>
             </button>
 
           </nav>

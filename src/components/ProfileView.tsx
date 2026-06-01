@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield } from 'lucide-react';
-import { User as UserType } from '../types';
+import { User as UserType, SupportTicket } from '../types';
 import AdminDashboard from './AdminDashboard';
 
 interface ProfileViewProps {
@@ -17,8 +17,8 @@ interface ProfileViewProps {
   onUpdateSubjects: (updated: any[]) => void;
   subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
   onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
-  supportTickets: any[];
-  onUpdateSupportTickets: (tickets: any[]) => void;
+  supportTickets: SupportTicket[];
+  onUpdateSupportTickets: (updated: SupportTicket[]) => void;
 }
 
 type ActiveSection = 'none' | 'account' | 'subscription' | 'notifications' | 'support' | 'install';
@@ -37,7 +37,7 @@ export default function ProfileView({
   onUpdateSubjects,
   subjectLecturesMap,
   onUpdateSubjectLectures,
-  supportTickets,
+  supportTickets = [],
   onUpdateSupportTickets,
 }: ProfileViewProps) {
   const [activeSubSection, setActiveSubSection] = useState<ActiveSection>('none');
@@ -87,97 +87,29 @@ export default function ProfileView({
     setTimeout(() => setEmailUpdated(false), 2000);
   };
 
-  // Interactive ticket reply states
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-  const [ticketReplyMsg, setTicketReplyMsg] = useState('');
-
-  const handleSendSupport = async (e: React.FormEvent) => {
+  const handleSendSupport = (e: React.FormEvent) => {
     e.preventDefault();
     if (supportMsg.trim() === '') return;
-
-    const messageText = supportMsg.trim();
-    const newTicketId = 't-' + Date.now();
-    const today = new Date();
-    const timestampStr = `${today.getFullYear()}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
     
-    const newTicketObj = {
-      id: newTicketId,
-      studentName: user.username,
-      studentEmail: user.email,
-      studentTelegram: user.telegram || '@غير-معرف',
-      message: messageText,
-      timestamp: timestampStr,
-      replies: [
-        { sender: 'student', text: messageText, timestamp: timestampStr }
-      ],
-      status: 'open'
+    const newId = Math.floor(1000 + Math.random() * 9000).toString();
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
+    
+    const newTicket: SupportTicket = {
+      id: newId,
+      senderEmail: user.email,
+      senderName: user.username,
+      message: supportMsg.trim(),
+      createdAt: formattedDate,
     };
 
-    const updated = [...supportTickets, newTicketObj];
-    onUpdateSupportTickets(updated);
-    setSelectedTicketId(newTicketId);
-    setSupportMsg('');
+    onUpdateSupportTickets([newTicket, ...supportTickets]);
     setSupportSuccess(true);
-    setTimeout(() => setSupportSuccess(false), 3000);
-
-    // Live Integration with Telegram Bot API
-    try {
-      const tgMsg = `🔔 طلب دعم أكاديمي وتواصل 🔔\n\n👤 الطالب: ${user.username}\n📧 البريد المالي: ${user.email}\n📱 تليجرام الطالب: ${user.telegram || 'غير محدد'}\n\n💬 الرسالة:\n"${messageText}"\n\n🔗 رابط المتابعة والرد: https://t.me/binawnofficeru`;
-      const botToken = "8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk";
-      const chatId = "@binawnofficeru";
-
-      // Fire HTTP call asynchronously
-      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: tgMsg
-        })
-      }).then(r => r.json())
-        .then(data => console.log('Support telegram response:', data))
-        .catch(err => console.warn('Support telegram send warning:', err));
-    } catch (e) {
-      console.warn(e);
-    }
-  };
-
-  const handleSendTicketReply = (ticketId: string) => {
-    if (!ticketReplyMsg.trim()) return;
-    const txt = ticketReplyMsg.trim();
-    const now = new Date();
-    const timeStr = `${now.getFullYear()}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-
-    const updated = supportTickets.map(t => {
-      if (t.id === ticketId) {
-        return {
-          ...t,
-          status: 'open', // goes back to open if student replies
-          replies: [...t.replies, { sender: 'student', text: txt, timestamp: timeStr }]
-        };
-      }
-      return t;
-    });
-
-    onUpdateSupportTickets(updated);
-    setTicketReplyMsg('');
-
-    // Send brief warning to Telegram that student followed up
-    try {
-      const matchT = supportTickets.find(t => t.id === ticketId);
-      const tgMsg = `💬 متابعة دعم فني جديدة من الطالب ${user.username} 💬\n\n💬 الرسالة الجديدة:\n"${txt}"`;
-      const botToken = "8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk";
-      const chatId = "@binawnofficeru";
-      
-      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: tgMsg
-        })
-      });
-    } catch(e){}
+    setSupportMsg('');
+    setTimeout(() => {
+      setSupportSuccess(false);
+      setActiveSubSection('none');
+    }, 2500);
   };
 
   return (
@@ -194,47 +126,36 @@ export default function ProfileView({
         <div className="w-9 h-9"></div> {/* Balancer spacer */}
       </div>
 
-      {user.email === 'abdulmlikoog@gmail.com' && (
-        <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-xl border border-gray-150 gap-1">
-          <button 
-            type="button"
-            onClick={() => setProfileViewTab('profile')}
-            className={`flex-1 py-1.5 text-center text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              profileViewTab === 'profile' 
-                ? 'bg-brand-dark dark:bg-brand-gold text-white dark:text-brand-dark shadow-sm' 
-                : 'text-gray-500 hover:text-brand-dark dark:text-gray-400 hover:bg-gray-50/50'
-            }`}
-          >
-            <User size={14} />
-            <span>عرض الحساب الشخصي</span>
-          </button>
-          <button 
-            type="button"
-            onClick={() => setProfileViewTab('admin')}
-            className={`flex-1 py-1.5 text-center text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              profileViewTab === 'admin' 
-                ? 'bg-brand-dark dark:bg-brand-gold text-white dark:text-brand-dark shadow-sm' 
-                : 'text-gray-500 hover:text-brand-dark dark:text-gray-400 hover:bg-gray-50/50'
-            }`}
-          >
-            <Shield size={14} />
-            <span>لوحة التحكم في الشخصي</span>
-          </button>
-        </div>
-      )}
+
 
       {user.email === 'abdulmlikoog@gmail.com' && profileViewTab === 'admin' ? (
-        <AdminDashboard 
-          user={user}
-          subjects={subjects}
-          onUpdateSubjects={onUpdateSubjects}
-          onNavigateToTab={onNavigateToTab}
-          subjectLecturesMap={subjectLecturesMap}
-          onUpdateSubjectLectures={onUpdateSubjectLectures}
-          isEmbedded={true}
-          supportTickets={supportTickets}
-          onUpdateSupportTickets={onUpdateSupportTickets}
-        />
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex justify-between items-center bg-gray-50 dark:bg-slate-805/40 p-2.5 rounded-xl border border-gray-150/30">
+            <span className="text-xs font-extrabold text-brand-dark dark:text-brand-gold flex items-center gap-1.5">
+              <Shield size={14} className="text-brand-gold" />
+              <span>لوحة التحكم والإرشاد العامة كمسؤول</span>
+            </span>
+            <button 
+              type="button"
+              onClick={() => setProfileViewTab('profile')}
+              className="px-3 py-1.5 bg-brand-dark hover:bg-brand-blue text-white rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+            >
+              <ChevronLeft size={12} />
+              <span>العودة للملف الشخصي</span>
+            </button>
+          </div>
+          <AdminDashboard 
+            user={user}
+            subjects={subjects}
+            onUpdateSubjects={onUpdateSubjects}
+            onNavigateToTab={onNavigateToTab}
+            subjectLecturesMap={subjectLecturesMap}
+            onUpdateSubjectLectures={onUpdateSubjectLectures}
+            isEmbedded={true}
+            supportTickets={supportTickets}
+            onUpdateSupportTickets={onUpdateSupportTickets}
+          />
+        </div>
       ) : (
         <>
 
@@ -380,170 +301,58 @@ export default function ProfileView({
 
           {/* Help & Support Subview */}
           {activeSubSection === 'support' && (
-            <div className="space-y-4">
-              
-              {/* Telegram Link Buttons as requested */}
-              <div className="p-3 bg-gradient-to-r from-blue-500/10 to-blue-600/15 border border-blue-400/20 rounded-2xl space-y-2 text-right" style={{ direction: 'rtl' }}>
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                  <span className="text-[11px] font-black">الدعم الفني عبر تليجرام المباشر</span>
+            <form onSubmit={handleSendSupport} className="space-y-2.5">
+              {supportSuccess ? (
+                <div className="text-center py-2 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100">
+                  تم إرسال بطاقة الدعم في الملف الدراسي برقم #8542. سنقوم بالرد عليك قريباً!
                 </div>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed font-bold">
-                  يمكنك التواصل المباشر مع البوت المالي المعتمد والإدارة فوراً عبر معرف تليجرام الموحد:
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <a
-                    href="https://t.me/binawnofficeru"
-                    target="_blank"
-                    referrerPolicy="no-referrer"
-                    className="flex-1 py-1.5 bg-[#229ED9] hover:bg-[#1a85b8] text-white rounded-xl text-center text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                  >
-                    <span>الدخول للقناة الموحدة</span>
-                    <span className="font-mono">@binawnofficeru</span>
-                  </a>
-                  <a
-                    href="https://t.me/binawnofficerubot"
-                    target="_blank"
-                    referrerPolicy="no-referrer"
-                    className="flex-1 py-1.5 bg-[#40a7e2] hover:bg-[#3492c7] text-white rounded-xl text-center text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                  >
-                    <span>مراسلة البوت المالي المعتمد</span>
-                    <span className="font-mono">@binawnofficerubot</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* In-app tickets conversation stream */}
-              <div className="space-y-3 pt-1 text-right" style={{ direction: 'rtl' }}>
-                <h5 className="text-[11px] font-black text-brand-dark dark:text-slate-200 border-b border-gray-150 dark:border-slate-800 pb-1 flex items-center gap-1.5">
-                  <span>📨 تذاكر واستفسارات الدعم الفني الحالية بالموقع:</span>
-                </h5>
-
-                {supportTickets.filter(t => t.studentEmail === user.email).length === 0 ? (
-                  <p className="text-[10px] text-gray-400 text-center font-bold py-2">
-                    لا توجد تذاكر دعم فني سابقة لك حالياً. استخدم النموذج أدناه لطلب الدعم الفوري.
-                  </p>
-                ) : (
-                  <div className="space-y-3.5 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
-                    {supportTickets.filter(t => t.studentEmail === user.email).map((ticket) => {
-                      const isOpened = selectedTicketId === ticket.id;
-                      return (
-                        <div key={ticket.id} className="bg-white dark:bg-slate-900 border border-gray-150/60 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
-                          {/* Ticket Header trigger */}
-                          <div 
-                            onClick={() => setSelectedTicketId(selectedTicketId === ticket.id ? null : ticket.id)}
-                            className="p-3 bg-gray-50/50 dark:bg-slate-850 flex items-center justify-between cursor-pointer hover:bg-gray-100/40"
-                          >
-                            <div className="space-y-0.5 text-right">
-                              <p className="text-[11px] font-black text-brand-dark dark:text-white line-clamp-1">
-                                {ticket.message}
-                              </p>
-                              <p className="text-[9px] text-gray-400 font-bold font-mono">
-                                تاريخ التذكرة: {ticket.timestamp}
-                              </p>
-                            </div>
-
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                              ticket.status === 'answered'
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-450'
-                                : 'bg-amber-50 text-brand-gold dark:bg-amber-950/25'
-                            }`}>
-                              {ticket.status === 'answered' ? 'تم الرد ✓' : 'بانتظار المشرف'}
-                            </span>
-                          </div>
-
-                          {/* Chat Window Box */}
-                          {isOpened && (
-                            <div className="p-3 border-t border-gray-100 dark:border-slate-800 space-y-3.5 bg-gray-50/20 dark:bg-slate-900/60 text-right" style={{ direction: 'rtl' }}>
-                              <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1 no-scrollbar flex flex-col">
-                                {ticket.replies.map((rep: any, idx: number) => {
-                                  const isAdmin = rep.sender === 'admin';
-                                  return (
-                                    <div 
-                                      key={idx} 
-                                      className={`flex flex-col max-w-[85%] ${
-                                        isAdmin ? 'self-start text-right' : 'self-end text-right'
-                                      }`}
-                                    >
-                                      <span className="text-[8px] text-gray-400 font-bold mb-0.5 px-1.5 block">
-                                        {isAdmin ? '🛡️ المشرف الأستاذ عبدالملك' : '👤 أنت'}
-                                      </span>
-                                      <div className={`p-2.5 rounded-2xl text-[11px] leading-relaxed ${
-                                        isAdmin
-                                          ? 'bg-amber-500/10 text-brand-dark dark:text-white border-r-2 border-brand-gold rounded-tr-none'
-                                          : 'bg-brand-dark text-white rounded-tr-none'
-                                      }`}>
-                                        {rep.text}
-                                      </div>
-                                      <span className="text-[7px] text-gray-400 font-mono mt-0.5 px-1">
-                                        {rep.timestamp}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Student Live Chat Reply Form */}
-                              <div className="flex gap-1.5 pt-1.5 border-t border-gray-100 dark:border-slate-800">
-                                <input 
-                                  type="text"
-                                  value={ticketReplyMsg}
-                                  onChange={(e) => setTicketReplyMsg(e.target.value)}
-                                  placeholder="اكتب ردك الأكاديمي أو المالي هنا..."
-                                  className="flex-1 bg-white dark:bg-slate-850 border border-gray-200 dark:border-slate-850 rounded-xl text-[11px] px-3 py-1.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white placeholder:text-[10px]"
-                                  onKeyDown={(e) => {
-                                    if(e.key === 'Enter') handleSendTicketReply(ticket.id);
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleSendTicketReply(ticket.id)}
-                                  className="px-3 py-1.5 bg-brand-dark dark:bg-brand-gold text-white dark:text-brand-dark font-extrabold text-[10px] rounded-xl cursor-pointer"
-                                >
-                                  إرسال
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Submit a completely new ticket forms */}
-              <div className="border-t border-gray-150 dark:border-slate-800 pt-3 space-y-2 text-right">
-                <p className="text-[11px] font-black text-brand-dark dark:text-slate-200">
-                  ✏️ فتح واستفسار ببطاقة دعم جديدة:
-                </p>
-                
-                <form onSubmit={handleSendSupport} className="space-y-2">
-                  {supportSuccess ? (
-                    <div className="text-center py-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100">
-                      ✓ تم تسجيل تذكرتك بنجاح وبثها فوراً لتليجرام الإدارة !
-                    </div>
-                  ) : null}
-
-                  <textarea 
+              ) : (
+                <>
+                  <p className="text-[10px] text-gray-500 leading-normal">
+                     اكتب سؤالك أو الشكوى الخاصة بك بخصوص المواد أو الاختبارات التجريبية، وسيقوم المشرف بالتواصل معك فوراً في البريد الإلكتروني.
+                   </p>
+                   <textarea 
                     required 
                     value={supportMsg} 
                     onChange={(e) => setSupportMsg(e.target.value)} 
-                    rows={2} 
-                    placeholder="اكتب تفاصيل استفسارك أو مشكلتك الفنية والمالية هنا للرد التلقائي..."
-                    className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-[11px] p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
+                    rows={3} 
+                    placeholder="اكتب رسالتك أو استفسارك هنا تفصيلاً..."
+                    className="w-full bg-white border border-gray-200 rounded-lg text-xs p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white dark:bg-slate-900"
                   ></textarea>
-
                   <button 
                     type="submit" 
-                    className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-[11px] font-black transition-all cursor-pointer text-center"
+                    className="w-full py-2 bg-brand-gold text-white rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
                   >
-                    إرسال استفسار جديد وبثه للتلجرام
+                    إرسال بطاقة الدعم الفني
                   </button>
-                </form>
-              </div>
 
-            </div>
+                  {supportTickets.filter(t => t.senderEmail === user.email).length > 0 && (
+                    <div className="pt-3 border-t border-gray-150 space-y-2 text-right">
+                      <p className="text-[11px] font-extrabold text-brand-dark dark:text-brand-gold">سجل الرسائل والردود الفورية السابقة:</p>
+                      <div className="space-y-2 max-h-[160px] overflow-y-auto no-scrollbar pr-1">
+                        {supportTickets.filter(t => t.senderEmail === user.email).map((ticket) => (
+                          <div key={ticket.id} className="p-2.5 bg-gray-50/75 dark:bg-slate-800 border border-gray-150/40 rounded-xl space-y-1.5 text-[11px]">
+                            <div className="flex justify-between items-center text-[10px]">
+                              <span className="font-mono text-gray-400 font-bold">{ticket.createdAt}</span>
+                              <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-950/45'}`}>
+                                {ticket.reply ? '✓ تم الرد' : '🕒 قيد الانتظار'}
+                              </span>
+                            </div>
+                            <p className="text-gray-700 dark:text-gray-300 font-semibold">{ticket.message}</p>
+                            {ticket.reply && (
+                              <div className="mt-1.5 bg-white dark:bg-slate-900 border-r-2 border-brand-gold p-2 rounded-lg text-[11px] text-brand-dark dark:text-gray-200">
+                                <div className="font-extrabold text-[9px] text-brand-gold mb-0.5">رد المشرف العام:</div>
+                                <p className="font-bold leading-relaxed">{ticket.reply}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </form>
           )}
 
           {/* PWA App Installation Subview */}
@@ -593,124 +402,124 @@ export default function ProfileView({
       )}
 
       {/* Profile Navigation Links */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100 shadow-sm">
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100 shadow-sm animate-fade-in">
         
         {/* Account Info button */}
         <div 
           onClick={() => setActiveSubSection(activeSubSection === 'account' ? 'none' : 'account')}
-          className="p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+          className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 text-blue-800 rounded-xl">
-              <User size={18} className="stroke-[2.2] text-brand-blue" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-blue-50 text-blue-800 rounded-xl shrink-0">
+              <User size={16} className="stroke-[2.2] text-brand-blue" />
             </div>
-            <span className="text-sm font-bold text-gray-700">معلومات الحساب الدراسي</span>
+            <span className="text-[12px] sm:text-sm font-bold text-gray-700">معلومات الحساب الدراسي</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
-            <span className="text-xs font-medium text-brand-gold">{user.telegram || 'مطلوب @'}</span>
-            <span className="text-xs font-medium text-gray-400">{user.username}</span>
-            <ChevronLeft size={16} />
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <span className="text-[10px] sm:text-xs font-semibold text-brand-gold truncate max-w-[80px] sm:max-w-[120px]">{user.telegram || 'مطلوب @'}</span>
+            <span className="text-[10px] sm:text-xs font-medium text-gray-400 hidden sm:inline">{user.username}</span>
+            <ChevronLeft size={14} className="shrink-0" />
           </div>
         </div>
 
         {/* Subscriptions */}
         <div 
           onClick={() => setActiveSubSection(activeSubSection === 'subscription' ? 'none' : 'subscription')}
-          className="p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+          className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-50 text-orange-800 rounded-xl">
-              <CreditCard size={18} className="stroke-[2.2] text-brand-gold" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-orange-50 text-orange-800 rounded-xl shrink-0">
+              <CreditCard size={16} className="stroke-[2.2] text-brand-gold" />
             </div>
-            <span className="text-sm font-bold text-gray-700">الاشتراكات والمساقات</span>
+            <span className="text-[12px] sm:text-sm font-bold text-gray-700">الاشتراكات والمساقات</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
-            <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">باقة نشطة</span>
-            <ChevronLeft size={16} />
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">نشط ✓</span>
+            <ChevronLeft size={14} className="shrink-0" />
           </div>
         </div>
 
         {/* Exam history list shortcut */}
         <div 
           onClick={() => onNavigateToTab('exams')}
-          className="p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+          className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-50 text-emerald-800 rounded-xl">
-              <ClipboardList size={18} className="stroke-[2.2] text-emerald-700" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-emerald-50 text-emerald-800 rounded-xl shrink-0">
+              <ClipboardList size={16} className="stroke-[2.2] text-emerald-700" />
             </div>
-            <span className="text-sm font-bold text-gray-700">سجل درجات الاختبارات</span>
+            <span className="text-[12px] sm:text-sm font-bold text-gray-700">سجل درجات الاختبارات</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
-            <span className="text-xs font-medium text-gray-400">{examHistoryCount} محاولة تم تقديمها</span>
-            <ChevronLeft size={16} />
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <span className="text-[10px] sm:text-xs font-semibold text-gray-400 shrink-0">{examHistoryCount} محاولات</span>
+            <ChevronLeft size={14} className="shrink-0" />
           </div>
         </div>
 
         {/* Notifications and Alerts */}
         <div 
           onClick={() => setActiveSubSection(activeSubSection === 'notifications' ? 'none' : 'notifications')}
-          className="p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+          className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-50 text-purple-800 rounded-xl">
-              <Bell size={18} className="stroke-[2.2] text-purple-700" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-purple-50 text-purple-800 rounded-xl shrink-0">
+              <Bell size={16} className="stroke-[2.2] text-purple-700" />
             </div>
-            <span className="text-sm font-bold text-gray-700">تفضيلات الإشعارات</span>
+            <span className="text-[12px] sm:text-sm font-bold text-gray-700">تفضيلات الإشعارات</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
-            <span className="text-xs font-medium text-gray-400">مفعلة</span>
-            <ChevronLeft size={16} />
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <span className="text-[10px] sm:text-xs font-medium text-gray-400">مفعلة</span>
+            <ChevronLeft size={14} className="shrink-0" />
           </div>
         </div>
 
         {/* Install / Download App button */}
         <div 
           onClick={() => setActiveSubSection(activeSubSection === 'install' ? 'none' : 'install')}
-          className="p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+          className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-50 text-amber-800 rounded-xl">
-              <Download size={18} className="stroke-[2.2] text-brand-gold animate-bounce" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-amber-50 text-amber-800 rounded-xl shrink-0">
+              <Download size={16} className="stroke-[2.2] text-brand-gold animate-bounce" />
             </div>
-            <span className="text-sm font-bold text-gray-700 font-bold">تحميل تطبيق "بن عون" على جهازك</span>
+            <span className="text-[12px] sm:text-sm font-bold text-gray-700">تنزيل تطبيق "بن عون"</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
+          <div className="flex items-center gap-1.5 text-gray-400">
             {deferredPrompt ? (
-              <span className="text-[10px] font-bold text-brand-gold bg-amber-50 px-1.5 py-0.5 rounded animate-pulse">تثبيت مباشر</span>
+              <span className="text-[9px] sm:text-[10px] font-black text-brand-gold bg-amber-50 px-1.5 py-0.5 rounded animate-pulse shrink-0">تثبيت مباشر</span>
             ) : (
-              <span className="text-xs font-medium text-gray-400">طريقة التثبيت</span>
+              <span className="text-[10px] sm:text-xs font-medium text-gray-400 shrink-0">طريقة الحفظ</span>
             )}
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} className="shrink-0" />
           </div>
         </div>
 
         {/* Dark Mode Toggle Switch */}
         <div 
-          className="p-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
+          className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-50 text-indigo-800 rounded-xl">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-indigo-50 text-indigo-800 rounded-xl shrink-0">
               {darkMode ? (
-                <Sun size={18} className="stroke-[2.2] text-brand-gold" />
+                <Sun size={16} className="stroke-[2.2] text-brand-gold" />
               ) : (
-                <Moon size={18} className="stroke-[2.2] text-indigo-700" />
+                <Moon size={16} className="stroke-[2.2] text-indigo-700" />
               )}
             </div>
-            <span className="text-sm font-bold text-gray-700">الوضع المظلم (Dark Mode)</span>
+            <span className="text-[12px] sm:text-sm font-bold text-gray-700">الوضع المظلم (Dark Mode)</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => onToggleDarkMode(!darkMode)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-gray-200 transition-colors duration-200 ease-in-out focus:outline-none p-0.5 items-center ${
-                darkMode ? 'bg-brand-gold justify-end' : 'bg-gray-200 justify-start'
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-gray-200 transition-colors duration-200 ease-in-out focus:outline-none p-0.5 items-center ${
+                darkMode ? 'bg-brand-gold justify-end' : 'bg-gray-205 bg-gray-200 justify-start'
               }`}
               type="button"
               role="switch"
               aria-checked={darkMode}
             >
               <span
-                className="pointer-events-none inline-block h-4.5 w-4.5 rounded-full bg-white shadow-md transition duration-200"
+                className="pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow-md transition duration-200"
               />
             </button>
           </div>
@@ -719,52 +528,71 @@ export default function ProfileView({
         {/* Support & Tech queries */}
         <div 
           onClick={() => setActiveSubSection(activeSubSection === 'support' ? 'none' : 'support')}
-          className="p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+          className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-teal-50 text-teal-800 rounded-xl">
-              <HelpCircle size={18} className="stroke-[2.2] text-teal-700" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-teal-50 text-teal-800 rounded-xl shrink-0">
+              <HelpCircle size={16} className="stroke-[2.2] text-teal-700" />
             </div>
-            <span className="text-sm font-bold text-gray-700">الدعم الفني والمساعدة والمقترحات</span>
+            <span className="text-[12px] sm:text-sm font-bold text-gray-700">الدعم الفني والردود الفورية</span>
           </div>
-          <div className="flex items-center gap-2 text-gray-400">
-            <ChevronLeft size={16} />
+          <div className="flex items-center gap-1.5 text-gray-400">
+            <ChevronLeft size={14} className="shrink-0" />
           </div>
         </div>
 
+        {/* Support & Tech queries: Admin Dashboard Option inside Menu (For Administrators Only) */}
+        {user.email === 'abdulmlikoog@gmail.com' && (
+          <div 
+            onClick={() => setProfileViewTab('admin')}
+            className="p-3 sm:p-4 flex items-center justify-between hover:bg-red-50/20 cursor-pointer transition-colors bg-red-50/5 dark:bg-red-950/5"
+          >
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-red-50 dark:bg-red-950/20 text-red-800 rounded-xl shrink-0">
+                <Shield size={16} className="stroke-[2.2] text-red-600 animate-pulse" />
+              </div>
+              <span className="text-[12px] sm:text-sm font-black text-red-705 text-red-700 dark:text-red-400">لوحة التحكم والمشرف العام</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-red-500">
+              <span className="text-[9px] sm:text-[10px] font-bold bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full shrink-0">إدارة المنصة</span>
+              <ChevronLeft size={14} className="shrink-0" />
+            </div>
+          </div>
+        )}
+
         {/* Log out of the current system session */}
         {showLogoutConfirm ? (
-          <div className="p-4 bg-red-50/70 border-t border-red-100 flex flex-col gap-3 animate-fade-in">
-            <p className="text-xs font-bold text-red-800 text-center">
-              هل أنت متأكد من تسجيل الخروج من مكتب بن عون الدراسي؟
+          <div className="p-3 sm:p-4 bg-red-50/75 border-t border-red-100 flex flex-col gap-3 animate-fade-in text-center">
+            <p className="text-[11px] sm:text-xs font-bold text-red-800">
+              هل أنت متأكد من تسجيل الخروج من حسابك؟
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-center">
               <button
                 onClick={() => onLogout()}
-                className="flex-1 py-1.5 px-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="flex-1 py-1 px-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[10px] sm:text-xs font-black transition-colors cursor-pointer"
               >
-                نعم، سجل الخروج
+                نعم، تسجيل الخروج
               </button>
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-1.5 px-3 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="flex-1 py-1 px-3 bg-white hover:bg-gray-150 border border-gray-200 text-gray-700 rounded-lg text-[10px] sm:text-xs font-black transition-colors cursor-pointer"
               >
-                إلغاء
+                إلغاء التراجع
               </button>
             </div>
           </div>
         ) : (
           <div 
             onClick={() => setShowLogoutConfirm(true)}
-            className="p-4 flex items-center justify-between hover:bg-red-50/40 cursor-pointer transition-colors text-red-600"
+            className="p-3 sm:p-4 flex items-center justify-between hover:bg-red-50/40 cursor-pointer transition-colors text-red-650 text-red-600"
           >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-50 text-red-700 rounded-xl">
-                <LogOut size={18} className="stroke-[2.2]" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-red-50 text-red-700 rounded-xl shrink-0">
+                <LogOut size={16} className="stroke-[2.2]" />
               </div>
-              <span className="text-sm font-extrabold">تسجيل الخروج</span>
+              <span className="text-[12px] sm:text-sm font-semibold">تسجيل الخروج الآمن</span>
             </div>
-            <ChevronLeft size={16} className="text-red-300" />
+            <ChevronLeft size={14} className="text-red-300 shrink-0" />
           </div>
         )}
 

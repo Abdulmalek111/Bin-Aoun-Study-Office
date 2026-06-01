@@ -39,3 +39,13 @@ export interface Exam {
 }
 
 export type TabType = 'home' | 'exams' | 'subjects' | 'profile' | 'discussions' | 'admin';
+
+export interface SupportTicket {
+  id: string;
+  senderEmail: string;
+  senderName: string;
+  message: string;
+  createdAt: string;
+  reply?: string;
+  repliedAt?: string;
+}
