@@ -183,9 +183,11 @@ export default function App() {
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark-mode');
+      document.documentElement.classList.add('dark');
       localStorage.setItem('school_dark_mode', 'true');
     } else {
       document.documentElement.classList.remove('dark-mode');
+      document.documentElement.classList.remove('dark');
       localStorage.setItem('school_dark_mode', 'false');
     }
   }, [darkMode]);

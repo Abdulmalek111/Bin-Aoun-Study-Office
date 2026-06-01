@@ -197,10 +197,10 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                       <CheckCircle2 size={17} className="fill-current stroke-white" />
                                     </button>
                                     <div>
-                                      <p className={`font-bold ${isCompleted ? 'text-gray-400 line-through dark:text-slate-500' : 'text-brand-dark'}`}>
+                                      <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 line-through opacity-70' : 'text-brand-dark dark:text-white'}`}>
                                         {lecture.title}
                                       </p>
-                                      <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+                                      <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1 mt-0.5">
                                         {lecture.type === 'video' ? <Video size={11} /> : <FileText size={11} />}
                                         <span>{lecture.duration} | {lecture.type === 'video' ? 'شرح مرئي' : 'مذكرة مرجعية PDF'}</span>
                                       </span>
@@ -258,7 +258,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                     ) : (
                       /* Standard Lectures Listing for other subjects */
                       <div className="space-y-1 divide-y divide-gray-100 dark:divide-slate-800">
-                        <p className="text-[11px] font-bold text-gray-400 pb-2 flex items-center gap-1">
+                        <p className="text-[11px] font-extrabold text-slate-700 dark:text-brand-gold pb-2 flex items-center gap-1">
                           <BookOpen size={13} className="text-brand-gold animate-pulse" />
                           <span>قائمة المستندات المطلوبة والمراجع المعتمدة:</span>
                         </p>
@@ -282,10 +282,10 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                   <CheckCircle2 size={17} className="fill-current stroke-white" />
                                 </button>
                                 <div>
-                                  <p className={`font-bold ${isCompleted ? 'text-gray-400 line-through dark:text-slate-500' : 'text-brand-dark'}`}>
+                                  <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 line-through opacity-70' : 'text-brand-dark dark:text-white'}`}>
                                     {lecture.title}
                                   </p>
-                                  <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+                                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1 mt-0.5">
                                     {lecture.type === 'video' ? <Video size={11} /> : <FileText size={11} />}
                                     <span>{lecture.duration} | {lecture.type === 'video' ? 'شرح مرئي' : 'مذكرة مرجعية PDF'}</span>
                                   </span>

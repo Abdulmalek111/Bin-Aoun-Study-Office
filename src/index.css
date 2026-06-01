@@ -116,7 +116,13 @@ body {
 /* Inner content block grey backgrounds */
 .dark-mode .bg-gray-50,
 .dark-mode .bg-gray-50\/50,
-.dark-mode .bg-gray-100 {
+.dark-mode .bg-gray-100,
+.dark-mode [class*="bg-gray-50"],
+.dark-mode [class*="bg-gray-55"],
+.dark-mode [class*="bg-gray-100"],
+.dark-mode [class*="bg-gray-200"],
+.dark-mode [class*="bg-slate-50"],
+.dark-mode [class*="bg-slate-100"] {
   background-color: #142844 !important;
 }
 

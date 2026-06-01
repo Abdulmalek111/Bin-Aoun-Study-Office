@@ -1250,24 +1250,24 @@ export default function AdminDashboard({
                       )}
                     </div>
                     
-                    <div className="space-y-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                    <div className="space-y-1 text-[10px] text-slate-700 dark:text-slate-350 font-semibold">
                       <div className="flex items-center gap-1">
-                        <Mail size={10} className="text-gray-400" />
-                        <span className="font-mono text-[9px]">{student.email}</span>
+                        <Mail size={10} className="text-slate-500 dark:text-slate-450" />
+                        <span className="font-mono text-[9.5px] text-slate-800 dark:text-slate-200">{student.email}</span>
                       </div>
                       
-                      <div className="flex items-center gap-1">
-                        <Smartphone size={10} className="text-brand-gold" />
-                        <span className="text-brand-gold bg-amber-50 dark:bg-amber-500/10 pl-1.5 pr-1 py-0.2 rounded font-sans font-extrabold text-[9px]">
+                      <div className="flex items-center gap-1 font-bold">
+                        <Smartphone size={10} className="text-brand-gold animate-pulse" />
+                        <span className="text-brand-gold bg-amber-500/10 pl-1.5 pr-1 py-0.2 rounded font-sans font-extrabold text-[9.5px]">
                           {student.telegram}
                         </span>
                       </div>
 
-                      <div className="text-[9px] text-gray-400 flex items-center gap-2">
+                      <div className="text-[9.5px] text-slate-650 dark:text-slate-300 flex items-center gap-2 font-bold">
                         <span>نسبة الإنجاز: <strong className="text-brand-dark dark:text-white font-sans">{student.completedCount} محاضرات</strong></span>
-                        <span className="text-gray-300 dark:text-slate-800">|</span>
+                        <span className="text-slate-350 dark:text-slate-700">|</span>
                         <span>معدل الاختبار: <strong className="text-brand-dark dark:text-white font-sans">{student.scorePct}%</strong></span>
-                        <span className="text-gray-300 dark:text-slate-800">|</span>
+                        <span className="text-slate-350 dark:text-slate-700">|</span>
                         <span>تاريخ الانضمام: {student.signUpDate}</span>
                       </div>
                     </div>
