@@ -23,9 +23,10 @@ import {
   Lock,
   LockOpen,
   ArrowRight,
-  MessageSquare
+  MessageSquare,
+  Bell
 } from 'lucide-react';
-import { User, Subject, SupportTicket, ChatMessage } from '../types';
+import { User, Subject, SupportTicket, ChatMessage, Notification } from '../types';
 
 interface AdminDashboardProps {
   user: User;
@@ -37,6 +38,9 @@ interface AdminDashboardProps {
   isEmbedded?: boolean;
   supportTickets?: SupportTicket[];
   onUpdateSupportTickets?: (updated: SupportTicket[]) => void;
+  notifications?: Notification[];
+  onUpdateNotifications?: (updated: Notification[]) => void;
+  onAddNotification?: (targetEmail: string, senderName: string, message: string) => void;
 }
 
 interface SimulatedStudent {
@@ -57,7 +61,10 @@ export default function AdminDashboard({
   onUpdateSubjectLectures,
   isEmbedded = false,
   supportTickets = [],
-  onUpdateSupportTickets
+  onUpdateSupportTickets,
+  notifications = [],
+  onUpdateNotifications,
+  onAddNotification
 }: AdminDashboardProps) {
   // Guard clause for safety
   if (user.email !== 'abdulmlikoog@gmail.com') {
@@ -275,6 +282,10 @@ export default function AdminDashboard({
       onUpdateSupportTickets(updated);
     }
 
+    if (onAddNotification) {
+      onAddNotification(ticket.senderEmail, 'المشرف العام', `رد جديد بخصوص بطاقة الدعم #${ticketId}: ${text.trim()}`);
+    }
+
     setChatInputText('');
     addLog(`تم إرسال رسالة رد في المحادثة لبطاقة رقم #${ticketId}.`);
   };
@@ -300,8 +311,14 @@ export default function AdminDashboard({
       return ticket;
     });
 
+    const ticket = supportTickets.find(t => t.id === ticketId);
+
     if (onUpdateSupportTickets) {
       onUpdateSupportTickets(updated);
+    }
+    
+    if (ticket && onAddNotification) {
+      onAddNotification(ticket.senderEmail, 'المشرف العام', `رد جديد بخصوص استفسارك #${ticketId}: ${text.trim()}`);
     }
     
     // Clear reply text
@@ -314,24 +331,64 @@ export default function AdminDashboard({
     alert('✓ تم إرسال الرد الفوري للطالب وسيظهر في حسابه في الحال!');
   };
 
+  const [selectedStudentEmail, setSelectedStudentEmail] = useState('');
+  const [directMessageText, setDirectMessageText] = useState('');
+
   useEffect(() => {
     // Load student database
     const savedStudents = localStorage.getItem('admin_simulated_students');
+    let loadedStudents: SimulatedStudent[] = [];
     if (savedStudents) {
-      setStudents(JSON.parse(savedStudents));
-    } else {
+      try {
+        loadedStudents = JSON.parse(savedStudents);
+        setStudents(loadedStudents);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    
+    if (loadedStudents.length === 0) {
       const initialMockStudents: SimulatedStudent[] = [
         { username: 'عبدالملك بن عون', email: 'abdulmlikoog@gmail.com', telegram: '@abdulmlik_ou', scorePct: 98, completedCount: 22, signUpDate: '2026/05/29' },
         { username: 'أحمد الصالح', email: 'ahmed.salih@gmail.com', telegram: '@ahmed_salih99', scorePct: 84, completedCount: 14, signUpDate: '2026/05/30' },
         { username: 'سارة العتيبي', email: 'sara.otb@outlook.com', telegram: '@sara_otb', scorePct: 92, completedCount: 19, signUpDate: '2026/05/31' },
-         { username: 'محمد الحربي', email: 'm.harbi@gmail.com', telegram: '@m_harbi9', scorePct: 79, completedCount: 9, signUpDate: '2026/05/31' }
+        { username: 'محمد الحربي', email: 'm.harbi@gmail.com', telegram: '@m_harbi9', scorePct: 79, completedCount: 9, signUpDate: '2026/05/31' }
       ];
       setStudents(initialMockStudents);
       localStorage.setItem('admin_simulated_students', JSON.stringify(initialMockStudents));
+      loadedStudents = initialMockStudents;
+    }
+
+    if (loadedStudents.length > 0) {
+      setSelectedStudentEmail(loadedStudents[0].email);
     }
 
     addLog('تم تشغيل لوحة التحكم ومزامنة نظام تليجرام الإلزامي بنجاح.');
   }, []);
+
+  const handleSendDirectNotification = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudentEmail) {
+      alert('الرجاء تحديد البريد الإلكتروني للطالب المستهدف.');
+      return;
+    }
+    if (!directMessageText.trim()) {
+      alert('الرجاء كتابة الرسالة أولاً.');
+      return;
+    }
+
+    const sObj = students.find(s => s.email.toLowerCase() === selectedStudentEmail.toLowerCase());
+    const studentName = sObj ? sObj.username : 'طالب معين';
+
+    if (onAddNotification) {
+      onAddNotification(selectedStudentEmail, 'المشرف العام', directMessageText.trim());
+      addLog(`✓ تم إرسال تنبيه خاص للطالب ${studentName} لبريده: ${selectedStudentEmail}`);
+      alert(`✓ تم إرسال التنبيه بنجاح إلى حساب الطالب "${studentName}" وسيظهر له في صفحته الرئيسية إشعار جديد مرقم عند جرس التنبيهات!`);
+      setDirectMessageText('');
+    } else {
+      alert('خطأ ميكانيكي: محرك الإشعارات الفورية غير موصول حالياً.');
+    }
+  };
 
   const addLog = (msg: string) => {
     const time = new Date().toLocaleTimeString('ar-EG', { hour12: false });
@@ -771,6 +828,63 @@ export default function AdminDashboard({
           </form>
         </div>
 
+      </div>
+
+
+      {/* Dynamic Private Alert & Student Messaging Module */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-105 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-brand-gold flex items-center justify-center">
+              <Bell size={15} className="text-brand-gold animate-bounce" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-xs text-brand-dark dark:text-white mt-0.5">مركز إرسال التنبيهات والرسائل الخاصة للطلاب</h3>
+              <p className="text-[9px] text-gray-400">أرسل رسالة فورية تظهر حصرياً وبشكل خاص لطالب محدد بجانب جرس الإشعارات الخاص به</p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSendDirectNotification} className="space-y-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-1">
+              <label className="text-[10px] font-black text-gray-400 block mb-1">اختر الطالب المستهدف بالرسالة</label>
+              <select
+                value={selectedStudentEmail}
+                onChange={(e) => setSelectedStudentEmail(e.target.value)}
+                className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[11px] py-1.5 px-2.5 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-bold"
+              >
+                {students.map((s) => (
+                  <option key={s.email} value={s.email}>
+                    {s.username} ({s.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-[10px] font-black text-gray-400 block mb-1 font-sans">محتوى رسالة التنبيه الخاصة</label>
+              <input
+                type="text"
+                required
+                value={directMessageText}
+                onChange={(e) => setDirectMessageText(e.target.value)}
+                placeholder="اكتب هنا نص التنبيه الخاص للطالب.. ليزيد عداد الاشعارات فورا"
+                className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[11px] py-1.5 px-3 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="submit"
+              className="py-2.5 px-6 bg-brand-dark hover:bg-slate-850 text-white dark:bg-brand-gold dark:hover:bg-yellow-600 dark:text-brand-dark font-black rounded-xl text-[11px] cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 shadow"
+            >
+              <Bell size={13} className="text-brand-gold dark:text-brand-yellow" />
+              <span>إرسال وتفعيل التنبيه الفوري للطالب</span>
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Module 4: Live Technical Support Tickets Management */}

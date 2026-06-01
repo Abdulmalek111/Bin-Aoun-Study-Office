@@ -58,3 +58,13 @@ export interface SupportTicket {
   repliedAt?: string;
   messages?: ChatMessage[];
 }
+
+export interface Notification {
+  id: string;
+  senderName: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  targetEmail: string;
+}
+

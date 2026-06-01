@@ -4,7 +4,7 @@ import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from './lib/firebase';
 
 // Types and Initial Mock Data
-import { User, Subject, Exam, TabType, SupportTicket } from './types';
+import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
 import { initialSubjects, initialExams } from './data';
 
 // Components
@@ -57,6 +57,54 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('school_support_tickets', JSON.stringify(supportTickets));
   }, [supportTickets]);
+
+  // Dynamic Notifications State
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    const saved = localStorage.getItem('school_notifications');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [
+      {
+        id: 'noti-init-1',
+        senderName: 'المشرف العام',
+        message: 'مرحباً بك في منصة بن عون التعليمية المحدثة! تم تفعيل نظام الإشعارات الفورية في حسابك بنجاح ونظام المتابعة عبر التليجرام.',
+        createdAt: '2026-06-01 12:00',
+        read: false,
+        targetEmail: 'abdulmlikoog@gmail.com'
+      },
+      {
+        id: 'noti-init-2',
+        senderName: 'المشرف العام',
+        message: 'عزيزي أحمد، تم الرد على استفسارك ومراجعة باب الرياضيات ومستند الباب الأول بنجاح.',
+        createdAt: '2026-06-01 11:16',
+        read: false,
+        targetEmail: 'ahmed.salih@gmail.com'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  const handleAddNotification = (targetEmail: string, senderName: string, message: string) => {
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
+    const newNoti: Notification = {
+      id: 'noti-' + Math.floor(100000 + Math.random() * 900000).toString(),
+      senderName,
+      message,
+      createdAt: formattedDate,
+      read: false,
+      targetEmail: targetEmail.trim()
+    };
+    setNotifications(prev => [newNoti, ...prev]);
+  };
 
   // Dynamic Required Documents (previously "Standard Lectures") state
   const [subjectLectures, setSubjectLectures] = useState<Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>>(() => {
@@ -396,6 +444,8 @@ export default function App() {
                   exams={initialExams}
                   onNavigateToTab={setActiveTab}
                   onSelectExam={(id) => setActiveExamId(id)}
+                  notifications={notifications}
+                  onUpdateNotifications={setNotifications}
                 />
               )}
 
@@ -451,6 +501,9 @@ export default function App() {
                   onUpdateSubjectLectures={setSubjectLectures}
                   supportTickets={supportTickets}
                   onUpdateSupportTickets={setSupportTickets}
+                  notifications={notifications}
+                  onUpdateNotifications={setNotifications}
+                  onAddNotification={handleAddNotification}
                 />
               )}
             </div>

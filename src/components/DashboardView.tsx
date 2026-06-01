@@ -1,6 +1,6 @@
-import React from 'react';
-import { Bell, Menu, Calendar, ChevronLeft, Award, Clock } from 'lucide-react';
-import { User, Subject, Exam } from '../types';
+import React, { useState } from 'react';
+import { Bell, Menu, Calendar, ChevronLeft, Award, Clock, Check, Trash2, X, MessageSquare, AlertCircle } from 'lucide-react';
+import { User, Subject, Exam, Notification } from '../types';
 import SubjectIcon from './SubjectIcon';
 
 interface DashboardViewProps {
@@ -9,6 +9,8 @@ interface DashboardViewProps {
   exams: Exam[];
   onNavigateToTab: (tab: 'home' | 'exams' | 'subjects' | 'profile') => void;
   onSelectExam: (examId: string) => void;
+  notifications: Notification[];
+  onUpdateNotifications: (updated: Notification[]) => void;
 }
 
 export default function DashboardView({
@@ -17,20 +19,68 @@ export default function DashboardView({
   exams,
   onNavigateToTab,
   onSelectExam,
+  notifications = [],
+  onUpdateNotifications,
 }: DashboardViewProps) {
   // Find upcoming exam (Math is often the first one)
   const upcomingExam = exams[0] || null;
+
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Filter notifications specifically for the logged in user
+  const userNotifications = notifications.filter(
+    (n) => n.targetEmail.toLowerCase() === user.email.toLowerCase()
+  );
+  const unreadCount = userNotifications.filter((n) => !n.read).length;
+
+  const handleMarkAsRead = (id: string) => {
+    const updated = notifications.map((n) => {
+      if (n.id === id) {
+        return { ...n, read: true };
+      }
+      return n;
+    });
+    if (onUpdateNotifications) {
+      onUpdateNotifications(updated);
+    }
+  };
+
+  const handleMarkAllAsRead = () => {
+    const updated = notifications.map((n) => {
+      if (n.targetEmail.toLowerCase() === user.email.toLowerCase()) {
+        return { ...n, read: true };
+      }
+      return n;
+    });
+    if (onUpdateNotifications) {
+      onUpdateNotifications(updated);
+    }
+  };
+
+  const handleDeleteNotification = (id: string) => {
+    const updated = notifications.filter((n) => n.id !== id);
+    if (onUpdateNotifications) {
+      onUpdateNotifications(updated);
+    }
+  };
+
 
   return (
     <div className="space-y-3">
       {/* Top action header */}
       <div className="flex items-center justify-between pb-2 border-b border-gray-100">
         <button 
-          onClick={() => alert('تنبيه: لا يوجد إشعارات غير مقروءة حالياً')}
+          onClick={() => setShowNotifications(!showNotifications)}
           className="relative p-1.5 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"
         >
           <Bell size={20} className="stroke-[2]" />
-          <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-brand-gold rounded-full ring-2 ring-white"></span>
+          {unreadCount > 0 ? (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 text-[9px] font-black text-white bg-red-600 rounded-full flex items-center justify-center px-1 shadow border border-white animate-bounce">
+              {unreadCount}
+            </span>
+          ) : (
+            <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-brand-gold rounded-full ring-2 ring-white"></span>
+          )}
         </button>
         
         <h1 className="text-lg font-extrabold text-brand-dark tracking-tight">الرئيسية</h1>
@@ -42,6 +92,91 @@ export default function DashboardView({
           <Menu size={20} className="stroke-[2]" />
         </button>
       </div>
+
+      {/* Notifications Drawer Dialog overlay */}
+      {showNotifications && (
+        <div className="bg-slate-50 dark:bg-slate-900 border border-gray-150 dark:border-slate-800 p-4 rounded-2xl shadow-xl space-y-3 animate-fade-in relative z-50">
+          <div className="flex items-center justify-between border-b pb-2 border-gray-200/60 dark:border-slate-800">
+            <h3 className="text-xs font-black text-brand-dark dark:text-brand-gold flex items-center gap-1.5">
+              <Bell size={13} className="text-brand-gold" />
+              <span>إشعارات وتنبيهات المنصة ({userNotifications.length})</span>
+            </h3>
+            <button 
+              onClick={() => setShowNotifications(false)}
+              className="p-1 rounded-full hover:bg-gray-250 dark:hover:bg-slate-800 text-gray-400 hover:text-gray-700 transition"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <div className="space-y-2 max-h-[250px] overflow-y-auto no-scrollbar">
+            {userNotifications.length === 0 ? (
+              <div className="text-center py-6 text-gray-400 text-[10px] space-y-1">
+                <AlertCircle size={20} className="mx-auto text-gray-300 animate-pulse" />
+                <p>صندوق الإشعارات فارغ حالياً.</p>
+              </div>
+            ) : (
+              userNotifications.map((noti) => (
+                <div 
+                  key={noti.id} 
+                  className={`p-3 rounded-xl border transition-all text-right space-y-1.5 relative ${
+                    noti.read 
+                      ? 'bg-white dark:bg-slate-950 border-gray-105 dark:border-slate-900/50 opacity-85' 
+                      : 'bg-brand-gold/5 dark:bg-amber-500/5 border-brand-gold/30 shadow-sm'
+                  }`}
+                >
+                  {/* Unread indicator */}
+                  {!noti.read && (
+                    <span className="absolute top-3 left-3 w-2.5 h-2.5 bg-brand-gold rounded-full ring-2 ring-white"></span>
+                  )}
+                  
+                  <div className="flex justify-between items-start gap-3">
+                    <span className="text-[9px] font-black text-white bg-brand-dark dark:bg-slate-800 px-1.5 py-0.5 rounded leading-none shrink-0">
+                      {noti.senderName}
+                    </span>
+                    <span className="text-[8px] font-mono text-gray-400 leading-none shrink-0">{noti.createdAt}</span>
+                  </div>
+
+                  <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 leading-normal">
+                    {noti.message}
+                  </p>
+
+                  <div className="flex justify-end gap-1.5 pt-1">
+                    {!noti.read && (
+                      <button
+                        onClick={() => handleMarkAsRead(noti.id)}
+                        className="flex items-center gap-1 px-2 py-0.5 bg-brand-gold hover:bg-yellow-600 text-white rounded text-[8px] font-bold cursor-pointer transition"
+                      >
+                        <Check size={8} />
+                        <span>تحديد كمقروء</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteNotification(noti.id)}
+                      className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-400 rounded cursor-pointer transition"
+                      title="مسح الإشعار"
+                    >
+                      <Trash2 size={9} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {unreadCount > 0 && (
+            <div className="flex justify-between items-center pt-2 border-t border-gray-200/60 dark:border-slate-800 text-[9px]">
+              <span className="text-gray-400 font-bold">لديك {unreadCount} إشعار غير مقروء</span>
+              <button
+                onClick={handleMarkAllAsRead}
+                className="text-brand-gold font-bold hover:underline cursor-pointer"
+              >
+                ✓ قراءة الكل فوراً
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Styled Welcome Back Card like mock screen */}
       <div className="bg-brand-dark rounded-2xl p-4 text-white shadow-md relative overflow-hidden flex items-center justify-between">
