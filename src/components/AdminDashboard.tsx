@@ -104,6 +104,52 @@ export default function AdminDashboard({
   const [broadcastSent, setBroadcastSent] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
 
+  // Telegram configuration state
+  const [showTelegramConfig, setShowTelegramConfig] = useState(false);
+  const [botToken, setBotToken] = useState(() => localStorage.getItem('school_telegram_bot_token') || '');
+  const [chatId, setChatId] = useState(() => localStorage.getItem('school_telegram_chat_id') || '');
+  const [telegramConfigStatus, setTelegramConfigStatus] = useState<string | null>(null);
+
+  const handleSaveTelegramConfig = async () => {
+    localStorage.setItem('school_telegram_bot_token', botToken.trim());
+    localStorage.setItem('school_telegram_chat_id', chatId.trim());
+    
+    if (botToken.trim() && chatId.trim()) {
+      setTelegramConfigStatus('جاري إرسال رسالة تجريبية لتأكيد الاتصال...');
+      try {
+        const text = `⚙️ *تأكيد ربط تليجرام لمنصة بن عون*\n\n` +
+                     `✓ تم تفعيل واستقبال إشعارات الدعم الفني وتذاكر الطلاب على هذا الحساب بنجاح!\n` +
+                     `📅 الوقت: ${new Date().toLocaleString('ar-EG')}`;
+        
+        const res = await fetch(`https://api.telegram.org/bot${botToken.trim()}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId.trim(),
+            text: text,
+            parse_mode: 'Markdown'
+          })
+        });
+        
+        if (res.ok) {
+          setTelegramConfigStatus('✓ تم حفظ الإعدادات وإرسال رسالة تجريبية بنجاح!');
+          addLog('✓ تم ربط وتحديث بوت إشعارات تليجرام بنجاح.');
+        } else {
+          const errJson = await res.json();
+          setTelegramConfigStatus(`❌ فشل الإرسال. تأكد من تفعيل البوت والدردشة. خطأ: ${errJson.description || 'رمز غير معروف'}`);
+          addLog('❌ فشل إرسال رسالة تجريبية لتلجرام: رمز غير صحيح أو البوت غير مفعل.');
+        }
+      } catch (e: any) {
+        setTelegramConfigStatus(`❌ فشل الاتصال بخوادم تليجرام: ${e.message}`);
+        addLog(`❌ فشل الاتصال بخوادم تلجرام: ${e.message}`);
+      }
+    } else {
+      setTelegramConfigStatus('تم مسح إعدادات تليجرام. لن يتم إرسال الإشعارات.');
+      addLog('تمت إزالة وقطع ربط إشعارات تلجرام.');
+    }
+    setTimeout(() => setTelegramConfigStatus(null), 5000);
+  };
+
   // Support Reply state
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [activeChatTicketId, setActiveChatTicketId] = useState<string | null>(null);
@@ -698,6 +744,67 @@ export default function AdminDashboard({
           <span className="text-[10px] bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 font-extrabold px-2 py-0.5 rounded-full font-mono">
             {supportTickets.filter(t => !t.reply).length} في الانتظار
           </span>
+        </div>
+
+        {/* Telegram Configuration Widget */}
+        <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-gray-150/50 dark:border-slate-800 space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowTelegramConfig(!showTelegramConfig)}
+            className="w-full flex justify-between items-center text-xs font-black text-brand-dark dark:text-brand-gold cursor-pointer bg-transparent border-none outline-none"
+          >
+            <span className="flex items-center gap-1.5 text-brand-dark dark:text-brand-gold text-right">
+              <Lock size={12} className="text-brand-gold animate-pulse" />
+              <span>⚙️ إعدادات ربط الإشعارات الفورية بالتلجرام (خاص بالمشرف العام)</span>
+            </span>
+            <span className="text-[10px] text-gray-400 font-bold">{showTelegramConfig ? '▲ إغلاق الإعدادات' : '▼ إدارة وتوسيع الربط'}</span>
+          </button>
+
+          {showTelegramConfig && (
+            <div className="space-y-3 pt-3 border-t border-gray-200/50 dark:border-slate-800 animate-fade-in text-right">
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-normal">
+                قم بتهيئة رمز توقيع بوت تلجرام وحساب المحادثة لاستقبال إشعارات تذاكر الطلاب فورا والرد عليها من هاتفك بشكل متكامل وآمن!
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 block mb-1 text-right">رمز توكن البوت (API Bot Token)</label>
+                  <input
+                    type="password"
+                    value={botToken}
+                    onChange={(e) => setBotToken(e.target.value)}
+                    placeholder="مثال: 123456789:ABCdefGhIJK..."
+                    className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono text-brand-dark dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 block mb-1 text-right">المعرف الفريد للمحادثة أو القناة (Chat ID)</label>
+                  <input
+                    type="text"
+                    value={chatId}
+                    onChange={(e) => setChatId(e.target.value)}
+                    placeholder="مثال: -1001234567"
+                    className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono text-brand-dark dark:text-white"
+                  />
+                </div>
+              </div>
+              
+              {telegramConfigStatus && (
+                <div className="p-2.5 bg-brand-gold/10 text-[9px] font-bold text-brand-dark dark:text-brand-gold rounded-lg border border-brand-gold/25 leading-normal animate-fade-in">
+                  {telegramConfigStatus}
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveTelegramConfig}
+                  className="py-1.5 px-5 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
+                >
+                  حفظ وتجربة إرسال إشعار تلجرام
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {activeChatTicketId && supportTickets.some(t => t.id === activeChatTicketId) ? (

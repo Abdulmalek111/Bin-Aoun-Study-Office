@@ -54,10 +54,6 @@ export default function ProfileView({
   const [supportSenderRole, setSupportSenderRole] = useState<'self' | 'simulated_ahmed' | 'simulated_sara' | 'simulated_m_harbi'>('self');
   const [activeChatTicketId, setActiveChatTicketId] = useState<string | null>(null);
   const [chatInputText, setChatInputText] = useState('');
-  const [showTelegramConfig, setShowTelegramConfig] = useState(false);
-  const [botToken, setBotToken] = useState(() => localStorage.getItem('school_telegram_bot_token') || '');
-  const [chatId, setChatId] = useState(() => localStorage.getItem('school_telegram_chat_id') || '');
-  const [telegramConfigStatus, setTelegramConfigStatus] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -118,41 +114,7 @@ export default function ProfileView({
     setTimeout(() => setEmailUpdated(false), 2000);
   };
 
-  const handleSaveTelegramConfig = async () => {
-    localStorage.setItem('school_telegram_bot_token', botToken.trim());
-    localStorage.setItem('school_telegram_chat_id', chatId.trim());
-    
-    if (botToken.trim() && chatId.trim()) {
-      setTelegramConfigStatus('جاري إرسال رسالة تجريبية لتأكيد الاتصال...');
-      try {
-        const text = `⚙️ *تأكيد ربط تليجرام لمنصة بن عون*\n\n` +
-                     `✓ تم ربط واستقبل الإشعارات الفورية لمركز الدعم الفني بنجاح!\n` +
-                     `📅 الوقت: ${new Date().toLocaleString('ar-EG')}`;
-        
-        const res = await fetch(`https://api.telegram.org/bot${botToken.trim()}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId.trim(),
-            text: text,
-            parse_mode: 'Markdown'
-          })
-        });
-        
-        if (res.ok) {
-          setTelegramConfigStatus('✓ تم حفظ الإعدادات وإرسال رسالة تجريبية بنجاح!');
-        } else {
-          const errJson = await res.json();
-          setTelegramConfigStatus(`❌ فشل الإرسال. تأكد من تفعيل البوت والدردشة. خطأ: ${errJson.description || 'رمز غير معروف'}`);
-        }
-      } catch (e: any) {
-        setTelegramConfigStatus(`❌ فشل الاتصال بخوادم تليجرام: ${e.message}`);
-      }
-    } else {
-      setTelegramConfigStatus('تم مسح إعدادات تليجرام. لن يتم إرسال الإشعارات.');
-    }
-    setTimeout(() => setTelegramConfigStatus(null), 5000);
-  };
+
 
   const handleSendChatMessage = async (ticketId: string, text: string) => {
     if (!text.trim()) return;
@@ -592,63 +554,6 @@ export default function ProfileView({
                 })()
               ) : (
                 <>
-                  {/* Telegram Configuration Widget */}
-                  <div className="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-2xl border border-gray-150 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowTelegramConfig(!showTelegramConfig)}
-                      className="w-full flex justify-between items-center text-xs font-black text-brand-dark dark:text-brand-gold cursor-pointer"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Lock size={12} className="text-brand-gold animate-pulse" />
-                        <span>⚙️ إعدادات ربط الإشعارات الفورية بالتلجرام</span>
-                      </span>
-                      <span className="text-[10px] text-gray-400">{showTelegramConfig ? '▲ إغلاق' : '▼ توسيع وإعداد'}</span>
-                    </button>
-
-                    {showTelegramConfig && (
-                      <div className="space-y-3 pt-2.5 border-t border-gray-200/50 animate-fade-in text-right">
-                        <p className="text-[10px] text-gray-500 leading-normal">
-                          أدخل بيانات بوت تلجرام لتلقي استفسارات الطلاب والتذاكر فورا على هاتفك والرد المباشر!
-                        </p>
-                        <div>
-                          <label className="text-[9px] font-bold text-gray-400 block mb-1">رمز توكن البوت (API Bot Token)</label>
-                          <input
-                            type="password"
-                            value={botToken}
-                            onChange={(e) => setBotToken(e.target.value)}
-                            placeholder="مثال: 123456789:ABCdefGhIJK..."
-                            className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-gray-400 block mb-1">المعرف الفريد للمحادثة (Chat ID)</label>
-                          <input
-                            type="text"
-                            value={chatId}
-                            onChange={(e) => setChatId(e.target.value)}
-                            placeholder="مثال: -1001234567"
-                            className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono"
-                          />
-                        </div>
-                        
-                        {telegramConfigStatus && (
-                          <div className="p-2 bg-brand-gold/10 text-[9px] font-bold text-brand-dark dark:text-brand-gold rounded border border-brand-gold/25 leading-normal">
-                            {telegramConfigStatus}
-                          </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={handleSaveTelegramConfig}
-                          className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
-                        >
-                          تحقق وحفظ إعدادات التلجرام فورا
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
                   {/* Submission Form */}
                   <form onSubmit={handleSendSupport} className="space-y-2.5 bg-white dark:bg-slate-900 border border-gray-150 p-4 rounded-2xl">
                     {supportSuccess ? (
