@@ -106,9 +106,53 @@ export default function AdminDashboard({
 
   // Telegram configuration state
   const [showTelegramConfig, setShowTelegramConfig] = useState(false);
-  const [botToken, setBotToken] = useState(() => localStorage.getItem('school_telegram_bot_token') || '');
+  const [botToken, setBotToken] = useState(() => localStorage.getItem('school_telegram_bot_token') || '8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk');
   const [chatId, setChatId] = useState(() => localStorage.getItem('school_telegram_chat_id') || '');
   const [telegramConfigStatus, setTelegramConfigStatus] = useState<string | null>(null);
+  const [detectedChats, setDetectedChats] = useState<{ id: string; name: string; type: string }[]>([]);
+  const [isDetectingChats, setIsDetectingChats] = useState(false);
+
+  const handleFetchActiveChats = async () => {
+    if (!botToken.trim()) {
+      setTelegramConfigStatus('❌ يرجى إدخال رمز توكن البوت أولاً ليتمكن النظام من البحث.');
+      return;
+    }
+    setIsDetectingChats(true);
+    setTelegramConfigStatus('🔍 جاري التواصل مع البوت وقراءة آخر التحديثات لمحادثات وقنوات تليجرام...');
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken.trim()}/getUpdates?offset=-10`);
+      if (!res.ok) {
+        throw new Error('فشل جلب تحديثات البوت. يرجى التأكد من توكن البوت.');
+      }
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.result)) {
+        const chatsMap = new Map<string, { id: string; name: string; type: string }>();
+        
+        data.result.forEach((item: any) => {
+          const chat = item.message?.chat || item.channel_post?.chat || item.my_chat_member?.chat || item.edited_channel_post?.chat;
+          if (chat && chat.id) {
+            const idStr = String(chat.id);
+            const name = chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || chat.username || 'دردشة غير مسمى';
+            chatsMap.set(idStr, { id: idStr, name, type: chat.type || 'unknown' });
+          }
+        });
+
+        const list = Array.from(chatsMap.values());
+        setDetectedChats(list);
+        if (list.length > 0) {
+          setTelegramConfigStatus(`✓ عثرنا على (${list.length}) وجهة نشطة! اضغط على أي منها للاختيار التلقائي.`);
+        } else {
+          setTelegramConfigStatus('ℹ️ لم يتم العثور لآخر 48 ساعة على أي محادثة أو قناة نشطة للبوت. الطريقة الصحيحة: 1) أضف البوت كمسؤول (Admin) في قناتك. 2) ارسل رسالة في القناة. 3) ثم اضغط على الزر مجدداً هنا.');
+        }
+      } else {
+        throw new Error(data.description || 'استجابة غير صالحة من تليجرام');
+      }
+    } catch (e: any) {
+      setTelegramConfigStatus(`❌ خطأ في الاتصال بالبوت: ${e.message}`);
+    } finally {
+      setIsDetectingChats(false);
+    }
+  };
 
   const handleSaveTelegramConfig = async () => {
     localStorage.setItem('school_telegram_bot_token', botToken.trim());
@@ -747,58 +791,115 @@ export default function AdminDashboard({
         </div>
 
         {/* Telegram Configuration Widget */}
-        <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-gray-150/50 dark:border-slate-800 space-y-2">
+        <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-gray-150/50 dark:border-slate-800 space-y-3">
           <button
             type="button"
             onClick={() => setShowTelegramConfig(!showTelegramConfig)}
-            className="w-full flex justify-between items-center text-xs font-black text-brand-dark dark:text-brand-gold cursor-pointer bg-transparent border-none outline-none"
+            className="w-full flex justify-between items-center text-xs font-black text-brand-dark dark:text-brand-gold cursor-pointer bg-transparent border-none outline-none text-right"
           >
-            <span className="flex items-center gap-1.5 text-brand-dark dark:text-brand-gold text-right">
+            <span className="flex items-center gap-1.5 text-brand-dark dark:text-brand-gold">
               <Lock size={12} className="text-brand-gold animate-pulse" />
-              <span>⚙️ إعدادات ربط الإشعارات الفورية بالتلجرام (خاص بالمشرف العام)</span>
+              <span>⚙️ إعدادات ربط الإشعارات الفورية بالتلجرام (المشرف العام)</span>
             </span>
             <span className="text-[10px] text-gray-400 font-bold">{showTelegramConfig ? '▲ إغلاق الإعدادات' : '▼ إدارة وتوسيع الربط'}</span>
           </button>
 
           {showTelegramConfig && (
-            <div className="space-y-3 pt-3 border-t border-gray-200/50 dark:border-slate-800 animate-fade-in text-right">
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-normal">
-                قم بتهيئة رمز توقيع بوت تلجرام وحساب المحادثة لاستقبال إشعارات تذاكر الطلاب فورا والرد عليها من هاتفك بشكل متكامل وآمن!
-              </p>
+            <div className="space-y-3.5 pt-3 border-t border-gray-200/50 dark:border-slate-800 animate-fade-in text-right">
+              
+              {/* Educational guide on how to configure */}
+              <div className="bg-white dark:bg-slate-900 border border-brand-gold/20 p-3 rounded-xl space-y-1.5 text-xs text-brand-dark dark:text-gray-200">
+                <h5 className="font-extrabold text-[11px] text-brand-gold flex items-center gap-1">
+                  <span>💡 خطوات بسيطة لتشغيل الإرسال لقناتك:</span>
+                </h5>
+                <ol className="list-decimal list-inside text-[10px] text-gray-600 dark:text-gray-300 space-y-1 pr-1 leading-relaxed">
+                  <li>أضف البوت <a href="https://t.me/binawnofficerubot" target="_blank" rel="noopener noreferrer" className="text-brand-gold underline font-bold">@binawnofficerubot</a> كـ <b>مسؤول (Administrator)</b> داخل قناتك الخاصة.</li>
+                  <li>امدد البوت بصلاحيات <b>"نشر الرسائل" (Post Messages)</b>.</li>
+                  <li>انشر رسالة تجريبية واحدة على الأقل داخل القناة (أو ارسل له رسالة بالخاص للتشغيل).</li>
+                  <li>اضغط على زر <b>"🔍 فحص وجلب المعرفات النشطة"</b> بالأسفل ليقوم النظام باستخراج الـ Chat ID المناسب لقناتك تلقائياً دون تعقيد!</li>
+                </ol>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[9px] font-bold text-gray-400 block mb-1 text-right">رمز توكن البوت (API Bot Token)</label>
+                  <label className="text-[9px] font-bold text-gray-450 dark:text-gray-400 block mb-1 text-right">رمز توكن البوت (API Bot Token)</label>
                   <input
-                    type="password"
+                    type="text"
                     value={botToken}
                     onChange={(e) => setBotToken(e.target.value)}
-                    placeholder="مثال: 123456789:ABCdefGhIJK..."
-                    className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono text-brand-dark dark:text-white"
+                    placeholder="رمز توكن البوت هنا..."
+                    className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-right font-mono text-brand-dark dark:text-white"
                   />
+                  <span className="text-[8px] text-gray-400 text-left block mt-0.5">البوت الحالي: @binawnofficerubot</span>
                 </div>
                 <div>
-                  <label className="text-[9px] font-bold text-gray-400 block mb-1 text-right">المعرف الفريد للمحادثة أو القناة (Chat ID)</label>
+                  <label className="text-[9px] font-bold text-gray-450 dark:text-gray-400 block mb-1 text-right">المعرف الفريد للمحادثة أو القناة (Chat ID)</label>
                   <input
                     type="text"
                     value={chatId}
                     onChange={(e) => setChatId(e.target.value)}
-                    placeholder="مثال: -1001234567"
+                    placeholder="مثال: -1002235959959"
                     className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono text-brand-dark dark:text-white"
                   />
+                  <span className="text-[8px] text-gray-400 block mt-0.5">يمثل المعرف الرقمي الفريد الذي يبدأ بـ -100 في القنوات.</span>
                 </div>
+              </div>
+
+              {/* Live Chat ID Discovery Helper UI */}
+              <div className="bg-gray-100/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-200/50 dark:border-slate-800 space-y-2">
+                <div className="flex justify-between items-center flex-wrap gap-2 text-[10px]">
+                  <span className="font-bold text-gray-500">🎯 هل تريد استخراج معرف القناة (Chat ID) تلقائياً؟</span>
+                  <button
+                    type="button"
+                    disabled={isDetectingChats}
+                    onClick={handleFetchActiveChats}
+                    className="px-2.5 py-1 bg-brand-dark dark:bg-slate-700 hover:bg-slate-800 text-white rounded text-[9px] font-black cursor-pointer transition-all disabled:opacity-50"
+                  >
+                    {isDetectingChats ? 'جاري الفحص المباشر...' : '🔍 فحص وجلب المعرفات النشطة للبوت'}
+                  </button>
+                </div>
+
+                {detectedChats.length > 0 && (
+                  <div className="space-y-1.5 pt-1.5 border-t border-gray-200/60 dark:border-slate-800 animate-fade-in">
+                    <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 block">انقر على الخيار الصحيح ليتم إدخاله وحفظه فورا:</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-[120px] overflow-y-auto no-scrollbar">
+                      {detectedChats.map((chat) => (
+                        <button
+                          key={chat.id}
+                          type="button"
+                          onClick={() => {
+                            setChatId(chat.id);
+                            addLog(`تم جلب وتعيين المعرف ${chat.id} تلقائياً للدردشة "${chat.name}"`);
+                          }}
+                          className={`p-2 rounded-lg text-right font-medium text-[10px] border flex justify-between items-center transition-all ${
+                            chatId === chat.id 
+                              ? 'bg-brand-gold/15 border-brand-gold text-brand-dark dark:text-white font-bold' 
+                              : 'bg-white dark:bg-slate-950 border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-300 hover:border-brand-gold/50'
+                          }`}
+                        >
+                          <div className="truncate pl-2">
+                            <span className="text-[9px] block text-gray-400 font-mono">نوع: {chat.type}</span>
+                            <span className="font-bold block truncate max-w-[150px]">{chat.name}</span>
+                          </div>
+                          <code className="text-[9px] font-mono bg-gray-50 dark:bg-slate-900 px-1.5 py-0.5 rounded text-left shrink-0">{chat.id}</code>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {telegramConfigStatus && (
-                <div className="p-2.5 bg-brand-gold/10 text-[9px] font-bold text-brand-dark dark:text-brand-gold rounded-lg border border-brand-gold/25 leading-normal animate-fade-in">
+                <div className="p-2.5 bg-brand-gold/10 text-[9px] font-bold text-brand-dark dark:text-brand-gold rounded-lg border border-brand-gold/25 leading-normal animate-fade-in text-right">
                   {telegramConfigStatus}
                 </div>
               )}
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2 text-[10px]">
                 <button
                   type="button"
                   onClick={handleSaveTelegramConfig}
-                  className="py-1.5 px-5 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
+                  className="py-1.5 px-5 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
                 >
                   حفظ وتجربة إرسال إشعار تلجرام
                 </button>

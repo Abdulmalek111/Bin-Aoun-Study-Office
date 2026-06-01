@@ -170,7 +170,7 @@ export default function ProfileView({
     setChatInputText('');
 
     // Notify Telegram of follow-up chat message
-    const storedToken = localStorage.getItem('school_telegram_bot_token');
+    const storedToken = localStorage.getItem('school_telegram_bot_token') || '8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk';
     const storedChatId = localStorage.getItem('school_telegram_chat_id');
     if (storedToken && storedChatId) {
       const appUrl = `${window.location.origin}${window.location.pathname}?ticketId=${ticket.id}`;
@@ -240,7 +240,7 @@ export default function ProfileView({
     setSupportMsg('');
 
     // Trigger instant Telegram Notification!
-    const storedToken = localStorage.getItem('school_telegram_bot_token');
+    const storedToken = localStorage.getItem('school_telegram_bot_token') || '8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk';
     const storedChatId = localStorage.getItem('school_telegram_chat_id');
     if (storedToken && storedChatId) {
       const appUrl = `${window.location.origin}${window.location.pathname}?ticketId=${newId}`;
