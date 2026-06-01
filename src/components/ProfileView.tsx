@@ -50,6 +50,8 @@ export default function ProfileView({
   // Support state
   const [supportMsg, setSupportMsg] = useState('');
   const [supportSuccess, setSupportSuccess] = useState(false);
+  const [createdTicketId, setCreatedTicketId] = useState('');
+  const [supportSenderRole, setSupportSenderRole] = useState<'self' | 'simulated_ahmed' | 'simulated_sara' | 'simulated_m_harbi'>('self');
 
   // Notification settings
   const [notifExam, setNotifExam] = useState(true);
@@ -95,21 +97,38 @@ export default function ProfileView({
     const today = new Date();
     const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
     
+    let senderEmail = user.email;
+    let senderName = user.username;
+
+    if (user.email === 'abdulmlikoog@gmail.com') {
+      if (supportSenderRole === 'simulated_ahmed') {
+        senderEmail = 'ahmed.salih@gmail.com';
+        senderName = 'أحمد الصالح';
+      } else if (supportSenderRole === 'simulated_sara') {
+        senderEmail = 'sara.otb@outlook.com';
+        senderName = 'سارة العتيبي';
+      } else if (supportSenderRole === 'simulated_m_harbi') {
+        senderEmail = 'm.harbi@gmail.com';
+        senderName = 'محمد الحربي';
+      }
+    }
+
     const newTicket: SupportTicket = {
       id: newId,
-      senderEmail: user.email,
-      senderName: user.username,
+      senderEmail,
+      senderName,
       message: supportMsg.trim(),
       createdAt: formattedDate,
     };
 
     onUpdateSupportTickets([newTicket, ...supportTickets]);
+    setCreatedTicketId(newId);
     setSupportSuccess(true);
     setSupportMsg('');
     setTimeout(() => {
       setSupportSuccess(false);
       setActiveSubSection('none');
-    }, 2500);
+    }, 4000);
   };
 
   return (
@@ -303,46 +322,97 @@ export default function ProfileView({
           {activeSubSection === 'support' && (
             <form onSubmit={handleSendSupport} className="space-y-2.5">
               {supportSuccess ? (
-                <div className="text-center py-2 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100">
-                  تم إرسال بطاقة الدعم في الملف الدراسي برقم #8542. سنقوم بالرد عليك قريباً!
+                <div className="text-center py-2 text-xs font-bold text-emerald-750 text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100 animate-fade-in">
+                  تم إرسال بطاقة الدعم في الملف الدراسي بنجاح برقم #{createdTicketId}. ستظهر الآن في لوحة المشرف العام لتجربة الرد عليها!
                 </div>
               ) : (
                 <>
                   <p className="text-[10px] text-gray-500 leading-normal">
-                     اكتب سؤالك أو الشكوى الخاصة بك بخصوص المواد أو الاختبارات التجريبية، وسيقوم المشرف بالتواصل معك فوراً في البريد الإلكتروني.
-                   </p>
-                   <textarea 
+                    اكتب سؤالك أو الشكوى الخاصة بك بخصوص المواد أو الاختبارات التجريبية، وسيقوم المشرف بالتواصل معك فوراً في البريد الإلكتروني.
+                  </p>
+
+                  {/* Simulated Sender Toggle - For Admin Testing only */}
+                  {user.email === 'abdulmlikoog@gmail.com' && (
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-brand-gold/20 p-2.5 rounded-xl space-y-1.5 text-right">
+                      <span className="text-[9px] font-black text-brand-gold block">
+                        ⚙️ ميزة المشرف التجريبية: اختر هوية مرسل الاستفسار:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1 text-[9px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setSupportSenderRole('self')}
+                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'self' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-700'}`}
+                        >
+                          أنا (المشرف)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSupportSenderRole('simulated_ahmed')}
+                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'simulated_ahmed' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-700'}`}
+                        >
+                          الطالب أحمد الصالح
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSupportSenderRole('simulated_sara')}
+                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'simulated_sara' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-700'}`}
+                        >
+                          الطالبة سارة العتيبي
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSupportSenderRole('simulated_m_harbi')}
+                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'simulated_m_harbi' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-705'}`}
+                        >
+                          الطالب محمد الحربي
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <textarea 
                     required 
                     value={supportMsg} 
                     onChange={(e) => setSupportMsg(e.target.value)} 
                     rows={3} 
                     placeholder="اكتب رسالتك أو استفسارك هنا تفصيلاً..."
-                    className="w-full bg-white border border-gray-200 rounded-lg text-xs p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white dark:bg-slate-900"
+                    className="w-full bg-white border border-gray-200 rounded-lg text-xs p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white dark:bg-slate-900 shadow-sm"
                   ></textarea>
+
                   <button 
                     type="submit" 
-                    className="w-full py-2 bg-brand-gold text-white rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
+                    className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
                   >
                     إرسال بطاقة الدعم الفني
                   </button>
 
-                  {supportTickets.filter(t => t.senderEmail === user.email).length > 0 && (
+                  {supportTickets.filter(t => user.email === 'abdulmlikoog@gmail.com' ? true : t.senderEmail === user.email).length > 0 && (
                     <div className="pt-3 border-t border-gray-150 space-y-2 text-right">
-                      <p className="text-[11px] font-extrabold text-brand-dark dark:text-brand-gold">سجل الرسائل والردود الفورية السابقة:</p>
+                      <p className="text-[11px] font-extrabold text-brand-dark dark:text-brand-gold flex justify-between items-center">
+                        <span>سجل واستفسارات المراسلات الواردة:</span>
+                        {user.email === 'abdulmlikoog@gmail.com' && (
+                          <span className="text-[8px] bg-red-100 text-red-700 px-1.5 py-0.2 rounded-full font-bold">عرض جميع تذاكر الطلاب للمشرف</span>
+                        )}
+                      </p>
                       <div className="space-y-2 max-h-[160px] overflow-y-auto no-scrollbar pr-1">
-                        {supportTickets.filter(t => t.senderEmail === user.email).map((ticket) => (
-                          <div key={ticket.id} className="p-2.5 bg-gray-50/75 dark:bg-slate-800 border border-gray-150/40 rounded-xl space-y-1.5 text-[11px]">
+                        {supportTickets.filter(t => user.email === 'abdulmlikoog@gmail.com' ? true : t.senderEmail === user.email).map((ticket) => (
+                          <div key={ticket.id} className="p-2.5 bg-gray-55 dark:bg-slate-800 border border-gray-150/40 rounded-xl space-y-1.5 text-[11px]">
                             <div className="flex justify-between items-center text-[10px]">
-                              <span className="font-mono text-gray-400 font-bold">{ticket.createdAt}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="font-extrabold text-brand-dark dark:text-brand-gold truncate max-w-[90px]">{ticket.senderName}</span>
+                                <span className="text-[8px] text-gray-400 font-mono hidden sm:inline">({ticket.id})</span>
+                              </div>
                               <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-950/45'}`}>
                                 {ticket.reply ? '✓ تم الرد' : '🕒 قيد الانتظار'}
                               </span>
                             </div>
                             <p className="text-gray-700 dark:text-gray-300 font-semibold">{ticket.message}</p>
+                            <span className="block text-[8px] text-gray-400 font-mono text-left">{ticket.createdAt}</span>
                             {ticket.reply && (
-                              <div className="mt-1.5 bg-white dark:bg-slate-900 border-r-2 border-brand-gold p-2 rounded-lg text-[11px] text-brand-dark dark:text-gray-200">
+                              <div className="mt-1.5 bg-white dark:bg-slate-900 border-r-2 border-brand-gold p-2 rounded-lg text-[11px] text-brand-dark dark:text-gray-200 shadow-sm leading-relaxed">
                                 <div className="font-extrabold text-[9px] text-brand-gold mb-0.5">رد المشرف العام:</div>
-                                <p className="font-bold leading-relaxed">{ticket.reply}</p>
+                                <p className="font-bold">{ticket.reply}</p>
+                                {ticket.repliedAt && <span className="block text-[8px] text-gray-400 font-mono text-left mt-0.5">{ticket.repliedAt}</span>}
                               </div>
                             )}
                           </div>
