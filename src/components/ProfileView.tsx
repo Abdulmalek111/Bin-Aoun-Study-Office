@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield } from 'lucide-react';
-import { User as UserType, SupportTicket } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield, Send, ArrowRight, MessageSquare, Lock } from 'lucide-react';
+import { User as UserType, SupportTicket, ChatMessage } from '../types';
 import AdminDashboard from './AdminDashboard';
 
 interface ProfileViewProps {
@@ -47,11 +47,40 @@ export default function ProfileView({
   const [emailUpdated, setEmailUpdated] = useState(false);
   const [profileViewTab, setProfileViewTab] = useState<'profile' | 'admin'>('profile');
   
-  // Support state
+  // Support & Interactive Chat states
   const [supportMsg, setSupportMsg] = useState('');
   const [supportSuccess, setSupportSuccess] = useState(false);
   const [createdTicketId, setCreatedTicketId] = useState('');
   const [supportSenderRole, setSupportSenderRole] = useState<'self' | 'simulated_ahmed' | 'simulated_sara' | 'simulated_m_harbi'>('self');
+  const [activeChatTicketId, setActiveChatTicketId] = useState<string | null>(null);
+  const [chatInputText, setChatInputText] = useState('');
+  const [showTelegramConfig, setShowTelegramConfig] = useState(false);
+  const [botToken, setBotToken] = useState(() => localStorage.getItem('school_telegram_bot_token') || '');
+  const [chatId, setChatId] = useState(() => localStorage.getItem('school_telegram_chat_id') || '');
+  const [telegramConfigStatus, setTelegramConfigStatus] = useState<string | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto Scroll Chat to Bottom
+  useEffect(() => {
+    if (activeChatTicketId && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeChatTicketId, supportTickets]);
+
+  // URL Deep Link Listener
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tId = params.get('ticketId');
+    if (tId) {
+      // Ensure ticket is present in client list
+      const hasTicket = supportTickets.some(t => t.id === tId);
+      if (hasTicket) {
+        setActiveSubSection('support');
+        setActiveChatTicketId(tId);
+      }
+    }
+  }, [supportTickets]);
 
   // Notification settings
   const [notifExam, setNotifExam] = useState(true);
@@ -89,7 +118,120 @@ export default function ProfileView({
     setTimeout(() => setEmailUpdated(false), 2000);
   };
 
-  const handleSendSupport = (e: React.FormEvent) => {
+  const handleSaveTelegramConfig = async () => {
+    localStorage.setItem('school_telegram_bot_token', botToken.trim());
+    localStorage.setItem('school_telegram_chat_id', chatId.trim());
+    
+    if (botToken.trim() && chatId.trim()) {
+      setTelegramConfigStatus('جاري إرسال رسالة تجريبية لتأكيد الاتصال...');
+      try {
+        const text = `⚙️ *تأكيد ربط تليجرام لمنصة بن عون*\n\n` +
+                     `✓ تم ربط واستقبل الإشعارات الفورية لمركز الدعم الفني بنجاح!\n` +
+                     `📅 الوقت: ${new Date().toLocaleString('ar-EG')}`;
+        
+        const res = await fetch(`https://api.telegram.org/bot${botToken.trim()}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId.trim(),
+            text: text,
+            parse_mode: 'Markdown'
+          })
+        });
+        
+        if (res.ok) {
+          setTelegramConfigStatus('✓ تم حفظ الإعدادات وإرسال رسالة تجريبية بنجاح!');
+        } else {
+          const errJson = await res.json();
+          setTelegramConfigStatus(`❌ فشل الإرسال. تأكد من تفعيل البوت والدردشة. خطأ: ${errJson.description || 'رمز غير معروف'}`);
+        }
+      } catch (e: any) {
+        setTelegramConfigStatus(`❌ فشل الاتصال بخوادم تليجرام: ${e.message}`);
+      }
+    } else {
+      setTelegramConfigStatus('تم مسح إعدادات تليجرام. لن يتم إرسال الإشعارات.');
+    }
+    setTimeout(() => setTelegramConfigStatus(null), 5000);
+  };
+
+  const handleSendChatMessage = async (ticketId: string, text: string) => {
+    if (!text.trim()) return;
+    
+    const ticket = supportTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
+
+    const legacyMsgs: ChatMessage[] = [
+      {
+        id: ticket.id + '-initial',
+        senderRole: 'student',
+        senderName: ticket.senderName,
+        message: ticket.message,
+        createdAt: ticket.createdAt
+      }
+    ];
+    if (ticket.reply) {
+      legacyMsgs.push({
+        id: ticket.id + '-reply',
+        senderRole: 'admin',
+        senderName: 'المشرف العام',
+        message: ticket.reply,
+        createdAt: ticket.repliedAt || ticket.createdAt
+      });
+    }
+
+    const currentMessages = ticket.messages && ticket.messages.length > 0 ? ticket.messages : legacyMsgs;
+
+    const newMessage: ChatMessage = {
+      id: Math.floor(100000 + Math.random() * 900000).toString(),
+      senderRole: 'student',
+      senderName: ticket.senderName,
+      message: text.trim(),
+      createdAt: formattedDate
+    };
+
+    const updatedMessages = [...currentMessages, newMessage];
+
+    const updatedTickets = supportTickets.map(t => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          messages: updatedMessages
+        };
+      }
+      return t;
+    });
+
+    onUpdateSupportTickets(updatedTickets);
+    setChatInputText('');
+
+    // Notify Telegram of follow-up chat message
+    const storedToken = localStorage.getItem('school_telegram_bot_token');
+    const storedChatId = localStorage.getItem('school_telegram_chat_id');
+    if (storedToken && storedChatId) {
+      const appUrl = `${window.location.origin}${window.location.pathname}?ticketId=${ticket.id}`;
+      const telegramText = `💬 *رسالة جديدة من الطالب في محادثة الدعم!* (${ticket.senderName})\n\n` +
+                           `📝 *الرسالة:* ${text.trim()}\n\n` +
+                           `🔗 *رابط المتابعة والرد الفوري:*\n${appUrl}`;
+      try {
+        await fetch(`https://api.telegram.org/bot${storedToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: storedChatId,
+            text: telegramText,
+            parse_mode: 'Markdown'
+          })
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const handleSendSupport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (supportMsg.trim() === '') return;
     
@@ -119,16 +261,50 @@ export default function ProfileView({
       senderName,
       message: supportMsg.trim(),
       createdAt: formattedDate,
+      messages: [
+        {
+          id: newId + '-initial',
+          senderRole: 'student',
+          senderName: senderName,
+          message: supportMsg.trim(),
+          createdAt: formattedDate
+        }
+      ]
     };
 
     onUpdateSupportTickets([newTicket, ...supportTickets]);
     setCreatedTicketId(newId);
     setSupportSuccess(true);
     setSupportMsg('');
+
+    // Trigger instant Telegram Notification!
+    const storedToken = localStorage.getItem('school_telegram_bot_token');
+    const storedChatId = localStorage.getItem('school_telegram_chat_id');
+    if (storedToken && storedChatId) {
+      const appUrl = `${window.location.origin}${window.location.pathname}?ticketId=${newId}`;
+      const telegramText = `📬 *استفسار فني جديد من الطالب:* ${senderName}\n` +
+                           `📧 *البريد:* ${senderEmail}\n` +
+                           `💬 *الرسالة:* ${newTicket.message}\n\n` +
+                           `🔗 *رابط فتح المحادثة والرد الفوري والآمن:*\n${appUrl}`;
+      try {
+        await fetch(`https://api.telegram.org/bot${storedToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: storedChatId,
+            text: telegramText,
+            parse_mode: 'Markdown'
+          })
+        });
+      } catch (err) {
+        console.error('Telegram API error:', err);
+      }
+    }
+
     setTimeout(() => {
       setSupportSuccess(false);
-      setActiveSubSection('none');
-    }, 4000);
+      setActiveChatTicketId(newId);
+    }, 1500);
   };
 
   return (
@@ -320,101 +496,255 @@ export default function ProfileView({
 
           {/* Help & Support Subview */}
           {activeSubSection === 'support' && (
-            <form onSubmit={handleSendSupport} className="space-y-2.5">
-              {supportSuccess ? (
-                <div className="text-center py-2 text-xs font-bold text-emerald-750 text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100 animate-fade-in">
-                  تم إرسال بطاقة الدعم في الملف الدراسي بنجاح برقم #{createdTicketId}. ستظهر الآن في لوحة المشرف العام لتجربة الرد عليها!
-                </div>
+            <div className="space-y-3">
+              {activeChatTicketId && supportTickets.find(t => t.id === activeChatTicketId) ? (
+                (() => {
+                  const chatTicket = supportTickets.find(t => t.id === activeChatTicketId)!;
+                  const legacyMsgs: ChatMessage[] = [
+                    {
+                      id: chatTicket.id + '-initial',
+                      senderRole: 'student',
+                      senderName: chatTicket.senderName,
+                      message: chatTicket.message,
+                      createdAt: chatTicket.createdAt
+                    }
+                  ];
+                  if (chatTicket.reply) {
+                    legacyMsgs.push({
+                      id: chatTicket.id + '-reply',
+                      senderRole: 'admin',
+                      senderName: 'المشرف العام',
+                      message: chatTicket.reply,
+                      createdAt: chatTicket.repliedAt || chatTicket.createdAt
+                    });
+                  }
+                  const chatMessages = chatTicket.messages && chatTicket.messages.length > 0 ? chatTicket.messages : legacyMsgs;
+                  
+                  return (
+                    <div className="space-y-3 flex flex-col justify-between min-h-[460px] bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-gray-150 relative">
+                      {/* Header */}
+                      <div className="flex items-center justify-between border-b border-gray-200/60 pb-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newUrl = window.location.origin + window.location.pathname;
+                            window.history.replaceState({}, document.title, newUrl);
+                            setActiveChatTicketId(null);
+                          }}
+                          className="flex items-center gap-1.5 text-xs text-brand-dark dark:text-brand-gold font-bold hover:underline cursor-pointer"
+                        >
+                          <ArrowRight size={14} />
+                          <span>العودة لجميع التذاكر والاستفسارات</span>
+                        </button>
+                        <span className="text-[10px] font-mono text-gray-400">بطاقة #{chatTicket.id}</span>
+                      </div>
+
+                      {/* Messages List */}
+                      <div className="flex-grow overflow-y-auto max-h-[300px] no-scrollbar space-y-3.5 pr-1 py-1">
+                        <div className="text-center text-[9px] text-gray-400">
+                          بُدئت المحادثة في {chatTicket.createdAt}
+                        </div>
+
+                        {chatMessages.map((msg) => {
+                          const isAdmin = msg.senderRole === 'admin';
+                          return (
+                            <div key={msg.id} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
+                              <span className="text-[9px] font-bold text-gray-400 px-1">{msg.senderName}</span>
+                              <div className={`p-2.5 rounded-2xl max-w-[85%] leading-relaxed text-[11px] font-semibold text-right shadow-xs ${
+                                isAdmin
+                                  ? 'bg-amber-50 dark:bg-amber-950/20 text-brand-dark dark:text-gray-200 rounded-tr-none border-r-4 border-brand-gold'
+                                  : 'bg-brand-dark dark:bg-slate-800 text-white dark:text-gray-100 rounded-tl-none'
+                              }`}>
+                                <p className="whitespace-pre-line">{msg.message}</p>
+                              </div>
+                              <span className="text-[8px] text-gray-400 font-mono text-left px-1">{msg.createdAt}</span>
+                            </div>
+                          );
+                        })}
+                        <div ref={messagesEndRef} />
+                      </div>
+
+                      {/* Input Composer */}
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleSendChatMessage(chatTicket.id, chatInputText);
+                        }}
+                        className="flex gap-2 items-center bg-gray-50 dark:bg-slate-800 border border-gray-200 p-1 rounded-xl"
+                      >
+                        <input
+                          required
+                          type="text"
+                          value={chatInputText}
+                          onChange={(e) => setChatInputText(e.target.value)}
+                          placeholder="اكتب ردك أو استفسارك الإضافي هنا..."
+                          className="flex-grow bg-transparent text-[11px] p-2 focus:outline-none text-brand-dark dark:text-white"
+                        />
+                        <button
+                          type="submit"
+                          className="w-8 h-8 rounded-lg bg-brand-gold hover:bg-yellow-600 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                        >
+                          <Send size={13} />
+                        </button>
+                      </form>
+                    </div>
+                  );
+                })()
               ) : (
                 <>
-                  <p className="text-[10px] text-gray-500 leading-normal">
-                    اكتب سؤالك أو الشكوى الخاصة بك بخصوص المواد أو الاختبارات التجريبية، وسيقوم المشرف بالتواصل معك فوراً في البريد الإلكتروني.
-                  </p>
-
-                  {/* Simulated Sender Toggle - For Admin Testing only */}
-                  {user.email === 'abdulmlikoog@gmail.com' && (
-                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-brand-gold/20 p-2.5 rounded-xl space-y-1.5 text-right">
-                      <span className="text-[9px] font-black text-brand-gold block">
-                        ⚙️ ميزة المشرف التجريبية: اختر هوية مرسل الاستفسار:
+                  {/* Telegram Configuration Widget */}
+                  <div className="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-2xl border border-gray-150 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTelegramConfig(!showTelegramConfig)}
+                      className="w-full flex justify-between items-center text-xs font-black text-brand-dark dark:text-brand-gold cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Lock size={12} className="text-brand-gold animate-pulse" />
+                        <span>⚙️ إعدادات ربط الإشعارات الفورية بالتلجرام</span>
                       </span>
-                      <div className="grid grid-cols-2 gap-1 text-[9px] font-semibold">
+                      <span className="text-[10px] text-gray-400">{showTelegramConfig ? '▲ إغلاق' : '▼ توسيع وإعداد'}</span>
+                    </button>
+
+                    {showTelegramConfig && (
+                      <div className="space-y-3 pt-2.5 border-t border-gray-200/50 animate-fade-in text-right">
+                        <p className="text-[10px] text-gray-500 leading-normal">
+                          أدخل بيانات بوت تلجرام لتلقي استفسارات الطلاب والتذاكر فورا على هاتفك والرد المباشر!
+                        </p>
+                        <div>
+                          <label className="text-[9px] font-bold text-gray-400 block mb-1">رمز توكن البوت (API Bot Token)</label>
+                          <input
+                            type="password"
+                            value={botToken}
+                            onChange={(e) => setBotToken(e.target.value)}
+                            placeholder="مثال: 123456789:ABCdefGhIJK..."
+                            className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-gray-400 block mb-1">المعرف الفريد للمحادثة (Chat ID)</label>
+                          <input
+                            type="text"
+                            value={chatId}
+                            onChange={(e) => setChatId(e.target.value)}
+                            placeholder="مثال: -1001234567"
+                            className="w-full bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-xs p-2 focus:outline-none focus:border-brand-gold text-left font-mono"
+                          />
+                        </div>
+                        
+                        {telegramConfigStatus && (
+                          <div className="p-2 bg-brand-gold/10 text-[9px] font-bold text-brand-dark dark:text-brand-gold rounded border border-brand-gold/25 leading-normal">
+                            {telegramConfigStatus}
+                          </div>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => setSupportSenderRole('self')}
-                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'self' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-700'}`}
+                          onClick={handleSaveTelegramConfig}
+                          className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
                         >
-                          أنا (المشرف)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSupportSenderRole('simulated_ahmed')}
-                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'simulated_ahmed' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-700'}`}
-                        >
-                          الطالب أحمد الصالح
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSupportSenderRole('simulated_sara')}
-                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'simulated_sara' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-700'}`}
-                        >
-                          الطالبة سارة العتيبي
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSupportSenderRole('simulated_m_harbi')}
-                          className={`p-1.5 rounded transition-all text-center ${supportSenderRole === 'simulated_m_harbi' ? 'bg-brand-dark text-white' : 'bg-white dark:bg-slate-800 text-gray-600 border border-gray-200 dark:border-slate-705'}`}
-                        >
-                          الطالب محمد الحربي
+                          تحقق وحفظ إعدادات التلجرام فورا
                         </button>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
-                  <textarea 
-                    required 
-                    value={supportMsg} 
-                    onChange={(e) => setSupportMsg(e.target.value)} 
-                    rows={3} 
-                    placeholder="اكتب رسالتك أو استفسارك هنا تفصيلاً..."
-                    className="w-full bg-white border border-gray-200 rounded-lg text-xs p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white dark:bg-slate-900 shadow-sm"
-                  ></textarea>
+                  {/* Submission Form */}
+                  <form onSubmit={handleSendSupport} className="space-y-2.5 bg-white dark:bg-slate-900 border border-gray-150 p-4 rounded-2xl">
+                    {supportSuccess ? (
+                      <div className="text-center py-2.5 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100 animate-fade-in">
+                        تم إرسال بطاقة الدعم فورا! جاري فتح كابينة المحادثة المباشرة...
+                      </div>
+                    ) : (
+                      <>
+                        <h4 className="font-extrabold text-xs text-brand-dark dark:text-white">فتح تذكرة دعم فني جديدة</h4>
+                        <p className="text-[10px] text-gray-500 leading-normal">
+                          اكتب سؤالك أو الشكوى الخاصة بك بخصوص المواد وسيصل إشعار تلجرام للمشرف ليقوم بمحادتك فورا!
+                        </p>
 
-                  <button 
-                    type="submit" 
-                    className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
-                  >
-                    إرسال بطاقة الدعم الفني
-                  </button>
+                        {user.email === 'abdulmlikoog@gmail.com' && (
+                          <div className="bg-amber-50 dark:bg-amber-955/20 border border-brand-gold/25 p-2.5 rounded-xl space-y-1.5 text-right">
+                            <span className="text-[9px] font-black text-brand-gold block">
+                              ⚙️ ميزة المشرف التجريبية: اختر هوية مرسل الاستفسار:
+                            </span>
+                            <div className="grid grid-cols-2 gap-1 text-[9px] font-semibold">
+                              {['self', 'simulated_ahmed', 'simulated_sara', 'simulated_m_harbi'].map((role) => {
+                                const labels: Record<string, string> = {
+                                  self: 'أنا (المشرف)',
+                                  simulated_ahmed: 'الطالب أحمد',
+                                  simulated_sara: 'الطالبة سارة',
+                                  simulated_m_harbi: 'الطالب محمد'
+                                };
+                                return (
+                                  <button
+                                    key={role}
+                                    type="button"
+                                    onClick={() => setSupportSenderRole(role as any)}
+                                    className={`p-1 text-[9px] rounded transition-all text-center ${supportSenderRole === role ? 'bg-brand-dark text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 border border-gray-250/20'}`}
+                                  >
+                                    {labels[role]}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
+                        <textarea 
+                          required 
+                          value={supportMsg} 
+                          onChange={(e) => setSupportMsg(e.target.value)} 
+                          rows={3} 
+                          placeholder="اكتب تفاصيل استفسارك أو المشكلة ههنا للبدء بالمحادثة..."
+                          className="w-full bg-white border border-gray-200 rounded-lg text-xs p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white dark:bg-slate-950 shadow-sm"
+                        ></textarea>
+
+                        <button 
+                          type="submit" 
+                          className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
+                        >
+                          إرسال التذكرة وبدء المحادثة المباشرة
+                        </button>
+                      </>
+                    )}
+                  </form>
+
+                  {/* Historical list */}
                   {supportTickets.filter(t => user.email === 'abdulmlikoog@gmail.com' ? true : t.senderEmail === user.email).length > 0 && (
                     <div className="pt-3 border-t border-gray-150 space-y-2 text-right">
                       <p className="text-[11px] font-extrabold text-brand-dark dark:text-brand-gold flex justify-between items-center">
-                        <span>سجل واستفسارات المراسلات الواردة:</span>
+                        <span>سجل المحادثات الفنية الجارية والسابقة:</span>
                         {user.email === 'abdulmlikoog@gmail.com' && (
-                          <span className="text-[8px] bg-red-100 text-red-700 px-1.5 py-0.2 rounded-full font-bold">عرض جميع تذاكر الطلاب للمشرف</span>
+                          <span className="text-[8px] bg-red-105 text-red-700 dark:text-red-400 font-bold">كل تذاكر المنافذ</span>
                         )}
                       </p>
-                      <div className="space-y-2 max-h-[160px] overflow-y-auto no-scrollbar pr-1">
+                      
+                      <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar pr-1">
                         {supportTickets.filter(t => user.email === 'abdulmlikoog@gmail.com' ? true : t.senderEmail === user.email).map((ticket) => (
-                          <div key={ticket.id} className="p-2.5 bg-slate-50 dark:bg-slate-800 border border-gray-200/50 dark:border-slate-700/50 rounded-xl space-y-1.5 text-[11px] shadow-sm">
+                          <div key={ticket.id} className="p-3 bg-slate-50 dark:bg-slate-905 border border-gray-200/50 dark:border-slate-800/50 rounded-xl space-y-1.5 text-[11px] shadow-sm hover:border-brand-gold/30 transition-colors">
                             <div className="flex justify-between items-center text-[10px]">
                               <div className="flex items-center gap-1">
-                                <span className="font-extrabold text-brand-dark dark:text-brand-gold truncate max-w-[90px]">{ticket.senderName}</span>
-                                <span className="text-[8px] text-gray-400 font-mono hidden sm:inline">({ticket.id})</span>
+                                <span className="font-extrabold text-brand-dark dark:text-brand-gold truncate max-w-[120px]">{ticket.senderName}</span>
+                                <span className="text-[8px] text-gray-400 font-mono">({ticket.id})</span>
                               </div>
                               <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-950/45'}`}>
-                                {ticket.reply ? '✓ تم الرد' : '🕒 قيد الانتظار'}
+                                {ticket.reply ? '✓ تم الرد والدردشة' : '🕒 قيد الانتظار'}
                               </span>
                             </div>
-                            <p className="text-gray-700 dark:text-gray-300 font-semibold">{ticket.message}</p>
-                            <span className="block text-[8px] text-gray-400 font-mono text-left">{ticket.createdAt}</span>
-                            {ticket.reply && (
-                              <div className="mt-1.5 bg-white dark:bg-slate-900 border-r-2 border-brand-gold p-2 rounded-lg text-[11px] text-brand-dark dark:text-gray-200 shadow-sm leading-relaxed">
-                                <div className="font-extrabold text-[9px] text-brand-gold mb-0.5">رد المشرف العام:</div>
-                                <p className="font-bold">{ticket.reply}</p>
-                                {ticket.repliedAt && <span className="block text-[8px] text-gray-400 font-mono text-left mt-0.5">{ticket.repliedAt}</span>}
-                              </div>
-                            )}
+
+                            <p className="text-gray-700 dark:text-gray-300 font-semibold truncate leading-relaxed">{ticket.message}</p>
+                            
+                            <div className="flex items-center justify-between pt-1 border-t border-gray-100/50">
+                              <span className="block text-[8px] text-gray-400 font-mono">{ticket.createdAt}</span>
+                              <button
+                                type="button"
+                                onClick={() => setActiveChatTicketId(ticket.id)}
+                                className="px-2.5 py-1 rounded bg-brand-gold text-white font-extrabold text-[9px] hover:bg-yellow-600 transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <MessageSquare size={10} />
+                                <span>افتح المحادثة والدردشة الجارية</span>
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -422,7 +752,7 @@ export default function ProfileView({
                   )}
                 </>
               )}
-            </form>
+            </div>
           )}
 
           {/* PWA App Installation Subview */}

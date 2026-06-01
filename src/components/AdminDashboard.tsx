@@ -21,9 +21,11 @@ import {
   Check,
   X,
   Lock,
-  LockOpen
+  LockOpen,
+  ArrowRight,
+  MessageSquare
 } from 'lucide-react';
-import { User, Subject, SupportTicket } from '../types';
+import { User, Subject, SupportTicket, ChatMessage } from '../types';
 
 interface AdminDashboardProps {
   user: User;
@@ -104,6 +106,88 @@ export default function AdminDashboard({
 
   // Support Reply state
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [activeChatTicketId, setActiveChatTicketId] = useState<string | null>(null);
+  const [chatInputText, setChatInputText] = useState('');
+  const adminMessagesEndRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Auto scroll chat to bottom
+  useEffect(() => {
+    if (activeChatTicketId && adminMessagesEndRef.current) {
+      adminMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeChatTicketId, supportTickets]);
+
+  // URL Deep Link Listener
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tId = params.get('ticketId');
+    if (tId) {
+      const hasTicket = supportTickets.some(t => t.id === tId);
+      if (hasTicket) {
+        setActiveChatTicketId(tId);
+      }
+    }
+  }, [supportTickets]);
+
+  const handleAdminSendChatMessage = (ticketId: string, text: string) => {
+    if (!text.trim()) return;
+    
+    const ticket = supportTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
+
+    const legacyMsgs: ChatMessage[] = [
+      {
+        id: ticket.id + '-initial',
+        senderRole: 'student',
+        senderName: ticket.senderName,
+        message: ticket.message,
+        createdAt: ticket.createdAt
+      }
+    ];
+    if (ticket.reply) {
+      legacyMsgs.push({
+        id: ticket.id + '-reply',
+        senderRole: 'admin',
+        senderName: 'المشرف العام',
+        message: ticket.reply,
+        createdAt: ticket.repliedAt || ticket.createdAt
+      });
+    }
+
+    const currentMessages = ticket.messages && ticket.messages.length > 0 ? ticket.messages : legacyMsgs;
+
+    const newMessage: ChatMessage = {
+      id: Math.floor(100000 + Math.random() * 900000).toString(),
+      senderRole: 'admin',
+      senderName: 'المشرف العام',
+      message: text.trim(),
+      createdAt: formattedDate
+    };
+
+    const updatedMessages = [...currentMessages, newMessage];
+
+    const updated = supportTickets.map(t => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          reply: text.trim(),
+          repliedAt: formattedDate,
+          messages: updatedMessages
+        };
+      }
+      return t;
+    });
+
+    if (onUpdateSupportTickets) {
+      onUpdateSupportTickets(updated);
+    }
+
+    setChatInputText('');
+    addLog(`تم إرسال رسالة رد في المحادثة لبطاقة رقم #${ticketId}.`);
+  };
 
   const handleReplyTicket = (ticketId: string) => {
     const text = replyTexts[ticketId] || '';
@@ -616,63 +700,177 @@ export default function AdminDashboard({
           </span>
         </div>
 
-        <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
-          {supportTickets.length > 0 ? (
-            supportTickets.map((ticket) => (
-              <div key={ticket.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-gray-200/60 dark:border-slate-700/60 rounded-xl space-y-2.5 text-right text-xs animate-fade-in shadow-sm">
-                <div className="flex justify-between items-center sm:flex-row flex-col gap-1 text-[10px]">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-brand-dark dark:text-white">{ticket.senderName}</span>
-                    <span className="font-mono text-gray-500 bg-gray-100/70 dark:bg-slate-900/50 dark:text-gray-400 px-1.5 py-0.5 rounded">{ticket.senderEmail}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-gray-450 dark:text-gray-400">{ticket.createdAt}</span>
-                    <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-955/40 dark:text-amber-400'}`}>
-                      {ticket.reply ? '✓ تم الرد' : '🕒 بانتظار الرد'}
-                    </span>
+        {activeChatTicketId && supportTickets.some(t => t.id === activeChatTicketId) ? (
+          (() => {
+            const chatTicket = supportTickets.find(t => t.id === activeChatTicketId)!;
+            const legacyMsgs: ChatMessage[] = [
+              {
+                id: chatTicket.id + '-initial',
+                senderRole: 'student',
+                senderName: chatTicket.senderName,
+                message: chatTicket.message,
+                createdAt: chatTicket.createdAt
+              }
+            ];
+            if (chatTicket.reply) {
+              legacyMsgs.push({
+                id: chatTicket.id + '-reply',
+                senderRole: 'admin',
+                senderName: 'المشرف العام',
+                message: chatTicket.reply,
+                createdAt: chatTicket.repliedAt || chatTicket.createdAt
+              });
+            }
+            const chatMessages = chatTicket.messages && chatTicket.messages.length > 0 ? chatTicket.messages : legacyMsgs;
+
+            return (
+              <div className="space-y-3 flex flex-col justify-between min-h-[460px] bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-gray-150 relative text-xs">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newUrl = window.location.origin + window.location.pathname;
+                      window.history.replaceState({}, document.title, newUrl);
+                      setActiveChatTicketId(null);
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-brand-dark dark:text-brand-gold font-bold hover:underline cursor-pointer bg-transparent"
+                  >
+                    <ArrowRight size={14} />
+                    <span>العودة لقائمة استفسارات الطلاب</span>
+                  </button>
+                  <div className="text-left font-mono text-[9px] text-gray-400">
+                    تذكرة #{chatTicket.id} | الطالب: {chatTicket.senderName}
                   </div>
                 </div>
 
-                <div className="text-gray-850 dark:text-gray-300 font-bold bg-white dark:bg-slate-900 border border-gray-150/60 dark:border-slate-800/60 p-2.5 rounded-lg leading-relaxed text-[11px] select-text">
-                  {ticket.message}
+                {/* Message display */}
+                <div className="flex-grow overflow-y-auto max-h-[300px] no-scrollbar space-y-3.5 pr-1 py-1">
+                  <div className="text-center text-[9px] text-gray-450 dark:text-gray-400">
+                    بدأت المحادثة والدردشة المستمرة في {chatTicket.createdAt}
+                  </div>
+
+                  {chatMessages.map((msg) => {
+                    const isAdmin = msg.senderRole === 'admin';
+                    return (
+                      <div key={msg.id} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
+                        <span className="text-[9px] font-bold text-gray-400 px-1">{msg.senderName}</span>
+                        <div className={`p-2.5 rounded-2xl max-w-[85%] leading-relaxed text-[11px] font-semibold text-right shadow-xs ${
+                          isAdmin
+                            ? 'bg-amber-100/70 dark:bg-amber-955/20 text-brand-dark dark:text-gray-200 rounded-tr-none border-r-4 border-brand-gold'
+                            : 'bg-brand-dark text-white rounded-tl-none'
+                        }`}>
+                          <p className="whitespace-pre-line">{msg.message}</p>
+                        </div>
+                        <span className="text-[8px] text-gray-400 font-mono text-left px-1">{msg.createdAt}</span>
+                      </div>
+                    );
+                  })}
+                  <div ref={adminMessagesEndRef} />
                 </div>
 
-                {ticket.reply ? (
-                  <div className="bg-emerald-50/30 dark:bg-emerald-950/15 border-r-2 border-emerald-500 p-2.5 rounded-lg text-[11px] space-y-0.5">
-                    <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-[10px]">الرد المرسل سابقاً:</div>
-                    <p className="font-bold text-gray-700 dark:text-gray-200 leading-normal">{ticket.reply}</p>
-                    {ticket.repliedAt && <span className="block text-[8px] text-gray-400 font-mono pt-0.5">{ticket.repliedAt}</span>}
-                  </div>
-                ) : (
-                  <div className="space-y-2 pt-1.5 border-t border-gray-100 dark:border-slate-800/60">
-                    <textarea
-                      value={replyTexts[ticket.id] || ''}
-                      onChange={(e) => setReplyTexts({ ...replyTexts, [ticket.id]: e.target.value })}
-                      rows={2}
-                      placeholder="اكتب الرد الرسمي والتعليمي للطالب هنا..."
-                      className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-[11px] p-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleReplyTicket(ticket.id)}
-                        className="py-1 px-4 bg-brand-gold hover:bg-yellow-600 text-white font-extrabold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1.5"
-                      >
-                        <Check size={11} />
-                        <span>إرسال الرد الفوري</span>
-                      </button>
+                {/* Composer */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAdminSendChatMessage(chatTicket.id, chatInputText);
+                  }}
+                  className="flex gap-2 items-center bg-white dark:bg-slate-900 border border-gray-200 p-1 rounded-xl"
+                >
+                  <input
+                    required
+                    type="text"
+                    value={chatInputText}
+                    onChange={(e) => setChatInputText(e.target.value)}
+                    placeholder="اكتب ردك المستمر والتعليمي للطالب هنا..."
+                    className="flex-grow bg-transparent text-[11px] p-2 focus:outline-none text-brand-dark dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    className="w-8 h-8 rounded-lg bg-brand-gold hover:bg-yellow-600 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                  >
+                    <Send size={13} />
+                  </button>
+                </form>
+              </div>
+            );
+          })()
+        ) : (
+          <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar pr-1">
+            {supportTickets.length > 0 ? (
+              supportTickets.map((ticket) => (
+                <div key={ticket.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-gray-200/60 dark:border-slate-700/60 rounded-xl space-y-2.5 text-right text-xs animate-fade-in shadow-sm">
+                  <div className="flex justify-between items-center sm:flex-row flex-col gap-1 text-[10px]">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-brand-dark dark:text-white">{ticket.senderName}</span>
+                      <span className="font-mono text-gray-500 bg-gray-100/70 dark:bg-slate-900/50 dark:text-gray-400 px-1.5 py-0.5 rounded">{ticket.senderEmail}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-gray-450 dark:text-gray-400">{ticket.createdAt}</span>
+                      <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-955/40 dark:text-amber-400'}`}>
+                        {ticket.reply ? '✓ تم الرد والدردشة' : '🕒 بانتظار الرد'}
+                      </span>
                     </div>
                   </div>
-                )}
+
+                  <div className="text-gray-850 dark:text-gray-300 font-bold bg-white dark:bg-slate-900 border border-gray-150/60 dark:border-slate-800/60 p-2.5 rounded-lg leading-relaxed text-[11px] select-text">
+                    {ticket.message}
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-150/60 dark:border-slate-800/60">
+                    <button
+                      type="button"
+                      onClick={() => setActiveChatTicketId(ticket.id)}
+                      className="py-1 px-3 bg-brand-dark hover:bg-slate-800 text-white font-extrabold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      <MessageSquare size={11} />
+                      <span>المحادثة المباشرة والدردشة المفتوحة</span>
+                    </button>
+
+                    {!ticket.reply && (
+                      <span className="text-[9px] text-gray-400">يمكنك الرد المباشر بطلب المحادثة</span>
+                    )}
+                  </div>
+
+                  {!ticket.reply && (
+                    <div className="space-y-2 pt-1.5 border-t border-gray-100 dark:border-slate-800/60">
+                      <textarea
+                        value={replyTexts[ticket.id] || ''}
+                        onChange={(e) => setReplyTexts({ ...replyTexts, [ticket.id]: e.target.value })}
+                        rows={1}
+                        placeholder="إرسال رد مقتضب فوري وثابت للطالب..."
+                        className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-[11px] p-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleReplyTicket(ticket.id)}
+                          className="py-1 px-4 bg-brand-gold hover:bg-yellow-600 text-white font-extrabold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Check size={11} />
+                          <span>إرسال رد سريع</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {ticket.reply && (
+                    <div className="bg-emerald-50/30 dark:bg-emerald-950/15 border border-emerald-500/50 p-2.5 rounded-lg text-[11px] space-y-0.5">
+                      <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-[10px]">الرد المرسل سابقاً:</div>
+                      <p className="font-bold text-gray-750 dark:text-gray-200 leading-normal">{ticket.reply}</p>
+                      {ticket.repliedAt && <span className="block text-[8px] text-gray-400 font-mono pt-0.5">{ticket.repliedAt}</span>}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-6 text-gray-450 dark:text-gray-400">
+                <Mail size={18} className="mx-auto mb-1 opacity-55 text-brand-gold" />
+                <p className="text-[11px] font-bold">لا يوجد أي بطاقات دعم فني حالياً</p>
               </div>
-            ))
-          ) : (
-            <div className="text-center py-6 text-gray-450 dark:text-gray-400">
-              <Mail size={18} className="mx-auto mb-1 opacity-55 text-brand-gold" />
-              <p className="text-[11px] font-bold">لا يوجد أي بطاقات دعم فني حالياً</p>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Student Database Listing & Administration Container */}

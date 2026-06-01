@@ -209,6 +209,21 @@ export default function App() {
     }
   }, []);
 
+  // Auto-detect and route ticketId if present
+  useEffect(() => {
+    if (user) {
+      const params = new URLSearchParams(window.location.search);
+      const ticketId = params.get('ticketId');
+      if (ticketId) {
+        if (user.email === 'abdulmlikoog@gmail.com') {
+          setActiveTab('admin');
+        } else {
+          setActiveTab('profile');
+        }
+      }
+    }
+  }, [user]);
+
   // Sync state functions
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);

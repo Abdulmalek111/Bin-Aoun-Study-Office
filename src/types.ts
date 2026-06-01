@@ -40,6 +40,14 @@ export interface Exam {
 
 export type TabType = 'home' | 'exams' | 'subjects' | 'profile' | 'discussions' | 'admin';
 
+export interface ChatMessage {
+  id: string;
+  senderRole: 'student' | 'admin';
+  senderName: string;
+  message: string;
+  createdAt: string;
+}
+
 export interface SupportTicket {
   id: string;
   senderEmail: string;
@@ -48,4 +56,5 @@ export interface SupportTicket {
   createdAt: string;
   reply?: string;
   repliedAt?: string;
+  messages?: ChatMessage[];
 }
