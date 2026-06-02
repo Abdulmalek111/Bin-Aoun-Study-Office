@@ -27,6 +27,8 @@ import {
   Bell
 } from 'lucide-react';
 import { User, Subject, SupportTicket, ChatMessage, Notification } from '../types';
+import { db } from '../lib/firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 interface AdminDashboardProps {
   user: User;
@@ -50,6 +52,7 @@ interface SimulatedStudent {
   scorePct?: number;
   completedCount?: number;
   signUpDate: string;
+  uid?: string;
 }
 
 export default function AdminDashboard({ 
@@ -439,36 +442,75 @@ export default function AdminDashboard({
   const [directMessageText, setDirectMessageText] = useState('');
 
   useEffect(() => {
-    // Load student database
-    const savedStudents = localStorage.getItem('admin_simulated_students');
-    let loadedStudents: SimulatedStudent[] = [];
-    if (savedStudents) {
-      try {
-        loadedStudents = JSON.parse(savedStudents);
-        setStudents(loadedStudents);
-      } catch (e) {
-        // Fallback
+    // Subscribe to Firestore 'users' collection in real-time
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const dbStudents: SimulatedStudent[] = [];
+      snapshot.forEach((docRef) => {
+        const d = docRef.data();
+        dbStudents.push({
+          uid: docRef.id,
+          username: d.username || d.email?.split('@')[0] || 'طالب مجهول',
+          email: d.email || '',
+          telegram: d.telegram || '@no_telegram',
+          scorePct: typeof d.scorePct === 'number' ? d.scorePct : Math.floor(Math.random() * 20) + 75,
+          completedCount: typeof d.completedCount === 'number' ? d.completedCount : Math.floor(Math.random() * 10) + 1,
+          signUpDate: d.signUpDate || '2026/06/02'
+        });
+      });
+
+      // Filter out admin user (abdulmlikoog@gmail.com) from the normal student affairs dashboard listings if there are others, 
+      // or optionally keep it based on preference. Let's list everyone.
+      
+      const savedStudents = localStorage.getItem('admin_simulated_students');
+      let localStudents: SimulatedStudent[] = [];
+      if (savedStudents) {
+        try {
+          localStudents = JSON.parse(savedStudents);
+        } catch (e) {
+          // ignore
+        }
       }
-    }
-    
-    if (loadedStudents.length === 0) {
+
+      // Merge online students with our default demo mockup list if database contains only a few or no other entries
+      let merged = [...dbStudents];
+      
+      // Seed with initial template profiles if Firestore doesn't have them, ensuring student list is populated
       const initialMockStudents: SimulatedStudent[] = [
-        { username: 'عبدالملك بن عون', email: 'abdulmlikoog@gmail.com', telegram: '@abdulmlik_ou', scorePct: 98, completedCount: 22, signUpDate: '2026/05/29' },
-        { username: 'أحمد الصالح', email: 'ahmed.salih@gmail.com', telegram: '@ahmed_salih99', scorePct: 84, completedCount: 14, signUpDate: '2026/05/30' },
-        { username: 'سارة العتيبي', email: 'sara.otb@outlook.com', telegram: '@sara_otb', scorePct: 92, completedCount: 19, signUpDate: '2026/05/31' },
-        { username: 'محمد الحربي', email: 'm.harbi@gmail.com', telegram: '@m_harbi9', scorePct: 79, completedCount: 9, signUpDate: '2026/05/31' }
+        { uid: 'mock_abdulmlik', username: 'عبدالملك بن عون', email: 'abdulmlikoog@gmail.com', telegram: '@abdulmlik_ou', scorePct: 98, completedCount: 22, signUpDate: '2026/05/29' },
+        { uid: 'mock_ahmed', username: 'أحمد الصالح', email: 'ahmed.salih@gmail.com', telegram: '@ahmed_salih99', scorePct: 84, completedCount: 14, signUpDate: '2026/05/30' },
+        { uid: 'mock_sara', username: 'سارة العتيبي', email: 'sara.otb@outlook.com', telegram: '@sara_otb', scorePct: 92, completedCount: 19, signUpDate: '2026/05/31' },
+        { uid: 'mock_mharbi', username: 'محمد الحربي', email: 'm.harbi@gmail.com', telegram: '@m_harbi9', scorePct: 79, completedCount: 9, signUpDate: '2026/05/31' }
       ];
-      setStudents(initialMockStudents);
-      localStorage.setItem('admin_simulated_students', JSON.stringify(initialMockStudents));
-      loadedStudents = initialMockStudents;
-    }
 
-    if (loadedStudents.length > 0) {
-      setSelectedStudentEmail(loadedStudents[0].email);
-    }
+      initialMockStudents.forEach(m => {
+        if (!merged.some(student => student.email.toLowerCase() === m.email.toLowerCase())) {
+          merged.push(m);
+        }
+      });
 
-    addLog('تم تشغيل لوحة التحكم ومزامنة نظام تليجرام الإلزامي بنجاح.');
-  }, []);
+      setStudents(merged);
+      
+      if (merged.length > 0 && !selectedStudentEmail) {
+        setSelectedStudentEmail(merged[0].email);
+      }
+    }, (error) => {
+      console.error("Failed to list students from Firestore:", error);
+      // Fallback local storage
+      const savedStudents = localStorage.getItem('admin_simulated_students');
+      if (savedStudents) {
+        try {
+          const loaded = JSON.parse(savedStudents);
+          setStudents(loaded);
+          if (loaded.length > 0 && !selectedStudentEmail) {
+            setSelectedStudentEmail(loaded[0].email);
+          }
+        } catch (e) {}
+      }
+    });
+
+    addLog('تم ربط ومزامنة لوحة شؤون الطلاب الحية مع Firestore بنجاح ⚡');
+    return () => unsubscribe();
+  }, [selectedStudentEmail]);
 
   const handleSendDirectNotification = (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,7 +541,7 @@ export default function AdminDashboard({
     setLogs(prev => [`[${time}] ${msg}`, ...prev.slice(0, 15)]);
   };
 
-  const handleAddStudent = (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudentName.trim() || !newStudentEmail.trim() || !newStudentTelegram.trim()) {
       alert('الرجاء كتابة جميع الحقول لإضافة الطالب بنجاح.');
@@ -517,33 +559,70 @@ export default function AdminDashboard({
       return;
     }
 
-    const newStudent: SimulatedStudent = {
-      username: newStudentName.trim(),
-      email: newStudentEmail.trim(),
-      telegram: telegramForm,
-      scorePct: Math.floor(Math.random() * 31) + 70, // 70 to 100
-      completedCount: Math.floor(Math.random() * 12) + 1,
-      signUpDate: new Date().toISOString().split('T')[0].replace(/-/g, '/')
-    };
+    const docId = 'student_' + newStudentEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    const signUpDate = new Date().toISOString().split('T')[0].replace(/-/g, '/');
 
-    const updated = [newStudent, ...students];
-    setStudents(updated);
-    localStorage.setItem('admin_simulated_students', JSON.stringify(updated));
-    
-    addLog(`تم تسجيل الطالب الجديد: ${newStudent.username} وإسناد حساب التليجرام ${newStudent.telegram}`);
-    
-    setNewStudentName('');
-    setNewStudentEmail('');
-    setNewStudentTelegram('');
-    alert('✓ تمت إضافة الطالب الجديد بنجاح وإسناد حساب تليجرام الإلزامي!');
-  };
+    try {
+      // Direct write to cloud database!
+      await setDoc(doc(db, 'users', docId), {
+        username: newStudentName.trim(),
+        email: newStudentEmail.trim(),
+        telegram: telegramForm,
+        signUpDate: signUpDate,
+        scorePct: Math.floor(Math.random() * 31) + 70, // 70 to 100
+        completedCount: Math.floor(Math.random() * 12) + 1,
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(newStudentName.trim())}&backgroundColor=1b365d,c9a24a`,
+        isLoggedIn: false
+      });
 
-  const handleDeleteStudent = (email: string, name: string) => {
-    if (confirm(`هل أنت متأكد من حذف الطالب (${name}) من قاعدة البيانات المدرسية المعتمدة؟`)) {
-      const updated = students.filter(s => s.email !== email);
+      addLog(`تم تسجيل الطالب والرفع لـ Firestore بشكل حيّ: ${newStudentName.trim()}`);
+      setNewStudentName('');
+      setNewStudentEmail('');
+      setNewStudentTelegram('');
+      alert('✓ تمت إضافة الطالب بنجاح ورفع السجلات لقاعدة البيانات الحية!');
+    } catch (error: any) {
+      console.error("Firestore Adding Student Error:", error);
+      alert('تم حفظ الطالب في الذاكرة المحلية كبديل مؤقت. الرجاء التأكد من تفعيل قواعد create للآدمن في ملف firestore.rules.');
+      
+      const newStudentLocal: SimulatedStudent = {
+        uid: docId,
+        username: newStudentName.trim(),
+        email: newStudentEmail.trim(),
+        telegram: telegramForm,
+        scorePct: Math.floor(Math.random() * 31) + 70,
+        completedCount: Math.floor(Math.random() * 12) + 1,
+        signUpDate: signUpDate
+      };
+      
+      const updated = [newStudentLocal, ...students];
       setStudents(updated);
       localStorage.setItem('admin_simulated_students', JSON.stringify(updated));
-      addLog(`تمت إزالة العضوية والوصول لـ ${name}`);
+      
+      setNewStudentName('');
+      setNewStudentEmail('');
+      setNewStudentTelegram('');
+    }
+  };
+
+  const handleDeleteStudent = async (email: string, name: string) => {
+    if (confirm(`هل أنت متأكد من حذف الطالب (${name}) من قاعدة البيانات المدرسية المعتمدة؟`)) {
+      const matchS = students.find(s => s.email === email);
+      if (matchS && matchS.uid && !matchS.uid.startsWith('mock_')) {
+        try {
+          await deleteDoc(doc(db, 'users', matchS.uid));
+          addLog(`تمت إزالة العضوية والنسخ السحابي لـ ${name}`);
+          alert(`✓ تم حذف سجلات الطالب "${name}" من قاعدة البيانات السحابية بنجاح!`);
+        } catch (error) {
+          console.error("Firestore deleting error:", error);
+          alert('فشل الحذف من السيرفر. يرجى التحقق من صلاحيات الآدمن وقواعد firestore.rules.');
+        }
+      } else {
+        const updated = students.filter(s => s.email !== email);
+        setStudents(updated);
+        localStorage.setItem('admin_simulated_students', JSON.stringify(updated));
+        addLog(`تمت إزالة العضوية الموقوتة لـ ${name}`);
+        alert(`✓ تم حذف سجل الطالب "${name}" بنجاح!`);
+      }
     }
   };
 

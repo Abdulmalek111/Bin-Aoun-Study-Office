@@ -87,7 +87,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
       allow update: if (
         isOwner(userId) && isValidUser(request.resource.data) && (
           // Student is forbidden from editing their email or role fields to prevent spoof/escalation

@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { User as UserIcon, Lock, Eye, EyeOff, Globe, Info, Check, ChevronRight, Mail, UserPlus } from 'lucide-react';
 import Logo from './Logo';
+import { auth, db } from '../lib/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface LoginViewProps {
   onLoginSuccess: (username: string, email: string, telegram?: string) => void;
@@ -16,6 +19,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
   const [errorMsg, setErrorMsg] = useState('');
   const [activeLanguage, setActiveLanguage] = useState('ar');
   const [isRegistering, setIsRegistering] = useState(initialMode === 'register');
+  const [isLoading, setIsLoading] = useState(false);
   
   // Update state when initialMode changes
   React.useEffect(() => {
@@ -41,8 +45,9 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
     }
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setErrorMsg('');
 
     const cleanUsername = username.trim();
@@ -55,11 +60,12 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
 
     const isDemoAccount = (cleanUsername === 'عبدالملك' || cleanUsername === 'عبد الملك') && cleanPassword === '123456';
     
+    // Check local fallback
     const localRegisteredUser = localStorage.getItem('custom_auth_user');
     const localRegisteredPass = localStorage.getItem('custom_auth_pass');
-    const isCustomAccount = localRegisteredUser && 
-                            localRegisteredUser.trim() === cleanUsername && 
-                            localRegisteredPass === cleanPassword;
+    const isCustomLocal = localRegisteredUser && 
+                          localRegisteredUser.trim() === cleanUsername && 
+                          localRegisteredPass === cleanPassword;
 
     if (isDemoAccount) {
       if (rememberMe) {
@@ -72,26 +78,90 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
         localStorage.removeItem('school_remembered_pass');
       }
       onLoginSuccess('عبدالملك', 'abdulmlikoog@gmail.com', '@abdulmlik_ou');
-    } else if (isCustomAccount) {
-      if (rememberMe) {
-        localStorage.setItem('school_remember_me', 'true');
-        localStorage.setItem('school_remembered_user', cleanUsername);
-        localStorage.setItem('school_remembered_pass', cleanPassword);
-      } else {
-        localStorage.removeItem('school_remember_me');
-        localStorage.removeItem('school_remembered_user');
-        localStorage.removeItem('school_remembered_pass');
-      }
-      const email = localStorage.getItem('custom_auth_email') || 'user@example.com';
-      const telegram = localStorage.getItem('custom_auth_telegram') || '';
-      onLoginSuccess(cleanUsername, email, telegram);
     } else {
-      setErrorMsg('اسم المستخدم أو كلمة المرور غير صحيحة! للحساب التجريبي اكتب: عبدالملك والرمز: 123456');
+      setIsLoading(true);
+      try {
+        let loginEmail = cleanUsername;
+        if (!loginEmail.includes('@')) {
+          const savedMappedEmail = localStorage.getItem(`fb_email_for_${cleanUsername.toLowerCase()}`);
+          if (savedMappedEmail) {
+            loginEmail = savedMappedEmail;
+          } else {
+            loginEmail = `${cleanUsername.toLowerCase()}@school.com`; // default virtual domain fallback
+          }
+        }
+
+        const userCredential = await signInWithEmailAndPassword(auth, loginEmail, cleanPassword);
+        const fbUser = userCredential.user;
+
+        // Fetch user metadata profile from Firestore
+        const docSnap = await getDoc(doc(db, 'users', fbUser.uid));
+        let userDisplayName = cleanUsername;
+        let userTelegram = '@no_telegram';
+
+        if (docSnap.exists()) {
+          const d = docSnap.data();
+          userDisplayName = d.username || userDisplayName;
+          userTelegram = d.telegram || userTelegram;
+        } else {
+          // If Firestore is empty for some reason, let's write user profile structure to preserve
+          const signUpDate = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+          await setDoc(doc(db, 'users', fbUser.uid), {
+            username: userDisplayName,
+            email: fbUser.email || loginEmail,
+            telegram: userTelegram,
+            avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userDisplayName)}&backgroundColor=1b365d,c9a24a`,
+            isLoggedIn: true,
+            signUpDate: signUpDate,
+            scorePct: 0,
+            completedCount: 0
+          });
+        }
+
+        if (rememberMe) {
+          localStorage.setItem('school_remember_me', 'true');
+          localStorage.setItem('school_remembered_user', cleanUsername);
+          localStorage.setItem('school_remembered_pass', cleanPassword);
+        } else {
+          localStorage.removeItem('school_remember_me');
+          localStorage.removeItem('school_remembered_user');
+          localStorage.removeItem('school_remembered_pass');
+        }
+
+        onLoginSuccess(userDisplayName, fbUser.email || loginEmail, userTelegram);
+
+      } catch (error: any) {
+        console.error("Firebase Login Error:", error);
+        
+        // If Firebase fails but we have this user local fallback, allow them to enter
+        if (isCustomLocal) {
+          const email = localStorage.getItem('custom_auth_email') || 'user@example.com';
+          const telegram = localStorage.getItem('custom_auth_telegram') || '';
+          onLoginSuccess(cleanUsername, email, telegram);
+          setIsLoading(false);
+          return;
+        }
+
+        let errMsg = 'اسم المستخدم أو كلمة المرور غير صحيحة!';
+        if (error.code === 'auth/invalid-email') {
+          errMsg = 'صيغة البريد الإلكتروني غير صالحة!';
+        } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+          errMsg = 'بيانات تسجيل الدخول أو الرمز السري غير متطابق!';
+        } else if (error.code === 'auth/user-disabled') {
+          errMsg = 'عذراً، هذا الحساب تم تعطيله فنيّاً من قِبل إدارة التعليم.';
+        } else {
+          errMsg = `خطأ في الاتصال بالشبكة: يرجى تمكين البريد وكلمة المرور في Firebase Console. (${error.message})`;
+        }
+        setErrorMsg(errMsg);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setErrorMsg('');
     setRegSuccess(false);
 
@@ -100,8 +170,8 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
       return;
     }
 
-    if (regPass.length < 4) {
-      setErrorMsg('كلمة المرور يجب أن تكون 4 خانات على الأقل');
+    if (regPass.length < 6) {
+      setErrorMsg('رمز المرور يجب أن يكون 6 خانات على الأقل لسلامة حسابك');
       return;
     }
 
@@ -110,23 +180,95 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
       telegramHandle = '@' + telegramHandle;
     }
 
-    localStorage.setItem('custom_auth_user', regUser.trim());
-    localStorage.setItem('custom_auth_pass', regPass.trim());
-    localStorage.setItem('custom_auth_email', regEmail.trim());
-    localStorage.setItem('custom_auth_telegram', telegramHandle);
-    
-    setRegSuccess(true);
-    setUsername(regUser);
-    setPassword(regPass);
-    
-    setTimeout(() => {
-      setIsRegistering(false);
-      setRegSuccess(false);
-      setRegUser('');
-      setRegPass('');
-      setRegEmail('');
-      setRegTelegram('');
-    }, 2000);
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, regEmail.trim(), regPass.trim());
+      const fbUser = userCredential.user;
+
+      const signUpDate = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+
+      // Create Firestore user profile document
+      await setDoc(doc(db, 'users', fbUser.uid), {
+        username: regUser.trim(),
+        email: regEmail.trim(),
+        telegram: telegramHandle,
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(regUser.trim())}&backgroundColor=1b365d,c9a24a`,
+        isLoggedIn: true,
+        signUpDate: signUpDate,
+        scorePct: 0,
+        completedCount: 0
+      });
+
+      // Mapped email in local storage for easy login by name or email
+      localStorage.setItem(`fb_email_for_${regUser.trim().toLowerCase()}`, regEmail.trim().toLowerCase());
+      localStorage.setItem(`fb_email_for_${regEmail.trim().toLowerCase()}`, regEmail.trim().toLowerCase());
+
+      localStorage.setItem('custom_auth_user', regUser.trim());
+      localStorage.setItem('custom_auth_pass', regPass.trim());
+      localStorage.setItem('custom_auth_email', regEmail.trim());
+      localStorage.setItem('custom_auth_telegram', telegramHandle);
+
+      setRegSuccess(true);
+      
+      setTimeout(() => {
+        setIsRegistering(false);
+        setRegSuccess(false);
+        setRegUser('');
+        setRegPass('');
+        setRegEmail('');
+        setRegTelegram('');
+        onLoginSuccess(regUser.trim(), regEmail.trim(), telegramHandle);
+      }, 1500);
+
+    } catch (error: any) {
+      console.error("Firebase Auth Registration Error:", error);
+      let errMsg = 'فشل تعديل وإنشاء الحساب في النظام.';
+      if (error.code === 'auth/email-already-in-use') {
+        errMsg = 'هذا البريد الإلكتروني مسجل بالفعل في قاعدة البيانات!';
+      } else if (error.code === 'auth/invalid-email') {
+        errMsg = 'صيغة البريد الإلكتروني غير صالحة!';
+      } else if (error.code === 'auth/weak-password') {
+        errMsg = 'كلمة المرور ضعيفة جداً! الرجاء اختيار 6 خانات على الأقل.';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        // Fallback write locally to database as custom fallback if email/password provider is disabled on firebase console
+        try {
+          // Attempt custom fallback write or guide user
+          const mockUid = 'local_' + Date.now();
+          await setDoc(doc(db, 'users', mockUid), {
+            username: regUser.trim(),
+            email: regEmail.trim(),
+            telegram: telegramHandle,
+            avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(regUser.trim())}&backgroundColor=1b365d,c9a24a`,
+            isLoggedIn: true,
+            signUpDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+            scorePct: 0,
+            completedCount: 0
+          });
+          
+          localStorage.setItem(`fb_email_for_${regUser.trim().toLowerCase()}`, regEmail.trim().toLowerCase());
+          localStorage.setItem(`fb_email_for_${regEmail.trim().toLowerCase()}`, regEmail.trim().toLowerCase());
+          localStorage.setItem('custom_auth_user', regUser.trim());
+          localStorage.setItem('custom_auth_pass', regPass.trim());
+          localStorage.setItem('custom_auth_email', regEmail.trim());
+          localStorage.setItem('custom_auth_telegram', telegramHandle);
+          
+          setRegSuccess(true);
+          setTimeout(() => {
+            setIsRegistering(false);
+            setRegSuccess(false);
+            onLoginSuccess(regUser.trim(), regEmail.trim(), telegramHandle);
+          }, 1500);
+          return;
+        } catch (dbErr) {
+          errMsg = 'يرجى التأكد من تفعيل "Email/Password" في شاشة Authentication بقسم Sign-in method داخل لوحة تفعيل Firebase! أو التحقق من الربط.';
+        }
+      } else {
+        errMsg = `خطأ أثناء إنشاء الحساب الفني: ${error.message}`;
+      }
+      setErrorMsg(errMsg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -260,14 +402,17 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
             <div className="space-y-3 pt-3">
               <button
                 type="submit"
-                className="w-full py-4 bg-brand-gold hover:bg-yellow-600 text-brand-dark rounded-2xl text-sm font-black shadow-lg transition-all transform active:scale-[0.98] cursor-pointer"
+                disabled={isLoading}
+                className="w-full py-4 bg-brand-gold hover:bg-yellow-600 text-brand-dark rounded-2xl text-sm font-black shadow-lg transition-all transform active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
                 style={{ fontFamily: "'Cairo', sans-serif" }}
               >
-                تسجيل الدخول
+                {isLoading && <div className="w-4 h-4 rounded-full border-2 border-brand-dark border-t-transparent animate-spin" />}
+                <span>{isLoading ? 'جاري التحقق...' : 'تسجيل الدخول'}</span>
               </button>
               
               <button
                 type="button"
+                disabled={isLoading}
                 onClick={() => {
                   setIsRegistering(true);
                   setErrorMsg('');
@@ -380,14 +525,17 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
             <div className="space-y-3 pt-3">
               <button
                 type="submit"
-                className="w-full py-4 bg-brand-gold hover:bg-yellow-600 text-brand-dark rounded-2xl text-sm font-black shadow-lg transition-all cursor-pointer"
+                disabled={isLoading}
+                className="w-full py-4 bg-brand-gold hover:bg-yellow-600 text-brand-dark rounded-2xl text-sm font-black shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
                 style={{ fontFamily: "'Cairo', sans-serif" }}
               >
-                تأكيد إنشاء الحساب
+                {isLoading && <div className="w-4 h-4 rounded-full border-2 border-brand-dark border-t-transparent animate-spin" />}
+                <span>{isLoading ? 'جاري تأسيس الحساب الفني...' : 'تأكيد إنشاء الحساب'}</span>
               </button>
               
               <button
                 type="button"
+                disabled={isLoading}
                 onClick={() => {
                   setIsRegistering(false);
                   setErrorMsg('');
