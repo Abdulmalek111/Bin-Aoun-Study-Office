@@ -586,13 +586,153 @@ export default function App() {
   const activeExam = initialExams.find((e) => e.id === activeExamId);
 
   return (
-    <div className={`min-h-screen w-full transition-colors duration-500 ${!user ? 'bg-brand-dark' : 'bg-brand-gray'} text-brand-dark flex flex-col items-center justify-center md:py-8`} style={{ direction: 'rtl' }}>
+    <div className={`min-h-screen w-full transition-colors duration-500 ${!user ? 'bg-brand-dark' : 'bg-brand-gray'} text-brand-dark flex flex-col items-center justify-center md:py-6 lg:py-8`} style={{ direction: 'rtl' }}>
       
-      {/* High-quality Centered Application Container: Fills mobile screens, elegantly framed with shadows on desktops */}
-      <div className={`w-full max-w-[460px] transition-all duration-500 ${!user ? 'bg-brand-dark border-transparent shadow-2xl shadow-black/40' : 'bg-white border-gray-100 shadow-2xl'} h-screen md:h-[880px] md:max-h-[880px] md:rounded-[36px] overflow-hidden flex flex-col justify-between border relative`}>
+      {/* High-quality Centered Application Container: Fills mobile screens, elegantly expanded with dual-panel sidebars on laptops/computers */}
+      <div className={`w-full transition-all duration-500 ${
+        !user 
+          ? 'max-w-[460px] bg-brand-dark border-transparent shadow-2xl shadow-black/40 h-screen md:h-[880px] md:max-h-[880px] md:rounded-[36px]' 
+          : 'max-w-full md:max-w-[480px] lg:max-w-6xl xl:max-w-7xl bg-white border-gray-100 shadow-2xl h-screen lg:h-[880px] lg:max-h-[880px] lg:rounded-[36px]'
+      } overflow-hidden flex flex-col lg:flex-row justify-between border relative`}>
         
-        {/* Main Content Area */}
-        <div className={`flex-grow overflow-y-auto no-scrollbar flex flex-col justify-between ${!user ? 'p-0' : 'px-4 py-3.5'}`}>
+        {/* RIGHT SIDEBAR FOR DESKTOPS (Only visible if logged in, screen is lg+, and not in active exam mode) */}
+        {user && !activeExamId && (
+          <aside className="hidden lg:flex flex-col w-[265px] border-l border-gray-100/80 bg-brand-dark text-white p-6 shrink-0 h-full justify-between select-none relative z-40">
+            {/* Background luxury highlights */}
+            <div className="absolute top-0 right-0 w-full h-40 bg-gradient-to-b from-brand-blue/30 to-transparent pointer-events-none"></div>
+            
+            <div className="space-y-6 relative z-10">
+              {/* Branding Header Area */}
+              <div className="flex flex-col items-center text-center pb-5 border-b border-white/10">
+                <Logo />
+                <p className="text-[11px] text-brand-gold font-bold mt-1.5 tracking-wide">مكتب القياس والتقويم</p>
+              </div>
+
+              {/* Student Visual Card */}
+              <div className="p-3 bg-brand-blue/40 rounded-2xl border border-white/5 space-y-2 text-right">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="absolute -inset-0.5 bg-brand-gold rounded-full blur-[2px] opacity-40"></div>
+                    <img 
+                      src={user.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.username)}`} 
+                      alt={user.username} 
+                      className="relative w-11 h-11 rounded-full object-cover border border-white/10 shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-extrabold text-xs truncate text-white leading-tight">{user.username} 🎓</h4>
+                    <p className="text-[9px] text-slate-300 font-medium truncate mt-0.5">{user.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar Tabs Links */}
+              <nav className="space-y-1.5 flex flex-col">
+                <button
+                  onClick={() => setActiveTab('home')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
+                    activeTab === 'home' 
+                      ? 'bg-brand-gold text-brand-dark shadow-md shadow-brand-gold/10 font-black' 
+                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <Home size={15} />
+                  <span>اللوحة الرئيسية للدارس</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('subjects')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
+                    activeTab === 'subjects' 
+                      ? 'bg-brand-gold text-brand-dark shadow-md shadow-brand-gold/10 font-black' 
+                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <LayoutGrid size={15} />
+                  <span>المستندات والمواد الدراسية</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('discussions')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
+                    activeTab === 'discussions' 
+                      ? 'bg-brand-gold text-brand-dark shadow-md shadow-brand-gold/10 font-black' 
+                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <MessageSquare size={15} />
+                  <span>حلقات النقاش الأكاديمي</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('exams')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
+                    activeTab === 'exams' 
+                      ? 'bg-brand-gold text-brand-dark shadow-md shadow-brand-gold/10 font-black' 
+                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <Calendar size={15} />
+                  <span>الاختبارات والتسريبات</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('profile')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
+                    activeTab === 'profile' 
+                      ? 'bg-brand-gold text-brand-dark shadow-md shadow-brand-gold/10 font-black' 
+                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <UserIcon size={15} />
+                  <span>ملفي الشخصي والإعدادات</span>
+                </button>
+
+                {user?.email === 'abdulmlikoog@gmail.com' && (
+                  <button
+                    onClick={() => setActiveTab('admin')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer border mt-3 ${
+                      activeTab === 'admin' 
+                        ? 'bg-red-700 text-white border-red-500 shadow-lg font-black' 
+                        : 'bg-red-950/20 text-red-200 border-red-500/20 hover:bg-red-900/30'
+                    }`}
+                  >
+                    <Shield size={15} />
+                    <span>لوحة إدارة النظام والمتابعة</span>
+                  </button>
+                )}
+              </nav>
+            </div>
+
+            {/* Bottom Utilities Panel inside desktop sidebar */}
+            <div className="space-y-4 border-t border-white/10 pt-4 relative z-10">
+              {/* Day & Night interactive switch */}
+              <div className="flex items-center justify-between text-[11px] px-2 text-gray-300 font-extrabold select-none">
+                <span>الوضع الداكن المريح</span>
+                <button 
+                  onClick={() => setDarkMode(!darkMode)}
+                  className="w-10 h-5 bg-white/10 rounded-full transition-colors relative cursor-pointer"
+                  title="تبديل وضع الألوان"
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-brand-gold transition-all duration-300 ${darkMode ? 'left-1' : 'left-5'}`} />
+                </button>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="w-full py-2.5 bg-red-950/40 hover:bg-red-900/40 text-red-200 hover:text-white border border-red-500/20 rounded-xl text-xs font-black transition-all cursor-pointer text-center"
+              >
+                تسجيل الخروج الآمن
+              </button>
+            </div>
+          </aside>
+        )}
+
+        {/* MAIN DISPLAY VIEWPORT CONTAINER (Scroll content & screen routing) */}
+        <div className={`flex-grow overflow-y-auto no-scrollbar flex flex-col justify-between ${
+          !user ? 'p-0' : 'px-4 py-3.5 md:p-6 lg:p-8'
+        }`}>
           
           {!user ? (
             authScreen === 'welcome' ? (
@@ -698,9 +838,9 @@ export default function App() {
 
         </div>
 
-        {/* Common Bottom Mobile Navigation Dock (Hidden if in active exam screen for complete testing focus) */}
+        {/* BOTTOM NAVIGATION DOCK (Fully responsive: visible on mobiles, hidden on desktop/computers screens `lg:hidden`) */}
         {user && !activeExamId && (
-          <nav className="bg-white border-t border-gray-150 px-2 sm:px-3 py-2.5 sm:py-3.5 flex justify-around items-center text-gray-400 shadow-md z-30 select-none rounded-t-2xl shrink-0">
+          <nav className="lg:hidden bg-white border-t border-gray-150 px-2 sm:px-3 py-2.5 sm:py-3.5 flex justify-around items-center text-gray-400 shadow-md z-30 select-none rounded-t-2xl shrink-0">
             
             {/* Home tab button */}
             <button

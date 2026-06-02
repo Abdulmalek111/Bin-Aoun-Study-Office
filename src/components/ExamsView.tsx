@@ -24,7 +24,7 @@ export default function ExamsView({ exams, examHistory, onSelectExam }: ExamsVie
           <span>الاختبارات التجريبية المتاحة</span>
         </h3>
 
-        <div className="space-y-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {exams.map((exam) => (
             <div 
               key={exam.id} 
