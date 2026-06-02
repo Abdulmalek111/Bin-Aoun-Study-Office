@@ -6,7 +6,7 @@ import SubjectIcon from './SubjectIcon';
 interface SubjectsViewProps {
   subjects: Subject[];
   onToggleLecture: (subjectId: string, lectureIndex: number) => void;
-  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>;
 }
 
 export default function SubjectsView({ subjects, onToggleLecture, subjectLecturesMap }: SubjectsViewProps) {
@@ -19,6 +19,9 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
   
   // Selected model details state for dialog popup
   const [selectedModel, setSelectedModel] = useState<{ subjectId: string; modelNum: number } | null>(null);
+  
+  // Custom video/PDF viewer state
+  const [viewingLecture, setViewingLecture] = useState<{ title: string; type: 'video' | 'pdf'; url?: string } | null>(null);
   const [labAnswers, setLabAnswers] = useState<Record<string, string>>({});
   const [labSubmitted, setLabSubmitted] = useState<Record<string, boolean>>({});
 
@@ -207,7 +210,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                     </div>
                                   </div>
                                   <button 
-                                    onClick={() => alert(`بدء عرض المحتوى لـ ${lecture.title}...`)}
+                                    onClick={() => setViewingLecture(lecture)}
                                     className="text-[10px] font-bold text-brand-blue hover:text-brand-gold bg-white border border-gray-100 px-2 py-0.5 rounded dark:bg-slate-800 dark:border-slate-700"
                                   >
                                     عرض
@@ -293,7 +296,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                               </div>
 
                               <button 
-                                onClick={() => alert(`بدء عرض المحتوى لـ ${lecture.title}...`)}
+                                onClick={() => setViewingLecture(lecture)}
                                 className="text-[10px] font-bold text-brand-blue hover:text-brand-gold bg-white border border-gray-100 px-2 py-0.5 rounded dark:bg-slate-800 dark:border-slate-700"
                               >
                                 عرض
@@ -404,7 +407,170 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
         </div>
       )}
 
+      {/* Dynamic Document & Video In-App Viewer Overlay */}
+      {viewingLecture && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in" style={{ direction: 'rtl' }}>
+          <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            
+            {/* Header bar */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-850">
+              <div className="flex items-center gap-2">
+                <span className={`p-1.5 rounded-xl ${viewingLecture.type === 'video' ? 'bg-amber-500/10 text-amber-500' : 'bg-brand-blue/10 text-brand-blue'}`}>
+                  {viewingLecture.type === 'video' ? <Video size={16} /> : <FileText size={16} />}
+                </span>
+                <div>
+                  <h3 className="font-extrabold text-[#111111] dark:text-white text-xs sm:text-sm leading-snug">
+                    {viewingLecture.title}
+                  </h3>
+                  <span className="text-[10px] text-gray-400 font-bold block mt-0.5">
+                    {viewingLecture.type === 'video' ? 'شرح مرئي مدمج' : 'مستند مراجعة دراسي مدمج'}
+                  </span>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => setViewingLecture(null)}
+                className="p-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Viewer Stage */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-slate-950 flex flex-col items-center justify-center min-h-[400px]">
+              {viewingLecture.url ? (
+                <div className="w-full h-full flex flex-col items-center justify-center">
+                  {viewingLecture.type === 'video' ? (
+                    (() => {
+                      const ytUrl = getYouTubeEmbedUrl(viewingLecture.url);
+                      if (ytUrl) {
+                        return (
+                          <div className="w-full aspect-video rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 bg-black shadow-lg">
+                            <iframe
+                              src={ytUrl}
+                              title={viewingLecture.title}
+                              className="w-full h-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            ></iframe>
+                          </div>
+                        );
+                      } else if (viewingLecture.url.match(/\.(mp4|webm|ogg|mov)$/i)) {
+                        return (
+                          <video 
+                            src={viewingLecture.url} 
+                            controls 
+                            className="w-full aspect-video rounded-2xl bg-black border border-gray-200 dark:border-slate-800 shadow-lg"
+                          />
+                        );
+                      } else {
+                        // Fallback embed / custom video page iframe
+                        return (
+                          <div className="w-full h-[500px] rounded-2xl overflow-hidden border border-gray-250 dark:border-slate-850 bg-white dark:bg-slate-900 shadow-lg flex flex-col">
+                            <iframe
+                              src={viewingLecture.url}
+                              title={viewingLecture.title}
+                              className="w-full flex-1"
+                              referrerPolicy="no-referrer"
+                              sandbox="allow-same-origin allow-scripts allow-popups"
+                            ></iframe>
+                          </div>
+                        );
+                      }
+                    })()
+                  ) : (
+                    /* PDF Document Handler */
+                    <div className="w-full h-[500px] rounded-2xl overflow-hidden border border-gray-250 dark:border-slate-850 bg-white dark:bg-slate-900 shadow-lg flex flex-col">
+                      <iframe
+                        src={viewingLecture.url.toLowerCase().endsWith('.pdf') 
+                          ? `https://docs.google.com/gview?url=${encodeURIComponent(viewingLecture.url)}&embedded=true` 
+                          : viewingLecture.url
+                        }
+                        title={viewingLecture.title}
+                        className="w-full flex-1"
+                        referrerPolicy="no-referrer"
+                      ></iframe>
+                    </div>
+                  )}
+
+                  {/* External launch assistance block */}
+                  <div className="w-full mt-3.5 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-gray-150 dark:border-slate-800 text-center space-y-2">
+                    <p className="text-[11px] text-gray-400 font-bold">
+                      تعذر تحميل الإطار الأكاديمي؟ أو ترغب بدراسة المحتوى على شاشة أوسع؟
+                    </p>
+                    <a 
+                      href={viewingLecture.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-black text-brand-blue hover:text-brand-gold bg-brand-blue/5 border border-brand-blue/15 px-3 py-1.5 rounded-xl transition"
+                    >
+                      <span>فتح الرابط الدراسي في نافذة مستقلة خارجية</span>
+                      <ChevronRight size={12} className="rotate-180" />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                /* Premium Academic Interactive Mock Content Generator when no link is explicitly provided by Admin */
+                <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-6 border border-gray-150 dark:border-slate-800/80 shadow-md space-y-4 text-slate-700 dark:text-gray-100">
+                  <div className="flex items-center gap-3 border-b border-gray-100 dark:border-slate-800 pb-3">
+                    <div className="w-10 h-10 rounded-2xl bg-brand-gold/10 text-brand-gold flex items-center justify-center font-extrabold text-lg">
+                      📖
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-[#111111] dark:text-white">ملخص دراسي ومطالعة تفاعلية</h4>
+                      <p className="text-[10px] text-gray-400 font-bold">المستند العلمي المطلوب للبرنامج الدراسي الجاري</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 leading-relaxed text-xs">
+                    <p className="font-extrabold text-[#111111] dark:text-brand-gold">
+                      أهلاً بك يا زميل المعرفة الأكاديمية! هذا المستند مفعم بالمعلومات الأكاديمية المنسقة للدروس النظرية والاستعداد للمهارات المعملية الحالية.
+                    </p>
+                    
+                    <div className="bg-gray-50 dark:bg-slate-850 p-3 rounded-xl border border-gray-100 dark:border-slate-800 space-y-1.5">
+                      <p className="font-bold text-[11px] text-gray-700 dark:text-gray-200 font-sans">📌 الأهداف الأكاديمية والمخرجات التعليمية المقررة:</p>
+                      <ul className="list-disc pr-4 space-y-1 font-medium text-gray-500 dark:text-gray-400">
+                        <li>فهم ومطالعة المحتوى الدراسي الموزع تحت إشراف هيئة التدريس الفيدرالية.</li>
+                        <li>اكتساب المهارات والحلول الفلسفية والصيغ الرياضية الضرورية لتحضير نماذجك التفاعلية.</li>
+                        <li>الاستعداد الكامل وتثبيت المفاهيم للاجتياز الناجح لأي اختبار قصير أو دوري.</li>
+                      </ul>
+                    </div>
+
+                    <p className="font-medium text-gray-500 dark:text-gray-350">
+                      يرجى قراءة الفصول المخصصة في الكتاب الجامعي والتأكد من مراجعة ملاحظاتك باستمرار. نوصي بحضور الندوات لحل النماذج والتفاعل مع دكاترة المادة في منتدى الحوار المفتوح.
+                    </p>
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-between items-center">
+                    <div className="text-[10px] text-gray-400 font-bold">
+                      حالة المستند: <span className="text-emerald-500">✓ معتمد رسمياً للدراسة</span>
+                    </div>
+                    <button 
+                      onClick={() => setViewingLecture(null)}
+                      className="px-4 py-1.5 bg-brand-dark hover:bg-black text-white rounded-xl text-[10px] font-black cursor-pointer"
+                    >
+                      حسناً، تم الحفظ والمطالعة
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
+}
+
+// YT embed URL extractor helper
+function getYouTubeEmbedUrl(url: string): string | null {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2].length === 11) {
+    return `https://www.youtube.com/embed/${match[2]}`;
+  }
+  return null;
 }
 

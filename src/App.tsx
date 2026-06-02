@@ -93,7 +93,7 @@ export default function App() {
     localStorage.setItem('school_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
-  const handleAddNotification = (targetEmail: string, senderName: string, message: string) => {
+  const handleAddNotification = async (targetEmail: string, senderName: string, message: string) => {
     const today = new Date();
     const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
     const newNoti: Notification = {
@@ -105,10 +105,22 @@ export default function App() {
       targetEmail: targetEmail.trim()
     };
     setNotifications(prev => [newNoti, ...prev]);
+    try {
+      await setDoc(doc(db, 'notifications', newNoti.id), {
+        id: newNoti.id,
+        senderName: newNoti.senderName,
+        message: newNoti.message,
+        createdAt: newNoti.createdAt,
+        read: newNoti.read,
+        targetEmail: newNoti.targetEmail
+      });
+    } catch (e) {
+      console.error("Failed to write notification to Firestore:", e);
+    }
   };
 
   // Dynamic Required Documents (previously "Standard Lectures") state
-  const [subjectLectures, setSubjectLectures] = useState<Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>>(() => {
+  const [subjectLectures, setSubjectLectures] = useState<Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>>(() => {
     const saved = localStorage.getItem('school_subject_lectures');
     if (saved) {
       try {
@@ -289,7 +301,11 @@ export default function App() {
       snapshot.forEach((docRef) => {
         const d = docRef.data();
         const target = d.targetEmail || '';
-        if (user.email === 'abdulmlikoog@gmail.com' || target.toLowerCase() === user.email.toLowerCase()) {
+        if (
+          user.email === 'abdulmlikoog@gmail.com' ||
+          target.toLowerCase() === user.email.toLowerCase() ||
+          target.toLowerCase() === 'all'
+        ) {
           list.push({
             id: docRef.id,
             senderName: d.senderName || 'المشرف العام',

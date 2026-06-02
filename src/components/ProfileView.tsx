@@ -15,8 +15,8 @@ interface ProfileViewProps {
   onInstallApp: () => void;
   subjects: any[];
   onUpdateSubjects: (updated: any[]) => void;
-  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
-  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>;
+  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>) => void;
   supportTickets: SupportTicket[];
   onUpdateSupportTickets: (updated: SupportTicket[]) => void;
   notifications?: any[];

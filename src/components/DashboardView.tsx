@@ -27,9 +27,9 @@ export default function DashboardView({
 
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Filter notifications specifically for the logged in user
+  // Filter notifications specifically for the logged in user or global "all" list
   const userNotifications = notifications.filter(
-    (n) => n.targetEmail.toLowerCase() === user.email.toLowerCase()
+    (n) => n.targetEmail.toLowerCase() === user.email.toLowerCase() || n.targetEmail.toLowerCase() === 'all'
   );
   const unreadCount = userNotifications.filter((n) => !n.read).length;
 
@@ -47,7 +47,8 @@ export default function DashboardView({
 
   const handleMarkAllAsRead = () => {
     const updated = notifications.map((n) => {
-      if (n.targetEmail.toLowerCase() === user.email.toLowerCase()) {
+      const targetLower = n.targetEmail.toLowerCase();
+      if (targetLower === user.email.toLowerCase() || targetLower === 'all') {
         return { ...n, read: true };
       }
       return n;

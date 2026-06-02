@@ -35,8 +35,8 @@ interface AdminDashboardProps {
   subjects: Subject[];
   onUpdateSubjects: (updated: Subject[]) => void;
   onNavigateToTab: (tab: any) => void;
-  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>;
-  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf' }[]>) => void;
+  subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>;
+  onUpdateSubjectLectures: (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>) => void;
   isEmbedded?: boolean;
   supportTickets?: SupportTicket[];
   onUpdateSupportTickets?: (updated: SupportTicket[]) => void;
@@ -108,6 +108,7 @@ export default function AdminDashboard({
   const [newDocTitle, setNewDocTitle] = useState('');
   const [newDocDuration, setNewDocDuration] = useState('');
   const [newDocType, setNewDocType] = useState<'pdf' | 'video'>('pdf');
+  const [newDocUrl, setNewDocUrl] = useState('');
 
   // Broadcast
   const [broadcastMessage, setBroadcastMessage] = useState('');
@@ -438,7 +439,7 @@ export default function AdminDashboard({
     alert('✓ تم إرسال الرد الفوري للطالب وسيظهر في حسابه في الحال!');
   };
 
-  const [selectedStudentEmail, setSelectedStudentEmail] = useState('');
+  const [selectedStudentEmail, setSelectedStudentEmail] = useState('all');
   const [directMessageText, setDirectMessageText] = useState('');
 
   useEffect(() => {
@@ -491,7 +492,7 @@ export default function AdminDashboard({
       setStudents(merged);
       
       if (merged.length > 0 && !selectedStudentEmail) {
-        setSelectedStudentEmail(merged[0].email);
+        setSelectedStudentEmail('all');
       }
     }, (error) => {
       console.error("Failed to list students from Firestore:", error);
@@ -502,7 +503,7 @@ export default function AdminDashboard({
           const loaded = JSON.parse(savedStudents);
           setStudents(loaded);
           if (loaded.length > 0 && !selectedStudentEmail) {
-            setSelectedStudentEmail(loaded[0].email);
+            setSelectedStudentEmail('all');
           }
         } catch (e) {}
       }
@@ -523,13 +524,14 @@ export default function AdminDashboard({
       return;
     }
 
-    const sObj = students.find(s => s.email.toLowerCase() === selectedStudentEmail.toLowerCase());
-    const studentName = sObj ? sObj.username : 'طالب معين';
+    const isAll = selectedStudentEmail === 'all';
+    const sObj = isAll ? null : students.find(s => s.email.toLowerCase() === selectedStudentEmail.toLowerCase());
+    const studentName = isAll ? 'جميع الطلاب' : (sObj ? sObj.username : 'طالب معين');
 
     if (onAddNotification) {
       onAddNotification(selectedStudentEmail, 'المشرف العام', directMessageText.trim());
-      addLog(`✓ تم إرسال تنبيه خاص للطالب ${studentName} لبريده: ${selectedStudentEmail}`);
-      alert(`✓ تم إرسال التنبيه بنجاح إلى حساب الطالب "${studentName}" وسيظهر له في صفحته الرئيسية إشعار جديد مرقم عند جرس التنبيهات!`);
+      addLog(`✓ تم إرسال تنبيه ${isAll ? 'عام لجميع الطلاب' : `خاص للطالب ${studentName} لبريده: ${selectedStudentEmail}`}`);
+      alert(`✓ تم إرسال التنبيه بنجاح إلى ${isAll ? 'جميع الطلاب المسجلين' : `حساب الطالب "${studentName}"`} وسيتلقى الجميع الإشعار فوراً!`);
       setDirectMessageText('');
     } else {
       alert('خطأ ميكانيكي: محرك الإشعارات الفورية غير موصول حالياً.');
@@ -658,7 +660,8 @@ export default function AdminDashboard({
     const newDoc = {
       title: newDocTitle.trim(),
       duration: newDocDuration.trim() || 'مستند مالي معتمد',
-      type: newDocType
+      type: newDocType,
+      url: newDocUrl.trim() || undefined
     };
 
     const currentSubjectDocs = subjectLecturesMap[selectedSubjectId] || [];
@@ -685,6 +688,7 @@ export default function AdminDashboard({
     
     setNewDocTitle('');
     setNewDocDuration('');
+    setNewDocUrl('');
     alert('✓ تم نشر وتعميم المستند الدراسي المطلوب بنجاح على جميع الطلاب!');
   };
 
@@ -1001,6 +1005,17 @@ export default function AdminDashboard({
               />
             </div>
 
+            <div>
+              <label className="text-[9px] font-bold text-gray-400 block mb-0.5">رابط المستند أو الفيديو (فرع داخلي في التطبيق)</label>
+              <input 
+                type="text" 
+                value={newDocUrl}
+                onChange={(e) => setNewDocUrl(e.target.value)}
+                placeholder="مثال: https://youtube.com/watch?v=... أو رابط مباشر لملف PDF"
+                className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[10px] py-1.5 px-3 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-medium"
+              />
+            </div>
+
             <button 
               type="submit" 
               className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-[11px] font-black transition-all cursor-pointer shadow-md active:scale-95 flex items-center justify-center gap-1"
@@ -1037,6 +1052,7 @@ export default function AdminDashboard({
                 onChange={(e) => setSelectedStudentEmail(e.target.value)}
                 className="w-full bg-gray-55/70 dark:bg-slate-850 border border-gray-200 text-[11px] py-1.5 px-2.5 rounded-xl text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white font-bold"
               >
+                <option value="all">الكل (جميع الطلاب المسجلين)</option>
                 {students.map((s) => (
                   <option key={s.email} value={s.email}>
                     {s.username} ({s.email})
