@@ -232,6 +232,11 @@ export default function AdminDashboard({
     const ticket = supportTickets.find(t => t.id === ticketId);
     if (!ticket) return;
 
+    if (ticket.status === 'closed') {
+      alert('⚠️ لا يمكن إرسال رسالة رد؛ هذه المحادثة مقفلة بالأرشيف حالياً من قبل الإدارة.');
+      return;
+    }
+
     const today = new Date();
     const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
 
@@ -290,38 +295,109 @@ export default function AdminDashboard({
     addLog(`تم إرسال رسالة رد في المحادثة لبطاقة رقم #${ticketId}.`);
   };
 
+  const handleToggleTicketStatus = (ticketId: string, status: 'open' | 'closed') => {
+    const ticket = supportTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
+
+    const statusAr = status === 'closed' ? 'مغلقة ومؤرشفة' : 'مفتوحة لمتابعة الاستفسار';
+    const statusMsgText = status === 'closed' 
+      ? '🔒 قام المشرف العام بقفل هذه المحادثة وحفظها بالأرشيف.' 
+      : '🔓 قام المشرف العام بإعادة فتح المحادثة لاستقبال رسائل إضافية.';
+
+    const legacyMsgs: ChatMessage[] = [
+      {
+        id: ticket.id + '-initial',
+        senderRole: 'student',
+        senderName: ticket.senderName,
+        message: ticket.message,
+        createdAt: ticket.createdAt
+      }
+    ];
+    if (ticket.reply) {
+      legacyMsgs.push({
+        id: ticket.id + '-reply',
+        senderRole: 'admin',
+        senderName: 'المشرف العام',
+        message: ticket.reply,
+        createdAt: ticket.repliedAt || ticket.createdAt
+      });
+    }
+
+    const updated = supportTickets.map(t => {
+      if (t.id === ticketId) {
+        const currentMessages = t.messages && t.messages.length > 0 ? t.messages : legacyMsgs;
+        const systemMsg: ChatMessage = {
+          id: Math.floor(100000 + Math.random() * 900000).toString(),
+          senderRole: 'admin',
+          senderName: 'النظام الفني',
+          message: statusMsgText,
+          createdAt: formattedDate
+        };
+        
+        return {
+          ...t,
+          status: status,
+          messages: [...currentMessages, systemMsg]
+        };
+      }
+      return t;
+    });
+
+    if (onUpdateSupportTickets) {
+      onUpdateSupportTickets(updated);
+    }
+
+    if (onAddNotification) {
+      onAddNotification(ticket.senderEmail, 'المشرف العام', `تحديث تذكرة الدعم #${ticketId}: حالة التذكرة الآن هي (${statusAr})`);
+    }
+
+    addLog(`تم تغيير حالة تذكرة الدعم الفني رقم #${ticketId} إلى ${statusAr}.`);
+    alert(`✓ تم تغيير حالة تذكرة الدعم بنجاح إلى: ${statusAr}`);
+  };
+
   const handleReplyTicket = (ticketId: string) => {
     const text = replyTexts[ticketId] || '';
     if (!text.trim()) {
       alert('الرجاء كتابة رد أولاً قبل الإرسال.');
       return;
     }
+
+    const ticket = supportTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+
+    if (ticket.status === 'closed') {
+      alert('⚠️ لا يمكن الرد على هذه البطاقة لأنها مغلقة ومؤرشفة حالياً.');
+      return;
+    }
     
     const today = new Date();
     const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
     
-    const updated = supportTickets.map(ticket => {
-      if (ticket.id === ticketId) {
+    const updated = supportTickets.map(t => {
+      if (t.id === ticketId) {
         const legacyMsgs: ChatMessage[] = [
           {
-            id: ticket.id + '-initial',
+            id: t.id + '-initial',
             senderRole: 'student',
-            senderName: ticket.senderName,
-            message: ticket.message,
-            createdAt: ticket.createdAt
+            senderName: t.senderName,
+            message: t.message,
+            createdAt: t.createdAt
           }
         ];
-        if (ticket.reply) {
+        if (t.reply) {
           legacyMsgs.push({
-            id: ticket.id + '-reply',
+            id: t.id + '-reply',
             senderRole: 'admin',
             senderName: 'المشرف العام',
-            message: ticket.reply,
-            createdAt: ticket.repliedAt || ticket.createdAt
+            message: t.reply,
+            createdAt: t.repliedAt || t.createdAt
           });
         }
 
-        const currentMessages = ticket.messages && ticket.messages.length > 0 ? ticket.messages : legacyMsgs;
+        const currentMessages = t.messages && t.messages.length > 0 ? t.messages : legacyMsgs;
         
         const adminMsg: ChatMessage = {
           id: Math.floor(100000 + Math.random() * 900000).toString(),
@@ -332,22 +408,20 @@ export default function AdminDashboard({
         };
 
         return {
-          ...ticket,
+          ...t,
           reply: text.trim(),
           repliedAt: formattedDate,
           messages: [...currentMessages, adminMsg]
         };
       }
-      return ticket;
+      return t;
     });
-
-    const ticket = supportTickets.find(t => t.id === ticketId);
 
     if (onUpdateSupportTickets) {
       onUpdateSupportTickets(updated);
     }
     
-    if (ticket && onAddNotification) {
+    if (onAddNotification) {
       onAddNotification(ticket.senderEmail, 'المشرف العام', `رد جديد بخصوص استفسارك #${ticketId}: ${text.trim()}`);
     }
     
@@ -1078,21 +1152,47 @@ export default function AdminDashboard({
             return (
               <div className="space-y-3 flex flex-col justify-between min-h-[460px] bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-gray-150 relative text-xs">
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newUrl = window.location.origin + window.location.pathname;
-                      window.history.replaceState({}, document.title, newUrl);
-                      setActiveChatTicketId(null);
-                    }}
-                    className="flex items-center gap-1.5 text-xs text-brand-dark dark:text-brand-gold font-bold hover:underline cursor-pointer bg-transparent"
-                  >
-                    <ArrowRight size={14} />
-                    <span>العودة لقائمة استفسارات الطلاب</span>
-                  </button>
-                  <div className="text-left font-mono text-[9px] text-gray-400">
-                    تذكرة #{chatTicket.id} | الطالب: {chatTicket.senderName}
+                <div className="flex sm:flex-row flex-col justify-between items-center gap-2 border-b border-gray-200 pb-2.5">
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newUrl = window.location.origin + window.location.pathname;
+                        window.history.replaceState({}, document.title, newUrl);
+                        setActiveChatTicketId(null);
+                      }}
+                      className="flex items-center gap-1.5 text-xs text-brand-dark dark:text-brand-gold font-bold hover:underline cursor-pointer bg-transparent"
+                    >
+                      <ArrowRight size={14} />
+                      <span>العودة لقائمة استفسارات الطلاب</span>
+                    </button>
+                    
+                    {chatTicket.status === 'closed' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTicketStatus(chatTicket.id, 'open')}
+                        className="px-2.5 py-1 rounded bg-teal-600 hover:bg-teal-700 dark:bg-teal-800/80 dark:hover:bg-teal-700 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 border border-transparent"
+                      >
+                        <LockOpen size={10} className="animate-bounce" />
+                        <span>إعادة فتح المحادثة للرد</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTicketStatus(chatTicket.id, 'closed')}
+                        className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-700 dark:bg-rose-950/80 dark:hover:bg-rose-900 text-white font-extrabold text-[9px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 border border-transparent"
+                      >
+                        <Lock size={10} />
+                        <span>قفل وأرشفة المحادثة</span>
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-left font-mono text-[9.5px] font-bold text-gray-400">
+                    <span className={`px-1.5 py-0.5 rounded text-[8.5px] ${chatTicket.status === 'closed' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/55 dark:text-rose-400' : 'bg-teal-100 text-teal-700 dark:bg-teal-950/55 dark:text-teal-400'}`}>
+                      {chatTicket.status === 'closed' ? '🔒 مغلقة ومؤرشفة' : '🟢 محادثة مفتوحة نشطة'}
+                    </span>
+                    <span>تذكرة #{chatTicket.id} | الطالب: {chatTicket.senderName}</span>
                   </div>
                 </div>
 
@@ -1104,13 +1204,16 @@ export default function AdminDashboard({
 
                   {chatMessages.map((msg) => {
                     const isAdmin = msg.senderRole === 'admin';
+                    const isSystem = msg.senderName === 'النظام الفني';
                     return (
-                      <div key={msg.id} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
+                      <div key={msg.id} className={`flex flex-col ${isSystem ? 'items-center' : isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
                         <span className="text-[9px] font-bold text-gray-400 px-1">{msg.senderName}</span>
                         <div className={`p-2.5 rounded-2xl max-w-[85%] leading-relaxed text-[11px] font-semibold text-right shadow-xs ${
-                          isAdmin
-                            ? 'bg-amber-100/70 dark:bg-amber-955/20 text-brand-dark dark:text-gray-200 rounded-tr-none border-r-4 border-brand-gold'
-                            : 'bg-brand-dark text-white rounded-tl-none'
+                          isSystem
+                            ? 'bg-rose-50 text-rose-800 dark:bg-rose-950/20 dark:text-rose-400 text-center font-bold px-4 py-1.5 rounded-xl border border-rose-200/30'
+                            : isAdmin
+                              ? 'bg-amber-100/70 dark:bg-amber-955/20 text-brand-dark dark:text-gray-200 rounded-tr-none border-r-4 border-brand-gold'
+                              : 'bg-brand-dark text-white rounded-tl-none'
                         }`}>
                           <p className="whitespace-pre-line">{msg.message}</p>
                         </div>
@@ -1121,29 +1224,36 @@ export default function AdminDashboard({
                   <div ref={adminMessagesEndRef} />
                 </div>
 
-                {/* Composer */}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleAdminSendChatMessage(chatTicket.id, chatInputText);
-                  }}
-                  className="flex gap-2 items-center bg-white dark:bg-slate-900 border border-gray-200 p-1 rounded-xl"
-                >
-                  <input
-                    required
-                    type="text"
-                    value={chatInputText}
-                    onChange={(e) => setChatInputText(e.target.value)}
-                    placeholder="اكتب ردك المستمر والتعليمي للطالب هنا..."
-                    className="flex-grow bg-transparent text-[11px] p-2 focus:outline-none text-brand-dark dark:text-white"
-                  />
-                  <button
-                    type="submit"
-                    className="w-8 h-8 rounded-lg bg-brand-gold hover:bg-yellow-600 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                {/* Composer or lock indicator */}
+                {chatTicket.status === 'closed' ? (
+                  <div className="p-3 bg-rose-50/50 dark:bg-rose-950/10 border border-rose-200/50 dark:border-rose-900/35 rounded-xl text-center text-rose-850 dark:text-rose-400 text-[10.5px] font-extrabold flex items-center justify-center gap-1.5 animate-fade-in">
+                    <Lock size={12} className="shrink-0" />
+                    <span>هذه التذكرة مغلقة وأرشيفية حالياً. اضغط على زر "إعادة فتح المحادثة" بأعلى البوابة لتتمكن من إرسال رسائل جديدة.</span>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleAdminSendChatMessage(chatTicket.id, chatInputText);
+                    }}
+                    className="flex gap-2 items-center bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-1 rounded-xl"
                   >
-                    <Send size={13} />
-                  </button>
-                </form>
+                    <input
+                      required
+                      type="text"
+                      value={chatInputText}
+                      onChange={(e) => setChatInputText(e.target.value)}
+                      placeholder="اكتب ردك المستمر والتعليمي للطالب هنا..."
+                      className="flex-grow bg-transparent text-[11px] p-2 focus:outline-none text-brand-dark dark:text-white"
+                    />
+                    <button
+                      type="submit"
+                      className="w-8 h-8 rounded-lg bg-brand-gold hover:bg-yellow-600 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                    >
+                      <Send size={13} />
+                    </button>
+                  </form>
+                )}
               </div>
             );
           })()
@@ -1161,6 +1271,9 @@ export default function AdminDashboard({
                       <span className="font-mono text-gray-450 dark:text-gray-400">{ticket.createdAt}</span>
                       <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-955/40 dark:text-amber-400'}`}>
                         {ticket.reply ? '✓ تم الرد والدردشة' : '🕒 بانتظار الرد'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.status === 'closed' ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' : 'bg-teal-50 text-teal-700 dark:bg-teal-950/45 dark:text-teal-400'}`}>
+                        {ticket.status === 'closed' ? '🔒 مغلقة' : '🟢 مفتوحة'}
                       </span>
                     </div>
                   </div>
@@ -1190,25 +1303,41 @@ export default function AdminDashboard({
                     </div>
                   )}
 
-                  <div className="space-y-2 pt-1.5 border-t border-gray-100 dark:border-slate-800/60">
-                    <textarea
-                      value={replyTexts[ticket.id] || ''}
-                      onChange={(e) => setReplyTexts({ ...replyTexts, [ticket.id]: e.target.value })}
-                      rows={1}
-                      placeholder={ticket.reply ? "إرسال رد إضافي للطالب..." : "إرسال رد مقتضب فوري وثابت للطالب..."}
-                      className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-[11px] p-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
-                    />
-                    <div className="flex justify-end">
+                  {ticket.status === 'closed' ? (
+                    <div className="p-2.5 bg-rose-50/40 dark:bg-rose-950/10 border border-rose-200/40 dark:border-rose-900/30 rounded-lg text-right text-rose-800 dark:text-rose-400 text-[10.5px] font-semibold flex justify-between items-center gap-2">
+                      <span className="flex items-center gap-1">
+                        <Lock size={11} />
+                        <span>هذه المحادثة مغلقة حالياً.</span>
+                      </span>
                       <button
                         type="button"
-                        onClick={() => handleReplyTicket(ticket.id)}
-                        className="py-1 px-4 bg-brand-gold hover:bg-yellow-600 text-white font-extrabold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1.5"
+                        onClick={() => handleToggleTicketStatus(ticket.id, 'open')}
+                        className="py-1 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded font-extrabold text-[9.5px] transition-colors cursor-pointer"
                       >
-                        <Check size={11} />
-                        <span>{ticket.reply ? "إرسال رد إضافي" : "إرسال رد سريع"}</span>
+                        إعادة فتح المحادثة
                       </button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-2 pt-1.5 border-t border-gray-100 dark:border-slate-800/60">
+                      <textarea
+                        value={replyTexts[ticket.id] || ''}
+                        onChange={(e) => setReplyTexts({ ...replyTexts, [ticket.id]: e.target.value })}
+                        rows={1}
+                        placeholder={ticket.reply ? "إرسال رد إضافي للطالب..." : "إرسال رد مقتضب فوري وثابت للطالب..."}
+                        className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-[11px] p-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleReplyTicket(ticket.id)}
+                          className="py-1 px-4 bg-brand-gold hover:bg-yellow-600 text-white font-extrabold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Check size={11} />
+                          <span>{ticket.reply ? "إرسال رد إضافي" : "إرسال رد سريع"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (

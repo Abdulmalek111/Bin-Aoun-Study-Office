@@ -57,6 +57,7 @@ export interface SupportTicket {
   reply?: string;
   repliedAt?: string;
   messages?: ChatMessage[];
+  status?: 'open' | 'closed';
 }
 
 export interface Notification {

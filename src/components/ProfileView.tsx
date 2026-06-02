@@ -128,6 +128,11 @@ export default function ProfileView({
     const ticket = supportTickets.find(t => t.id === ticketId);
     if (!ticket) return;
 
+    if (ticket.status === 'closed') {
+      alert('⚠️ هذه التذكرة مغلقة ومؤرشفة حالياً من قبل المشرف الفني، ولا يمكن إرسال المزيد من الرسائل.');
+      return;
+    }
+
     const today = new Date();
     const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
 
@@ -494,7 +499,7 @@ export default function ProfileView({
                   return (
                     <div className="space-y-3 flex flex-col justify-between min-h-[460px] bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-gray-150 relative">
                       {/* Header */}
-                      <div className="flex items-center justify-between border-b border-gray-200/60 pb-2">
+                      <div className="flex sm:flex-row flex-col items-center justify-between gap-1.5 border-b border-gray-200/60 pb-2.5 text-right">
                         <button
                           type="button"
                           onClick={() => {
@@ -502,12 +507,17 @@ export default function ProfileView({
                             window.history.replaceState({}, document.title, newUrl);
                             setActiveChatTicketId(null);
                           }}
-                          className="flex items-center gap-1.5 text-xs text-brand-dark dark:text-brand-gold font-bold hover:underline cursor-pointer"
+                          className="flex items-center gap-1.5 text-xs text-brand-dark dark:text-brand-gold font-bold hover:underline cursor-pointer bg-transparent"
                         >
                           <ArrowRight size={14} />
                           <span>العودة لجميع التذاكر والاستفسارات</span>
                         </button>
-                        <span className="text-[10px] font-mono text-gray-400">بطاقة #{chatTicket.id}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold ${chatTicket.status === 'closed' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/45 dark:text-rose-400' : 'bg-teal-100 text-teal-700 dark:bg-teal-950/45 dark:text-teal-405'}`}>
+                            {chatTicket.status === 'closed' ? '🔒 مغلقة ومؤرشفة' : '🟢 محادثة مفتوحة'}
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-400">بطاقة #{chatTicket.id}</span>
+                        </div>
                       </div>
 
                       {/* Messages List */}
@@ -518,13 +528,16 @@ export default function ProfileView({
 
                         {chatMessages.map((msg) => {
                           const isAdmin = msg.senderRole === 'admin';
+                          const isSystem = msg.senderName === 'النظام الفني';
                           return (
-                            <div key={msg.id} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
+                            <div key={msg.id} className={`flex flex-col ${isSystem ? 'items-center' : isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
                               <span className="text-[9px] font-bold text-gray-400 px-1">{msg.senderName}</span>
                               <div className={`p-2.5 rounded-2xl max-w-[85%] leading-relaxed text-[11px] font-semibold text-right shadow-xs ${
-                                isAdmin
-                                  ? 'bg-amber-50 dark:bg-amber-950/20 text-brand-dark dark:text-gray-200 rounded-tr-none border-r-4 border-brand-gold'
-                                  : 'bg-brand-dark dark:bg-slate-800 text-white dark:text-gray-100 rounded-tl-none'
+                                isSystem
+                                  ? 'bg-rose-50 text-rose-850 dark:bg-rose-955/20 dark:text-rose-455 text-center px-4 py-1.5 rounded-xl border border-rose-200/30 font-bold'
+                                  : isAdmin
+                                    ? 'bg-amber-50 dark:bg-amber-950/20 text-brand-dark dark:text-gray-200 rounded-tr-none border-r-4 border-brand-gold'
+                                    : 'bg-brand-dark dark:bg-slate-800 text-white dark:text-gray-100 rounded-tl-none'
                               }`}>
                                 <p className="whitespace-pre-line">{msg.message}</p>
                               </div>
@@ -535,29 +548,36 @@ export default function ProfileView({
                         <div ref={messagesEndRef} />
                       </div>
 
-                      {/* Input Composer */}
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          handleSendChatMessage(chatTicket.id, chatInputText);
-                        }}
-                        className="flex gap-2 items-center bg-gray-50 dark:bg-slate-800 border border-gray-200 p-1 rounded-xl"
-                      >
-                        <input
-                          required
-                          type="text"
-                          value={chatInputText}
-                          onChange={(e) => setChatInputText(e.target.value)}
-                          placeholder="اكتب ردك أو استفسارك الإضافي هنا..."
-                          className="flex-grow bg-transparent text-[11px] p-2 focus:outline-none text-brand-dark dark:text-white"
-                        />
-                        <button
-                          type="submit"
-                          className="w-8 h-8 rounded-lg bg-brand-gold hover:bg-yellow-600 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                      {/* Input Composer or Lock block */}
+                      {chatTicket.status === 'closed' ? (
+                        <div className="p-3 bg-rose-50 dark:bg-rose-950/15 border border-rose-200/50 dark:border-rose-900/30 rounded-xl text-center text-rose-800 dark:text-rose-400 text-xs font-bold flex items-center justify-center gap-1.5 animate-fade-in shadow-xs">
+                          <Lock size={12} className="shrink-0 animate-pulse text-rose-600 dark:text-rose-400" />
+                          <span>تم قفل وأرشفة هذه المحادثة من قِبل المشرف العام للفريق الفني.</span>
+                        </div>
+                      ) : (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSendChatMessage(chatTicket.id, chatInputText);
+                          }}
+                          className="flex gap-2 items-center bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-1 rounded-xl"
                         >
-                          <Send size={13} />
-                        </button>
-                      </form>
+                          <input
+                            required
+                            type="text"
+                            value={chatInputText}
+                            onChange={(e) => setChatInputText(e.target.value)}
+                            placeholder="اكتب ردك أو استفسارك الإضافي هنا..."
+                            className="flex-grow bg-transparent text-[11px] p-2 focus:outline-none text-brand-dark dark:text-white"
+                          />
+                          <button
+                            type="submit"
+                            className="w-8 h-8 rounded-lg bg-brand-gold hover:bg-yellow-600 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                          >
+                            <Send size={13} />
+                          </button>
+                        </form>
+                      )}
                     </div>
                   );
                 })()
@@ -641,9 +661,14 @@ export default function ProfileView({
                                 <span className="font-extrabold text-brand-dark dark:text-brand-gold truncate max-w-[120px]">{ticket.senderName}</span>
                                 <span className="text-[8px] text-gray-400 font-mono">({ticket.id})</span>
                               </div>
-                              <span className={`px-2 py-0.5 rounded-full font-black text-[9px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-950/45'}`}>
-                                {ticket.reply ? '✓ تم الرد والدردشة' : '🕒 قيد الانتظار'}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-1.5 py-0.5 rounded font-extrabold text-[8px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-955/45'}`}>
+                                  {ticket.reply ? '✓ تم الرد والدردشة' : '🕒 قيد الانتظار'}
+                                </span>
+                                <span className={`px-1.5 py-0.5 rounded font-extrabold text-[8px] ${ticket.status === 'closed' ? 'bg-rose-55 text-rose-700 dark:bg-rose-955/45 dark:text-rose-400' : 'bg-teal-50 text-teal-700 dark:bg-teal-950/45 dark:text-teal-400'}`}>
+                                  {ticket.status === 'closed' ? '🔒 مغلقة' : '🟢 مفتوحة'}
+                                </span>
+                              </div>
                             </div>
 
                             <p className="text-gray-700 dark:text-gray-300 font-semibold truncate leading-relaxed">{ticket.message}</p>
@@ -653,10 +678,10 @@ export default function ProfileView({
                               <button
                                 type="button"
                                 onClick={() => setActiveChatTicketId(ticket.id)}
-                                className="px-2.5 py-1 rounded bg-brand-gold text-white font-extrabold text-[9px] hover:bg-yellow-600 transition-colors flex items-center gap-1 cursor-pointer"
+                                className={`px-2.5 py-1 rounded text-white font-extrabold text-[9px] hover:opacity-90 transition-all flex items-center gap-1 cursor-pointer ${ticket.status === 'closed' ? 'bg-slate-600 hover:bg-slate-705' : 'bg-brand-gold hover:bg-yellow-600'}`}
                               >
-                                <MessageSquare size={10} />
-                                <span>افتح المحادثة والدردشة الجارية</span>
+                                {ticket.status === 'closed' ? <Lock size={10} /> : <MessageSquare size={10} />}
+                                <span>{ticket.status === 'closed' ? 'افتح أرشيف المحادثة' : 'افتح المحادثة والدردشة الجارية'}</span>
                               </button>
                             </div>
                           </div>
