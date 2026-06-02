@@ -302,10 +302,40 @@ export default function AdminDashboard({
     
     const updated = supportTickets.map(ticket => {
       if (ticket.id === ticketId) {
+        const legacyMsgs: ChatMessage[] = [
+          {
+            id: ticket.id + '-initial',
+            senderRole: 'student',
+            senderName: ticket.senderName,
+            message: ticket.message,
+            createdAt: ticket.createdAt
+          }
+        ];
+        if (ticket.reply) {
+          legacyMsgs.push({
+            id: ticket.id + '-reply',
+            senderRole: 'admin',
+            senderName: 'المشرف العام',
+            message: ticket.reply,
+            createdAt: ticket.repliedAt || ticket.createdAt
+          });
+        }
+
+        const currentMessages = ticket.messages && ticket.messages.length > 0 ? ticket.messages : legacyMsgs;
+        
+        const adminMsg: ChatMessage = {
+          id: Math.floor(100000 + Math.random() * 900000).toString(),
+          senderRole: 'admin',
+          senderName: 'المشرف العام',
+          message: text.trim(),
+          createdAt: formattedDate
+        };
+
         return {
           ...ticket,
           reply: text.trim(),
-          repliedAt: formattedDate
+          repliedAt: formattedDate,
+          messages: [...currentMessages, adminMsg]
         };
       }
       return ticket;
@@ -1149,40 +1179,36 @@ export default function AdminDashboard({
                       <span>المحادثة المباشرة والدردشة المفتوحة</span>
                     </button>
 
-                    {!ticket.reply && (
-                      <span className="text-[9px] text-gray-400">يمكنك الرد المباشر بطلب المحادثة</span>
-                    )}
+                    <span className="text-[9px] text-gray-400">يمكنك الرد المباشر بطلب المحادثة</span>
                   </div>
 
-                  {!ticket.reply && (
-                    <div className="space-y-2 pt-1.5 border-t border-gray-100 dark:border-slate-800/60">
-                      <textarea
-                        value={replyTexts[ticket.id] || ''}
-                        onChange={(e) => setReplyTexts({ ...replyTexts, [ticket.id]: e.target.value })}
-                        rows={1}
-                        placeholder="إرسال رد مقتضب فوري وثابت للطالب..."
-                        className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-[11px] p-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
-                      />
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => handleReplyTicket(ticket.id)}
-                          className="py-1 px-4 bg-brand-gold hover:bg-yellow-600 text-white font-extrabold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1.5"
-                        >
-                          <Check size={11} />
-                          <span>إرسال رد سريع</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   {ticket.reply && (
-                    <div className="bg-emerald-50/30 dark:bg-emerald-950/15 border border-emerald-500/50 p-2.5 rounded-lg text-[11px] space-y-0.5">
-                      <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-[10px]">الرد المرسل سابقاً:</div>
+                    <div className="bg-emerald-50/30 dark:bg-emerald-950/15 border border-emerald-500/50 p-2.5 rounded-lg text-[11px] space-y-0.5 text-right">
+                      <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-[10px]">آخر رد تم إرساله:</div>
                       <p className="font-bold text-gray-750 dark:text-gray-200 leading-normal">{ticket.reply}</p>
                       {ticket.repliedAt && <span className="block text-[8px] text-gray-400 font-mono pt-0.5">{ticket.repliedAt}</span>}
                     </div>
                   )}
+
+                  <div className="space-y-2 pt-1.5 border-t border-gray-100 dark:border-slate-800/60">
+                    <textarea
+                      value={replyTexts[ticket.id] || ''}
+                      onChange={(e) => setReplyTexts({ ...replyTexts, [ticket.id]: e.target.value })}
+                      rows={1}
+                      placeholder={ticket.reply ? "إرسال رد إضافي للطالب..." : "إرسال رد مقتضب فوري وثابت للطالب..."}
+                      className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg text-[11px] p-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleReplyTicket(ticket.id)}
+                        className="py-1 px-4 bg-brand-gold hover:bg-yellow-600 text-white font-extrabold rounded-lg text-[10px] transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Check size={11} />
+                        <span>{ticket.reply ? "إرسال رد إضافي" : "إرسال رد سريع"}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))
             ) : (
