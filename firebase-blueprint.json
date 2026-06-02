@@ -1,0 +1,225 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile database document linked to the user's uid.",
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "User's display name or username."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's verified email address."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL to the user's initials/avatar illustration."
+        },
+        "telegram": {
+          "type": "string",
+          "description": "Telegram nickname/username for study alerts."
+        },
+        "isLoggedIn": {
+          "type": "boolean",
+          "description": "Whether the user logged in."
+        }
+      },
+      "required": ["username", "email"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "A student support ticket requesting review or assistance.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the ticket."
+        },
+        "senderEmail": {
+          "type": "string",
+          "description": "Email address of the student who created the ticket."
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Name of the student who created the ticket."
+        },
+        "message": {
+          "type": "string",
+          "description": "Initial help request message."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Formatted timestamp when the ticket was created."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "closed"],
+          "description": "Current status of the technical support issue."
+        },
+        "reply": {
+          "type": "string",
+          "description": "Support feedback or reply text."
+        },
+        "repliedAt": {
+          "type": "string",
+          "description": "Formatted timestamp of support response."
+        }
+      },
+      "required": ["id", "senderEmail", "senderName", "message", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A single discussion post message inside a ticket or group chat.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Message id."
+        },
+        "senderRole": {
+          "type": "string",
+          "enum": ["student", "admin"],
+          "description": "Role of the chat sender."
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Display name of the message sender."
+        },
+        "message": {
+          "type": "string",
+          "description": "Internal body text of the chat post."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the chat was posted."
+        }
+      },
+      "required": ["id", "senderRole", "senderName", "message", "createdAt"]
+    },
+    "ForumMessage": {
+      "title": "ForumMessage",
+      "description": "A collaborative community discussion board message in a specific study channel.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique Forum Message ID."
+        },
+        "subjectId": {
+          "type": "string",
+          "description": "Associated subject channel ID (e.g. math, physics)."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Display name of the poster."
+        },
+        "authorRole": {
+          "type": "string",
+          "enum": ["student", "instructor", "moderator"],
+          "description": "System role of the poster in discussions."
+        },
+        "avatarSeed": {
+          "type": "string",
+          "description": "Username seed for initials avatar display."
+        },
+        "content": {
+          "type": "string",
+          "description": "Body markdown/text content of the post."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Human-friendly readable timestamp description."
+        },
+        "likes": {
+          "type": "integer",
+          "description": "Current total likes count on this question/post."
+        }
+      },
+      "required": ["id", "subjectId", "authorName", "authorRole", "content", "timestamp"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Personal student notification alerting them of responses or critical announcements.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique notification ID."
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Sender name of the notice (usually مشرف المنصة)."
+        },
+        "message": {
+          "type": "string",
+          "description": "Notification message text."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Formatted timestamp details."
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Read receipts status."
+        },
+        "targetEmail": {
+          "type": "string",
+          "description": "The destination email address of the notification target."
+        }
+      },
+      "required": ["id", "senderName", "message", "createdAt", "read", "targetEmail"]
+    },
+    "ExamHistoryItem": {
+      "title": "ExamHistoryItem",
+      "description": "The result record of an exam completed by a student.",
+      "type": "object",
+      "properties": {
+        "examTitle": {
+          "type": "string",
+          "description": "Name/Title of the taken exam."
+        },
+        "scorePct": {
+          "type": "integer",
+          "description": "Score percentages obtained (0 to 100)."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date completed."
+        },
+        "timeUsed": {
+          "type": "string",
+          "description": "Formatted test timer duration."
+        }
+      },
+      "required": ["examTitle", "scorePct", "date", "timeUsed"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles database."
+    },
+    "tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Educational student technical support tickets."
+    },
+    "tickets/{ticketId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Subcollection thread inside a student ticket."
+    },
+    "discussions/{messageId}": {
+      "schema": "ForumMessage",
+      "description": "Real-time forum discussions board posts."
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Personal alerts and admin notifications."
+    },
+    "users/{userId}/exams/{examId}": {
+      "schema": "ExamHistoryItem",
+      "description": "Completed student exam history logs."
+    }
+  }
+}

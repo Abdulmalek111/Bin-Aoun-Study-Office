@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
-import { auth, googleProvider } from './lib/firebase';
+import { auth, googleProvider, db } from './lib/firebase';
+import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
@@ -274,6 +275,90 @@ export default function App() {
     }
   }, [user]);
 
+  // Real-time Cloud Database sync via Firestore subscriptions
+  useEffect(() => {
+    if (!user) {
+      setSupportTickets([]);
+      setNotifications([]);
+      return;
+    }
+
+    // 1. Subscribe to Announcements / Notifications
+    const unsubNotif = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+      const list: Notification[] = [];
+      snapshot.forEach((docRef) => {
+        const d = docRef.data();
+        const target = d.targetEmail || '';
+        if (user.email === 'abdulmlikoog@gmail.com' || target.toLowerCase() === user.email.toLowerCase()) {
+          list.push({
+            id: docRef.id,
+            senderName: d.senderName || 'المشرف العام',
+            message: d.message || '',
+            createdAt: d.createdAt || '',
+            read: !!d.read,
+            targetEmail: target
+          });
+        }
+      });
+      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      setNotifications(list);
+    }, (error) => {
+      console.error("Firestore Notification stream error:", error);
+    });
+
+    // 2. Subscribe to Student Support Tickets
+    const unsubTickets = onSnapshot(collection(db, 'tickets'), (snapshot) => {
+      const list: SupportTicket[] = [];
+      snapshot.forEach((docRef) => {
+        const d = docRef.data();
+        const sender = d.senderEmail || '';
+        if (user.email === 'abdulmlikoog@gmail.com' || sender.toLowerCase() === user.email.toLowerCase()) {
+          list.push({
+            id: docRef.id,
+            senderEmail: sender,
+            senderName: d.senderName || '',
+            message: d.message || '',
+            createdAt: d.createdAt || '',
+            status: d.status || 'open',
+            reply: d.reply || '',
+            repliedAt: d.repliedAt || '',
+            messages: d.messages || []
+          });
+        }
+      });
+      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      setSupportTickets(list);
+    }, (error) => {
+      console.error("Firestore Ticket stream error:", error);
+    });
+
+    // 3. Subscribe to Exam History
+    let unsubExams = () => {};
+    if (auth.currentUser) {
+      unsubExams = onSnapshot(collection(db, 'users', auth.currentUser.uid, 'exams'), (snapshot) => {
+        const list: { examTitle: string; scorePct: number; date: string; timeUsed: string }[] = [];
+        snapshot.forEach((docRef) => {
+          const d = docRef.data();
+          list.push({
+            examTitle: d.examTitle || '',
+            scorePct: typeof d.scorePct === 'number' ? d.scorePct : 0,
+            date: d.date || '',
+            timeUsed: d.timeUsed || ''
+          });
+        });
+        setExamHistory(list);
+      }, (error) => {
+        console.error("Firestore Exam History stream error:", error);
+      });
+    }
+
+    return () => {
+      unsubNotif();
+      unsubTickets();
+      unsubExams();
+    };
+  }, [user]);
+
   // Sync state functions
   const [googleLoggingIn, setGoogleLoggingIn] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
@@ -296,6 +381,20 @@ export default function App() {
           isLoggedIn: true,
           telegram: '@google_user',
         };
+
+        // Write user profile metadata to Cloud Firestore users directory
+        try {
+          await setDoc(doc(db, 'users', fbUser.uid), {
+            username,
+            email,
+            avatarUrl,
+            telegram: '@google_user',
+            isLoggedIn: true,
+          });
+        } catch (dbErr) {
+          console.error("Failed to write profile to Firestore:", dbErr);
+        }
+
         setUser(loggedUser);
         localStorage.setItem('school_user', JSON.stringify(loggedUser));
         setAuthScreen('welcome');
@@ -318,7 +417,7 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = (username: string, email: string, telegram?: string) => {
+  const handleLoginSuccess = async (username: string, email: string, telegram?: string) => {
     // Premium custom avatar generated from initial letter
     const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=1b365d,c9a24a`;
     const loggedUser: User = {
@@ -328,6 +427,22 @@ export default function App() {
       isLoggedIn: true,
       telegram: telegram || '@abdulmlik_ou',
     };
+
+    // Save profile metadata on standard successful logins too
+    if (auth.currentUser) {
+      try {
+        await setDoc(doc(db, 'users', auth.currentUser.uid), {
+          username,
+          email,
+          avatarUrl: avatar,
+          telegram: telegram || '@abdulmlik_ou',
+          isLoggedIn: true
+        });
+      } catch (dbErr) {
+        console.error("Failed to write profile on standard signup:", dbErr);
+      }
+    }
+
     setUser(loggedUser);
     localStorage.setItem('school_user', JSON.stringify(loggedUser));
     setAuthScreen('welcome');
@@ -341,7 +456,6 @@ export default function App() {
     localStorage.removeItem('school_remember_me');
     localStorage.removeItem('school_remembered_user');
     localStorage.removeItem('school_remembered_pass');
-    // Keep study material and exam histories linked to device for persistent enjoyment
     try {
       signOut(auth);
     } catch (e) {
@@ -349,9 +463,24 @@ export default function App() {
     }
   };
 
-  const handleUpdateProfile = (updatedUser: User) => {
+  const handleUpdateProfile = async (updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('school_user', JSON.stringify(updatedUser));
+
+    // Update profile state in the Cloud
+    if (auth.currentUser) {
+      try {
+        await setDoc(doc(db, 'users', auth.currentUser.uid), {
+          username: updatedUser.username,
+          email: updatedUser.email,
+          avatarUrl: updatedUser.avatarUrl || '',
+          telegram: updatedUser.telegram || '',
+          isLoggedIn: true
+        });
+      } catch (dbErr) {
+        console.error("Failed to sync profile update to Cloud:", dbErr);
+      }
+    }
   };
 
   const handleUpdateSubjects = (updatedSubjects: Subject[]) => {
@@ -362,13 +491,10 @@ export default function App() {
   const handleToggleLecture = (subjectId: string, lectureIndex: number) => {
     const updatedSubjects = subjects.map((sub) => {
       if (sub.id === subjectId) {
-        // Safe progression toggling matching standard index boundaries
         let activeCompleted = sub.completedLectures;
         if (lectureIndex < sub.completedLectures) {
-          // If they click on already complete index, toggle down
           activeCompleted = Math.max(0, lectureIndex);
         } else {
-          // Toggle up
           activeCompleted = Math.min(sub.lecturesCount, lectureIndex + 1);
         }
         return {
@@ -383,22 +509,74 @@ export default function App() {
     localStorage.setItem('school_subjects', JSON.stringify(updatedSubjects));
   };
 
-  const handlePublishExamResults = (examTitle: string, scorePct: number, timeUsed: string) => {
+  const handleUpdateSupportTickets = async (updatedTickets: SupportTicket[]) => {
+    setSupportTickets(updatedTickets);
+    // Persist all additions/replies to Cloud Firestore
+    try {
+      for (const ticket of updatedTickets) {
+        await setDoc(doc(db, 'tickets', ticket.id), {
+          id: ticket.id,
+          senderEmail: ticket.senderEmail,
+          senderName: ticket.senderName,
+          message: ticket.message,
+          createdAt: ticket.createdAt,
+          status: ticket.status || 'open',
+          reply: ticket.reply || '',
+          repliedAt: ticket.repliedAt || '',
+          messages: ticket.messages || []
+        });
+      }
+    } catch (dbErr) {
+      console.error("Failed to sync ticket database changes with Cloud:", dbErr);
+    }
+  };
+
+  const handleUpdateNotifications = async (updatedNotifs: Notification[]) => {
+    setNotifications(updatedNotifs);
+    // Push updates to Firestore
+    try {
+      for (const notif of updatedNotifs) {
+        await setDoc(doc(db, 'notifications', notif.id), {
+          id: notif.id,
+          senderName: notif.senderName,
+          message: notif.message,
+          createdAt: notif.createdAt,
+          read: notif.read,
+          targetEmail: notif.targetEmail
+        });
+      }
+    } catch (dbErr) {
+      console.error("Failed to write notification update to Cloud:", dbErr);
+    }
+  };
+
+  const handlePublishExamResults = async (examTitle: string, scorePct: number, timeUsed: string) => {
     const today = new Date();
     const formattedDate = `${today.getFullYear()}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getDate().toString().padStart(2, '0')}`;
 
-    const newHistory = [
-      {
-        examTitle,
-        scorePct,
-        date: formattedDate,
-        timeUsed,
-      },
-      ...examHistory,
-    ];
+    const newHistoryItem = {
+      examTitle,
+      scorePct,
+      date: formattedDate,
+      timeUsed,
+    };
 
-    setExamHistory(newHistory);
-    localStorage.setItem('school_exam_history', JSON.stringify(newHistory));
+    setExamHistory(prev => [newHistoryItem, ...prev]);
+
+    // Persist completed exam history under user's nested document
+    if (auth.currentUser) {
+      try {
+        const examResultId = `exam-${Date.now()}`;
+        await setDoc(doc(db, 'users', auth.currentUser.uid, 'exams', examResultId), {
+          examTitle,
+          scorePct: Math.round(scorePct),
+          date: formattedDate,
+          timeUsed: timeUsed || ''
+        });
+      } catch (dbErr) {
+        console.error("Failed to sync exam result to Cloud:", dbErr);
+      }
+    }
   };
 
   const activeExam = initialExams.find((e) => e.id === activeExamId);
@@ -447,7 +625,7 @@ export default function App() {
                   onNavigateToTab={setActiveTab}
                   onSelectExam={(id) => setActiveExamId(id)}
                   notifications={notifications}
-                  onUpdateNotifications={setNotifications}
+                  onUpdateNotifications={handleUpdateNotifications}
                 />
               )}
 
@@ -489,9 +667,9 @@ export default function App() {
                   subjectLecturesMap={subjectLectures}
                   onUpdateSubjectLectures={setSubjectLectures}
                   supportTickets={supportTickets}
-                  onUpdateSupportTickets={setSupportTickets}
+                  onUpdateSupportTickets={handleUpdateSupportTickets}
                   notifications={notifications}
-                  onUpdateNotifications={setNotifications}
+                  onUpdateNotifications={handleUpdateNotifications}
                   onAddNotification={handleAddNotification}
                 />
               )}
@@ -505,9 +683,9 @@ export default function App() {
                   subjectLecturesMap={subjectLectures}
                   onUpdateSubjectLectures={setSubjectLectures}
                   supportTickets={supportTickets}
-                  onUpdateSupportTickets={setSupportTickets}
+                  onUpdateSupportTickets={handleUpdateSupportTickets}
                   notifications={notifications}
-                  onUpdateNotifications={setNotifications}
+                  onUpdateNotifications={handleUpdateNotifications}
                   onAddNotification={handleAddNotification}
                 />
               )}

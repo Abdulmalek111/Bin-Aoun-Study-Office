@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Core Security Helpers (Phase 3 Primitives) ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'abdulmlikoog@gmail.com' ||
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data != null
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Entity Schemas & Type Validation Blueprints (Phase 4 Validation helpers) ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['username', 'email']) &&
+             data.username is string && data.username.size() >= 1 && data.username.size() <= 128 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 256;
+    }
+
+    function isValidTicket(data) {
+      return data.keys().hasAll(['id', 'senderEmail', 'senderName', 'message', 'createdAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.senderEmail is string && data.senderEmail.size() <= 256 &&
+             data.senderName is string && data.senderName.size() <= 128 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 10000 &&
+             data.createdAt is string;
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['id', 'senderRole', 'senderName', 'message', 'createdAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.senderRole in ['student', 'admin'] &&
+             data.senderName is string && data.senderName.size() <= 128 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 5000 &&
+             data.createdAt is string;
+    }
+
+    function isValidDiscussion(data) {
+      return data.keys().hasAll(['id', 'subjectId', 'authorName', 'authorRole', 'content', 'timestamp']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.subjectId is string && data.subjectId.size() <= 64 &&
+             data.authorName is string && data.authorName.size() <= 128 &&
+             data.authorRole in ['student', 'instructor', 'moderator'] &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 5000 &&
+             data.timestamp is string;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'senderName', 'message', 'createdAt', 'read', 'targetEmail']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.senderName is string && data.senderName.size() <= 128 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 5000 &&
+             data.createdAt is string &&
+             data.read is bool &&
+             data.targetEmail is string && data.targetEmail.size() <= 256;
+    }
+
+    function isValidExamResult(data) {
+      return data.keys().hasAll(['examTitle', 'scorePct', 'date', 'timeUsed']) &&
+             data.examTitle is string && data.examTitle.size() <= 128 &&
+             data.scorePct is int && data.scorePct >= 0 && data.scorePct <= 100 &&
+             data.date is string &&
+             data.timeUsed is string && data.timeUsed.size() <= 64;
+    }
+
+    // --- Path Match Blocks (Phase 1 Codebase Match Mapping) ---
+
+    // User Profiles Match Block
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (
+        isOwner(userId) && isValidUser(request.resource.data) && (
+          // Student is forbidden from editing their email or role fields to prevent spoof/escalation
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'avatarUrl', 'telegram', 'isLoggedIn'])
+        )
+      ) || isAdmin();
+      allow delete: if isAdmin();
+
+      // Nested subcollection for Exam History Results
+      match /exams/{examId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) && isValidExamResult(request.resource.data);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // Technical Support Tickets Match Block
+    match /tickets/{ticketId} {
+      allow get, list: if isSignedIn() && (resource.data.senderEmail == request.auth.token.email || isAdmin());
+      allow create: if isSignedIn() && isValidId(ticketId) && isValidTicket(request.resource.data) && (
+        request.resource.data.senderEmail == request.auth.token.email
+      );
+      allow update: if isSignedIn() && (
+        // Action: Admin updates reply notes and changes status
+        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['reply', 'repliedAt', 'status'])) ||
+        // Action: Student appends details or closes the ticket
+        (resource.data.senderEmail == request.auth.token.email && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['message', 'status']))
+      );
+      allow delete: if isAdmin();
+
+      // Subcollection chat thread inside a support ticket
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn() && (
+          get(/databases/$(database)/documents/tickets/$(ticketId)).data.senderEmail == request.auth.token.email || isAdmin()
+        );
+        allow create: if isSignedIn() && isValidId(messageId) && isValidChatMessage(request.resource.data) && (
+          (isAdmin() && request.resource.data.senderRole == 'admin') ||
+          (get(/databases/$(database)/documents/tickets/$(ticketId)).data.senderEmail == request.auth.token.email && request.resource.data.senderRole == 'student')
+        );
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // Real-time Collaborative Discussions/Forum Board Match Block
+    match /discussions/{messageId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(messageId) && isValidDiscussion(request.resource.data) && (
+        (isAdmin() && request.resource.data.authorRole in ['instructor', 'moderator']) ||
+        (request.resource.data.authorRole == 'student') // Students cannot create instructor posts
+      );
+      allow update: if isSignedIn() && (
+        // Action: Author edits content of their post
+        (resource.data.authorName == request.auth.token.email.split('@')[0] && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content'])) ||
+        // Action: Any user likes/unlikes a forum post
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Private Notifications Match Block
+    match /notifications/{notificationId} {
+      allow get, list: if isSignedIn() && (resource.data.targetEmail == request.auth.token.email || isAdmin());
+      allow create: if isAdmin() && isValidNotification(request.resource.data);
+      allow update: if isSignedIn() && (
+        // Action: Student marks their notification as read
+        (resource.data.targetEmail == request.auth.token.email && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Optional Static Admins list verification
+    match /admins/{adminUid} {
+      allow read: if isSignedIn();
+      allow write: if false; // Only manageable through Cloud Console
+    }
+  }
+}

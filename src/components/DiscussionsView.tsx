@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, Heart, User, Search, MessageCircle, AlertCircle, HelpCircle } from 'lucide-react';
 import { Subject } from '../types';
 import SubjectIcon from './SubjectIcon';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, onSnapshot, doc, setDoc, updateDoc, query, getDocs } from 'firebase/firestore';
 
 interface DiscussionsViewProps {
   subjects: Subject[];
@@ -135,27 +137,77 @@ const initialForumMessages: ForumMessage[] = [
 
 export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
-  const [messages, setMessages] = useState<ForumMessage[]>(() => {
-    const saved = localStorage.getItem('bin_aoun_discussions');
+  const [messages, setMessages] = useState<ForumMessage[]>([]);
+  const [newMessageText, setNewMessageText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Track liked message IDs in local state to preserve "likedByUser" across snapshots
+  const [localLikedIds, setLocalLikedIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('bin_aoun_liked_posts');
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {
-        return initialForumMessages;
-      }
+      } catch (e) {}
     }
-    return initialForumMessages;
+    return [];
   });
 
-  const [newMessageText, setNewMessageText] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Persist messages to Local Storage whenever they change
   useEffect(() => {
-    localStorage.setItem('bin_aoun_discussions', JSON.stringify(messages));
-  }, [messages]);
+    localStorage.setItem('bin_aoun_liked_posts', JSON.stringify(localLikedIds));
+  }, [localLikedIds]);
 
-  const handlePostMessage = (e: React.FormEvent) => {
+  // Synchronise with Firestore 'discussions' collection in Real-time
+  useEffect(() => {
+    const collRef = collection(db, 'discussions');
+    
+    const unsubscribe = onSnapshot(collRef, async (snapshot) => {
+      let items: ForumMessage[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        items.push({
+          id: doc.id,
+          subjectId: data.subjectId || 'math',
+          authorName: data.authorName || 'طالب مناقش',
+          authorRole: data.authorRole || 'student',
+          avatarSeed: data.avatarSeed || 'BinAoun',
+          content: data.content || '',
+          timestamp: data.timestamp || 'الآن',
+          likes: typeof data.likes === 'number' ? data.likes : 0,
+        });
+      });
+
+      // Seed default messages if the collection is fresh/empty
+      if (items.length === 0) {
+        try {
+          // Write default messages to Firestore in background
+          for (const msg of initialForumMessages) {
+            await setDoc(doc(db, 'discussions', msg.id), {
+              subjectId: msg.subjectId,
+              authorName: msg.authorName,
+              authorRole: msg.authorRole,
+              avatarSeed: msg.avatarSeed,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              likes: msg.likes
+            });
+          }
+        } catch (error) {
+          console.error("Failed to seed initial forum items in Firestore:", error);
+        }
+      } else {
+        // Sort descending by id to show most recent first
+        items.sort((a, b) => b.id.localeCompare(a.id));
+        setMessages(items);
+      }
+    }, (error) => {
+      // Catch "Missing or insufficient permissions" error and throw context
+      handleFirestoreError(error, OperationType.GET, 'discussions');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handlePostMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessageText.trim()) return;
 
@@ -163,46 +215,74 @@ export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
     const savedUserStr = localStorage.getItem('school_user');
     let author = 'طالب مناقش';
     let avatarSeedValue = 'BinAoun';
+    let authorRoleValue: 'student' | 'instructor' | 'moderator' = 'student';
+
     if (savedUserStr) {
       try {
         const u = JSON.parse(savedUserStr);
         author = u.username || 'طالب مناقش';
         avatarSeedValue = u.username || 'BinAoun';
+        // Give instructor role to admin email
+        if (u.email === 'abdulmlikoog@gmail.com') {
+          authorRoleValue = 'instructor';
+        }
       } catch (err) {}
     }
 
-    const newMsg: ForumMessage = {
-      id: `m_${Date.now()}`,
-      subjectId: selectedSubjectId === 'all' ? (subjects[0]?.id || 'math') : selectedSubjectId,
+    const newMsgId = `m_${Date.now()}`;
+    const targetSubjectId = selectedSubjectId === 'all' ? (subjects[0]?.id || 'math') : selectedSubjectId;
+
+    const newMsgBody = {
+      subjectId: targetSubjectId,
       authorName: author,
-      authorRole: 'student',
+      authorRole: authorRoleValue,
       avatarSeed: avatarSeedValue,
       content: newMessageText.trim(),
       timestamp: 'الآن',
-      likes: 0,
-      likedByUser: false,
+      likes: 0
     };
 
-    setMessages([newMsg, ...messages]);
-    setNewMessageText('');
+    try {
+      await setDoc(doc(db, 'discussions', newMsgId), newMsgBody);
+      setNewMessageText('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `discussions/${newMsgId}`);
+    }
   };
 
-  const handleToggleLike = (msgId: string) => {
-    setMessages(prev => prev.map(m => {
-      if (m.id === msgId) {
-        const liked = !m.likedByUser;
-        return {
-          ...m,
-          likedByUser: liked,
-          likes: liked ? m.likes + 1 : m.likes - 1
-        };
-      }
-      return m;
-    }));
+  const handleToggleLike = async (msgId: string) => {
+    const isCurrentlyLiked = localLikedIds.includes(msgId);
+    const targetMsg = messages.find(m => m.id === msgId);
+    if (!targetMsg) return;
+
+    const newLikesCount = isCurrentlyLiked 
+      ? Math.max(0, targetMsg.likes - 1) 
+      : targetMsg.likes + 1;
+
+    // Persist list of liked posts locally
+    if (isCurrentlyLiked) {
+      setLocalLikedIds(prev => prev.filter(id => id !== msgId));
+    } else {
+      setLocalLikedIds(prev => [...prev, msgId]);
+    }
+
+    try {
+      await updateDoc(doc(db, 'discussions', msgId), {
+        likes: newLikesCount
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `discussions/${msgId}`);
+    }
   };
+
+  // Map messages to include likedByUser key based on local tracker
+  const mappedMessages = messages.map(m => ({
+    ...m,
+    likedByUser: localLikedIds.includes(m.id)
+  }));
 
   // Filter messages based on Subject tab and Search text query
-  const filteredMessages = messages.filter(item => {
+  const filteredMessages = mappedMessages.filter(item => {
     const matchesSubject = selectedSubjectId === 'all' || item.subjectId === selectedSubjectId;
     const matchesQuery = searchQuery.trim() === '' || 
       item.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
