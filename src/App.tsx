@@ -2,13 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from './lib/firebase';
-import {
-  subscribeToSupportTickets,
-  saveSupportTicketFirestore,
-  subscribeToNotifications,
-  saveNotificationFirestore
-} from './lib/firebaseService';
-
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
@@ -39,71 +32,65 @@ export default function App() {
   });
 
   // Technical Support Tickets state
-  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
+    const saved = localStorage.getItem('school_support_tickets');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [
+      {
+        id: '8542',
+        senderEmail: 'ahmed.salih@gmail.com',
+        senderName: 'أحمد الصالح',
+        message: 'السلام عليكم، لدي استفسار بخصوص الباب الأول في مادة الرياضيات. هل المستندات المطلوبة تغطي كافة أسئلة الامتحان النهائي؟ وشكراً لكم.',
+        createdAt: '2026-06-01 10:30',
+        reply: 'وعليكم السلام ورحمة الله وبركاته يا أحمد. نعم، كافة المستندات والملفات المرفقة تضمن تغطية المنهج بشكل كامل ومطابقة لنمط الأسئلة المعتمد.',
+        repliedAt: '2026-06-01 11:15'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('school_support_tickets', JSON.stringify(supportTickets));
+  }, [supportTickets]);
 
   // Dynamic Notifications State
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  const initialTicketsDefault: SupportTicket[] = [
-    {
-      id: '8542',
-      senderEmail: 'ahmed.salih@gmail.com',
-      senderName: 'أحمد الصالح',
-      message: 'السلام عليكم، لدي استفسار بخصوص الباب الأول في مادة الرياضيات. هل المستندات المطلوبة تغطي كافة أسئلة الامتحان النهائي؟ وشكراً لكم.',
-      createdAt: '2026-06-01 10:30',
-      reply: 'وعليكم السلام ورحمة الله وبركاته يا أحمد. نعم، كافة المستندات والملفات المرفقة تضمن تغطية المنهج بشكل كامل ومطابقة لنمط الأسئلة المعتمد.',
-      repliedAt: '2026-06-01 11:15'
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    const saved = localStorage.getItem('school_notifications');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
     }
-  ];
+    return [
+      {
+        id: 'noti-init-1',
+        senderName: 'المشرف العام',
+        message: 'مرحباً بك في منصة بن عون التعليمية المحدثة! تم تفعيل نظام الإشعارات الفورية في حسابك بنجاح ونظام المتابعة عبر التليجرام.',
+        createdAt: '2026-06-01 12:00',
+        read: false,
+        targetEmail: 'abdulmlikoog@gmail.com'
+      },
+      {
+        id: 'noti-init-2',
+        senderName: 'المشرف العام',
+        message: 'عزيزي أحمد، تم الرد على استفسارك ومراجعة باب الرياضيات ومستند الباب الأول بنجاح.',
+        createdAt: '2026-06-01 11:16',
+        read: false,
+        targetEmail: 'ahmed.salih@gmail.com'
+      }
+    ];
+  });
 
-  const initialNotificationsDefault: Notification[] = [
-    {
-      id: 'noti-init-1',
-      senderName: 'المشرف العام',
-      message: 'مرحباً بك في منصة بن عون التعليمية المحدثة! تم تفعيل نظام الإشعارات الفورية في حسابك بنجاح ونظام المتابعة عبر التليجرام.',
-      createdAt: '2026-06-01 12:00',
-      read: false,
-      targetEmail: 'abdulmlikoog@gmail.com'
-    },
-    {
-      id: 'noti-init-2',
-      senderName: 'المشرف العام',
-      message: 'عزيزي أحمد، تم الرد على استفسارك ومراجعة باب الرياضيات ومستند الباب الأول بنجاح.',
-      createdAt: '2026-06-01 11:16',
-      read: false,
-      targetEmail: 'ahmed.salih@gmail.com'
-    }
-  ];
-
-  // Subscribe to support tickets and notifications via Firestore real-time snapshots
   useEffect(() => {
-    const unsubTickets = subscribeToSupportTickets((tickets) => {
-      setSupportTickets(tickets);
-    }, initialTicketsDefault);
-
-    const unsubNotis = subscribeToNotifications((notis) => {
-      setNotifications(notis);
-    }, initialNotificationsDefault);
-
-    return () => {
-      unsubTickets();
-      unsubNotis();
-    };
-  }, []);
-
-  const handleUpdateSupportTickets = (updatedOrCallback: SupportTicket[] | ((prev: SupportTicket[]) => SupportTicket[])) => {
-    const nextTickets = typeof updatedOrCallback === 'function' ? updatedOrCallback(supportTickets) : updatedOrCallback;
-    nextTickets.forEach((ticket) => {
-      saveSupportTicketFirestore(ticket).catch((err) => console.error("Error saving ticket to Firestore:", err));
-    });
-  };
-
-  const handleUpdateNotifications = (updatedOrCallback: Notification[] | ((prev: Notification[]) => Notification[])) => {
-    const nextNotis = typeof updatedOrCallback === 'function' ? updatedOrCallback(notifications) : updatedOrCallback;
-    nextNotis.forEach((noti) => {
-      saveNotificationFirestore(noti).catch((err) => console.error("Error saving notification to Firestore:", err));
-    });
-  };
+    localStorage.setItem('school_notifications', JSON.stringify(notifications));
+  }, [notifications]);
 
   const handleAddNotification = (targetEmail: string, senderName: string, message: string) => {
     const today = new Date();
@@ -116,7 +103,7 @@ export default function App() {
       read: false,
       targetEmail: targetEmail.trim()
     };
-    saveNotificationFirestore(newNoti).catch((err) => console.error("Error adding notification to Firestore:", err));
+    setNotifications(prev => [newNoti, ...prev]);
   };
 
   // Dynamic Required Documents (previously "Standard Lectures") state
@@ -502,9 +489,9 @@ export default function App() {
                   subjectLecturesMap={subjectLectures}
                   onUpdateSubjectLectures={setSubjectLectures}
                   supportTickets={supportTickets}
-                  onUpdateSupportTickets={handleUpdateSupportTickets}
+                  onUpdateSupportTickets={setSupportTickets}
                   notifications={notifications}
-                  onUpdateNotifications={handleUpdateNotifications}
+                  onUpdateNotifications={setNotifications}
                   onAddNotification={handleAddNotification}
                 />
               )}
@@ -518,9 +505,9 @@ export default function App() {
                   subjectLecturesMap={subjectLectures}
                   onUpdateSubjectLectures={setSubjectLectures}
                   supportTickets={supportTickets}
-                  onUpdateSupportTickets={handleUpdateSupportTickets}
+                  onUpdateSupportTickets={setSupportTickets}
                   notifications={notifications}
-                  onUpdateNotifications={handleUpdateNotifications}
+                  onUpdateNotifications={setNotifications}
                   onAddNotification={handleAddNotification}
                 />
               )}
