@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Logo from './Logo';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 interface WelcomeViewProps {
   onNavigateToLogin: () => void;
@@ -18,6 +19,8 @@ export default function WelcomeView({
   authError,
   onClearError
 }: WelcomeViewProps) {
+  const [copied, setCopied] = useState(false);
+  const isIframe = typeof window !== 'undefined' && window.self !== window.top;
   return (
     <div className="w-full bg-brand-dark min-h-screen md:min-h-[880px] overflow-hidden flex flex-col justify-between p-8 text-center relative select-none">
       {/* Center content container */}
@@ -95,16 +98,80 @@ export default function WelcomeView({
           <span>{isLoggingIn ? 'جاري الاتصال...' : 'تسجيل الدخول عبر جوجل'}</span>
         </button>
 
+        {/* Dynamic Iframe Warning for nested contexts to avoid blocks */}
+        {isIframe && (
+          <div className="p-3.5 bg-brand-blue/35 border border-brand-gold/20 rounded-xl text-right space-y-2 mt-2">
+            <div className="flex items-center gap-2 text-brand-gold text-xs font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-gold animate-ping" />
+              <span>ملاحظة للمعاينة والتجربة:</span>
+            </div>
+            <p className="text-[11px] text-gray-300 leading-relaxed font-medium">
+              عند تشغيل التطبيق داخل إطار المعاينة الجانبي، قد يقوم متصفحك بحجب نافذة Google المنبثقة للتأمين. ننصحك بفتح التطبيق في صفحة مستقلة لتجنب أي قيود.
+            </p>
+            <button
+              onClick={() => window.open(window.location.href, '_blank')}
+              className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-brand-dark text-[11px] font-black rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>فتح التطبيق في نافذة خارجية مستقلة 🚀</span>
+            </button>
+          </div>
+        )}
+
         {/* Display Arabic Authentication Errors Beautifully */}
         {authError && (
-          <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-red-200 text-xs text-center font-medium my-2 animate-fade-in flex items-center justify-between gap-1">
-            <span className="flex-1 text-right">{authError}</span>
+          <div className="p-4 bg-red-950/70 border border-red-500/30 rounded-2xl text-red-200 text-xs text-right space-y-3 my-2 animate-fade-in relative">
             <button 
               onClick={onClearError} 
-              className="text-red-300 hover:text-white font-bold px-1.5 py-0.5 rounded focus:outline-none text-base leading-none cursor-pointer"
+              className="absolute top-2 left-2 text-red-300 hover:text-white font-bold p-1 rounded focus:outline-none text-lg leading-none cursor-pointer"
             >
               ×
             </button>
+            
+            {(authError.includes('unauthorized-domain') || authError.includes('غير مصرح') || authError.includes('النطاق')) ? (
+              <div className="space-y-3">
+                <div className="font-bold text-sm text-yellow-400 flex items-center gap-2">
+                  <span>💡 حل مشكلة النطاق غير المصرّح به (Unauthorized Domain)</span>
+                </div>
+                <p className="text-gray-300 leading-relaxed text-[11px]">
+                  حماية Firebase تمنع حالياً تسجيل الدخول من هذا النطاق الجديد حتى تضيفه يدوياً إلى نطاقاتك المصرح بها في لوحة التحكم.
+                </p>
+                
+                <div className="bg-black/40 p-2.5 rounded-xl flex items-center justify-between gap-2 border border-white/5">
+                  <div className="font-mono text-[10px] text-brand-gold select-all truncate break-all font-bold">
+                    {window.location.hostname}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.hostname);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold rounded-lg transition-colors shrink-0 cursor-pointer"
+                  >
+                    {copied ? '✓ تم النسخ!' : 'نسخ النطاق'}
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-gray-300 text-[11px] pr-2 border-r-2 border-brand-gold/30">
+                  <div>1. اذهب إلى إعدادات موفري الخدمة بمشروعك في Firebase:</div>
+                  <a 
+                    href={`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-brand-gold hover:underline inline-block font-bold text-[10px]"
+                  >
+                    فتح إعدادات النطاقات في Firebase (اضغط هنا) ↗
+                  </a>
+                  <div>2. انزل إلى قسم <b>النطاقات المصرح بها (Authorized domains)</b> بالأسفل.</div>
+                  <div>3. اضغط <b>إضافة نطاق (Add domain)</b>، والصق النطاق الذي نسخته، ثم احفظ الإعدادات!</div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-right leading-relaxed font-semibold">
+                {authError}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -404,10 +404,14 @@ export default function App() {
       let errorMsg = 'حدث خطأ أثناء الاتصال بجوجل. يرجى المحاولة مرة أخرى.';
       if (error && error.code === 'auth/popup-closed-by-user') {
         errorMsg = 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.';
+      } else if (error && (error.code === 'auth/popup-blocked' || error.message?.includes('popup'))) {
+        errorMsg = 'تم حظر فتح النافذة المنبثقة لتسجيل الدخول من قِبل المتصفح. يرجى السماح بالنوافذ المنبثقة أو فتح التطبيق في نافذة خارجية مستقلة.';
+      } else if (error && error.code === 'auth/operation-not-allowed') {
+        errorMsg = 'تسجيل الدخول عبر Google غير مفعّل في لوحة تحكّم Firebase الخاصة بك. يرجى تفعيل موفر Google من قسم (Authentication -> Sign-in method -> Google).';
       } else if (error && error.code === 'auth/network-request-failed') {
         errorMsg = 'فشل الاتصال بالشبكة. يرجى التحقق من اتصالك بالإنترنت.';
       } else if (error && error.code === 'auth/unauthorized-domain') {
-        errorMsg = 'النطاق الحالي لتشغيل التطبيق غير مصرح به في إعدادات فيربيز الخاصة بك. يرجى إضافته إلى النطاقات المصرح بها (Authorized Domains).';
+        errorMsg = `النطاق الحالي لتشغيل التطبيق غير مصرح به: (${window.location.hostname}) في إعدادات فيربيز الخاصة بك. يرجى إضافته إلى النطاقات المصرح بها (Authorized Domains) لتتمكن من استخدام تسجيل الدخول عبر جوجل بنجاح.`;
       } else if (error && error.message) {
         errorMsg = `خطأ: ${error.message}`;
       }
