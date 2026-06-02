@@ -120,14 +120,14 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                   <div className="flex items-center gap-3.5">
                     <SubjectIcon type={sub.iconType} size={22} />
                     <div>
-                      <h3 className="font-extrabold text-sm text-brand-dark">{sub.nameAr}</h3>
-                      <p className="text-[11px] text-gray-400 font-medium font-sans">عدد ملفات المستندات المطلوبة: {sub.lecturesCount} مستندات</p>
+                      <h3 className="font-extrabold text-xs md:text-sm text-brand-dark">{sub.nameAr}</h3>
+                      <p className="text-[10px] md:text-[11px] text-gray-400 font-medium font-sans">عدد ملفات المستندات المطلوبة: {sub.lecturesCount} مستندات</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <div className="text-left">
-                      <span className="text-xs font-bold text-brand-gold bg-amber-50 px-2.5 py-1 rounded-lg dark:bg-amber-500/10 dark:text-brand-gold">
+                      <span className="text-[10px] md:text-xs font-bold text-brand-gold bg-amber-50 px-2 py-0.5 rounded-lg dark:bg-amber-500/10 dark:text-brand-gold whitespace-nowrap">
                         {progressPct}% إنجاز
                       </span>
                     </div>
@@ -197,7 +197,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                       <CheckCircle2 size={17} className="fill-current stroke-white" />
                                     </button>
                                     <div>
-                                      <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 line-through opacity-70' : 'text-brand-dark dark:text-white'}`}>
+                                      <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 opacity-80' : 'text-brand-dark dark:text-white'}`}>
                                         {lecture.title}
                                       </p>
                                       <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1 mt-0.5">
@@ -282,7 +282,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                   <CheckCircle2 size={17} className="fill-current stroke-white" />
                                 </button>
                                 <div>
-                                  <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 line-through opacity-70' : 'text-brand-dark dark:text-white'}`}>
+                                  <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 opacity-80' : 'text-brand-dark dark:text-white'}`}>
                                     {lecture.title}
                                   </p>
                                   <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1 mt-0.5">
