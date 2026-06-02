@@ -471,6 +471,8 @@ export default function App() {
                 onLoginSuccess={handleLoginSuccess} 
                 initialMode={authScreen}
                 onNavigateBack={() => setAuthScreen('welcome')}
+                onGoogleLogin={handleGoogleLogin}
+                isGoogleLoggingIn={googleLoggingIn}
               />
             )
           ) : activeExamId && activeExam ? (
