@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield } from 'lucide-react';
-import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from './lib/firebase';
 import {
   subscribeToSupportTickets,
@@ -272,37 +272,6 @@ export default function App() {
     }
   }, []);
 
-  // Listen to Firebase Auth state shifts to sync Google user sessions smoothly
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      if (fbUser) {
-        if (!fbUser.isAnonymous) {
-          // Keep state and localStorage synchronized with their standard Google details
-          const username = fbUser.displayName || fbUser.email?.split('@')[0] || 'مستخدم جوجل';
-          const email = fbUser.email || '';
-          const avatarUrl = fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}`;
-          
-          const loggedUser: User = {
-            username,
-            email,
-            avatarUrl,
-            isLoggedIn: true,
-            telegram: '@google_user',
-          };
-          setUser(loggedUser);
-          localStorage.setItem('school_user', JSON.stringify(loggedUser));
-        }
-      } else {
-        // Fallback to anonymous login context to facilitate seamless Firestore ops
-        signInAnonymously(auth).catch((err) => {
-          console.warn("Could not sign in anonymously background trigger:", err);
-        });
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
   // Auto-detect and route ticketId if present
   useEffect(() => {
     if (user) {
@@ -471,8 +440,6 @@ export default function App() {
                 onLoginSuccess={handleLoginSuccess} 
                 initialMode={authScreen}
                 onNavigateBack={() => setAuthScreen('welcome')}
-                onGoogleLogin={handleGoogleLogin}
-                isGoogleLoggingIn={googleLoggingIn}
               />
             )
           ) : activeExamId && activeExam ? (

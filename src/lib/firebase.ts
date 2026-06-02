@@ -15,6 +15,8 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
-// Note: Auto anonymous login is handled safely in the App component on mount to avoid overwriting Google sign-in.
-
+// Auto login anonymously to guarantee Firebase auth structure is always working.
+signInAnonymously(auth).catch((err) => {
+  console.warn("Could not sign in anonymously:", err);
+});
 
