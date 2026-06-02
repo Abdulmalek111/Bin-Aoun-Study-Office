@@ -2,21 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, Heart, User, Search, MessageCircle, AlertCircle, HelpCircle } from 'lucide-react';
 import { Subject } from '../types';
 import SubjectIcon from './SubjectIcon';
+import { subscribeToForumMessages, saveForumMessageFirestore, ForumMessage } from '../lib/firebaseService';
+
 
 interface DiscussionsViewProps {
   subjects: Subject[];
-}
-
-interface ForumMessage {
-  id: string;
-  subjectId: string;
-  authorName: string;
-  authorRole: 'student' | 'instructor' | 'moderator';
-  avatarSeed: string;
-  content: string;
-  timestamp: string;
-  likes: number;
-  likedByUser?: boolean;
 }
 
 // Pre-seeded authentic discussion posts in Arabic based on subjects to make the environment instantly alive
@@ -135,25 +125,18 @@ const initialForumMessages: ForumMessage[] = [
 
 export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
-  const [messages, setMessages] = useState<ForumMessage[]>(() => {
-    const saved = localStorage.getItem('bin_aoun_discussions');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return initialForumMessages;
-      }
-    }
-    return initialForumMessages;
-  });
+  const [messages, setMessages] = useState<ForumMessage[]>([]);
 
   const [newMessageText, setNewMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Persist messages to Local Storage whenever they change
+  // Subscribe to real-time discussions from Firestore
   useEffect(() => {
-    localStorage.setItem('bin_aoun_discussions', JSON.stringify(messages));
-  }, [messages]);
+    const unsubscribe = subscribeToForumMessages((msgs) => {
+      setMessages(msgs);
+    }, initialForumMessages);
+    return () => unsubscribe();
+  }, []);
 
   const handlePostMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,11 +146,16 @@ export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
     const savedUserStr = localStorage.getItem('school_user');
     let author = 'طالب مناقش';
     let avatarSeedValue = 'BinAoun';
+    let role: 'student' | 'instructor' | 'moderator' = 'student';
+
     if (savedUserStr) {
       try {
         const u = JSON.parse(savedUserStr);
         author = u.username || 'طالب مناقش';
         avatarSeedValue = u.username || 'BinAoun';
+        if (u.email === 'abdulmlikoog@gmail.com') {
+          role = 'moderator';
+        }
       } catch (err) {}
     }
 
@@ -175,7 +163,7 @@ export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
       id: `m_${Date.now()}`,
       subjectId: selectedSubjectId === 'all' ? (subjects[0]?.id || 'math') : selectedSubjectId,
       authorName: author,
-      authorRole: 'student',
+      authorRole: role,
       avatarSeed: avatarSeedValue,
       content: newMessageText.trim(),
       timestamp: 'الآن',
@@ -183,22 +171,20 @@ export default function DiscussionsView({ subjects }: DiscussionsViewProps) {
       likedByUser: false,
     };
 
-    setMessages([newMsg, ...messages]);
+    saveForumMessageFirestore(newMsg).catch(err => console.error(err));
     setNewMessageText('');
   };
 
   const handleToggleLike = (msgId: string) => {
-    setMessages(prev => prev.map(m => {
-      if (m.id === msgId) {
-        const liked = !m.likedByUser;
-        return {
-          ...m,
-          likedByUser: liked,
-          likes: liked ? m.likes + 1 : m.likes - 1
-        };
-      }
-      return m;
-    }));
+    const target = messages.find(m => m.id === msgId);
+    if (!target) return;
+    const liked = !target.likedByUser;
+    const updatedMsg: ForumMessage = {
+      ...target,
+      likedByUser: liked,
+      likes: liked ? target.likes + 1 : target.likes - 1
+    };
+    saveForumMessageFirestore(updatedMsg).catch(err => console.error(err));
   };
 
   // Filter messages based on Subject tab and Search text query

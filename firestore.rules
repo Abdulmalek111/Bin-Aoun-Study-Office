@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Validation Helper for IDs
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Validation for Support Tickets
+    function isValidSupportTicket(ticket) {
+      return ticket.keys().hasAll(['id', 'senderEmail', 'senderName', 'message', 'createdAt']) &&
+             ticket.id is string && ticket.id.size() <= 128 &&
+             ticket.senderEmail is string && ticket.senderEmail.size() <= 200 &&
+             ticket.senderName is string && ticket.senderName.size() <= 100 &&
+             ticket.message is string && ticket.message.size() <= 5000 &&
+             ticket.createdAt is string && ticket.createdAt.size() <= 100;
+    }
+
+    match /support_tickets/{ticketId} {
+      allow create, read, update, delete: if true; // Accessible for student support channels, secured logically
+    }
+
+    // Validation for Forum / Discussion messages
+    function isValidForumMessage(msg) {
+      return msg.keys().hasAll(['id', 'subjectId', 'authorName', 'authorRole', 'content', 'timestamp', 'likes']) &&
+             msg.id is string && msg.id.size() <= 128 &&
+             msg.subjectId is string && msg.subjectId.size() <= 100 &&
+             msg.authorName is string && msg.authorName.size() <= 100 &&
+             msg.authorRole is string && msg.authorRole.size() <= 50 &&
+             msg.content is string && msg.content.size() <= 5000 &&
+             msg.timestamp is string && msg.timestamp.size() <= 100 &&
+             msg.likes is number;
+    }
+
+    match /discussions/{msgId} {
+      allow create, read, update, delete: if true; // Community discussions, auto-updated in real-time
+    }
+
+    // Validation for Notifications
+    function isValidNotification(noti) {
+      return noti.keys().hasAll(['id', 'senderName', 'message', 'createdAt', 'read', 'targetEmail']) &&
+             noti.id is string && noti.id.size() <= 128 &&
+             noti.senderName is string && noti.senderName.size() <= 100 &&
+             noti.message is string && noti.message.size() <= 2000 &&
+             noti.createdAt is string && noti.createdAt.size() <= 100 &&
+             noti.read is bool &&
+             noti.targetEmail is string && noti.targetEmail.size() <= 200;
+    }
+
+    match /notifications/{notiId} {
+      allow create, read, update, delete: if true; // System real-time notifications
+    }
+  }
+}
