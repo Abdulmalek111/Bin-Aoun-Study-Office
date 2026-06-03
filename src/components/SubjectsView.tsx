@@ -124,7 +124,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                     <SubjectIcon type={sub.iconType} size={22} />
                     <div>
                       <h3 className="font-extrabold text-xs md:text-sm text-brand-dark">{sub.nameAr}</h3>
-                      <p className="text-[10px] md:text-[11px] text-gray-400 font-medium font-sans">عدد ملفات المستندات المطلوبة: {sub.lecturesCount} مستندات</p>
+                      <p className="text-[10px] md:text-[11px] text-gray-400 font-medium font-sans">المستندات المطلوبة: {sub.lecturesCount}</p>
                     </div>
                   </div>
 

@@ -194,12 +194,28 @@
         }
       },
       "required": ["examTitle", "scorePct", "date", "timeUsed"]
+    },
+    "SubjectLectures": {
+      "title": "SubjectLectures",
+      "description": "Ordered lists of educational video and document elements for subjects.",
+      "type": "object",
+      "properties": {
+        "lectures": {
+          "type": "array",
+          "description": "Lectures elements representing educational material."
+        }
+      },
+      "required": ["lectures"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "User profiles database."
+    },
+    "subject_lectures/{subjectId}": {
+      "schema": "SubjectLectures",
+      "description": "Educational study sheets, files and resources for subjects."
     },
     "tickets/{ticketId}": {
       "schema": "SupportTicket",

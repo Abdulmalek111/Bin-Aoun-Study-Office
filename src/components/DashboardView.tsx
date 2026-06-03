@@ -314,15 +314,7 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* New Banner Image displayed purely by its dimensions */}
-      <div className="w-full overflow-hidden rounded-2xl">
-        <img 
-          src="https://i.ibb.co/svv8zBDH/image.png" 
-          alt="تطبيق بن عون" 
-          className="w-full h-auto block"
-          referrerPolicy="no-referrer"
-        />
-      </div>
+
 
       {/* Quick Achievement Panel footer */}
       <div className="achievement-card border rounded-2xl p-3 flex gap-2.5 items-center mb-1 transition-all duration-300">

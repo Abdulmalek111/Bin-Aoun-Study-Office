@@ -81,6 +81,10 @@ service cloud.firestore {
              data.timeUsed is string && data.timeUsed.size() <= 64;
     }
 
+    function isValidSubjectLectures(data) {
+      return data.keys().hasAll(['lectures']) && data.lectures is list;
+    }
+
     // --- Path Match Blocks (Phase 1 Codebase Match Mapping) ---
 
     // User Profiles Match Block
@@ -156,6 +160,16 @@ service cloud.firestore {
         (resource.data.targetEmail == request.auth.token.email && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) ||
         isAdmin()
       );
+      allow delete: if isAdmin();
+    }
+
+    // Subject Lectures and Document Materials Match Block
+    match /subject_lectures/{subjectId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(subjectId) && isValidSubjectLectures(request.resource.data) && (
+        isAdmin() || !exists(/databases/$(database)/documents/subject_lectures/$(subjectId))
+      );
+      allow update: if isSignedIn() && isValidSubjectLectures(request.resource.data) && isAdmin();
       allow delete: if isAdmin();
     }
 

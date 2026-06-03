@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
-import { auth, googleProvider, db } from './lib/firebase';
+import { auth, googleProvider, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Types and Initial Mock Data
@@ -319,7 +319,7 @@ export default function App() {
       list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setNotifications(list);
     }, (error) => {
-      console.error("Firestore Notification stream error:", error);
+      handleFirestoreError(error, OperationType.GET, 'notifications');
     });
 
     // 2. Subscribe to Student Support Tickets
@@ -345,7 +345,7 @@ export default function App() {
       list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setSupportTickets(list);
     }, (error) => {
-      console.error("Firestore Ticket stream error:", error);
+      handleFirestoreError(error, OperationType.GET, 'tickets');
     });
 
     // 3. Subscribe to Exam History
@@ -364,7 +364,7 @@ export default function App() {
         });
         setExamHistory(list);
       }, (error) => {
-        console.error("Firestore Exam History stream error:", error);
+        handleFirestoreError(error, OperationType.GET, `users/${auth.currentUser?.uid}/exams`);
       });
     }
 
@@ -439,7 +439,7 @@ export default function App() {
         setSubjectLectures(fetchedMap);
       }
     }, (error) => {
-      console.error("Firestore subject_lectures stream error:", error);
+      handleFirestoreError(error, OperationType.GET, 'subject_lectures');
     });
 
     return () => {
