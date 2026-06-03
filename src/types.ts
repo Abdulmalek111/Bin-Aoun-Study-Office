@@ -9,6 +9,10 @@ export interface User {
   avatarUrl?: string;
   isLoggedIn: boolean;
   telegram?: string;
+  academicStage?: string; // بكالوريوس, ماستر, دكتوراة
+  academicYear?: string;  // سنة أولى, سنة ثانية, سنة ثالثة, سنة رابعة, طالب مستجد
+  academicSemester?: string; // فصل أول, فصل ثاني
+  academicTrack?: string; // علمي, أدبي
 }
 
 export interface Subject {

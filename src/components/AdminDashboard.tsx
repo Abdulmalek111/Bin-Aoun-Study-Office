@@ -53,6 +53,10 @@ interface SimulatedStudent {
   completedCount?: number;
   signUpDate: string;
   uid?: string;
+  academicStage?: string;
+  academicYear?: string;
+  academicSemester?: string;
+  academicTrack?: string;
 }
 
 export default function AdminDashboard({ 
@@ -98,6 +102,29 @@ export default function AdminDashboard({
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentEmail, setNewStudentEmail] = useState('');
   const [newStudentTelegram, setNewStudentTelegram] = useState('');
+  
+  const [newStudentStage, setNewStudentStage] = useState('بكالوريوس');
+  const [newStudentYear, setNewStudentYear] = useState('سنة أولى');
+  const [newStudentSemester, setNewStudentSemester] = useState('فصل أول');
+  const [newStudentTrack, setNewStudentTrack] = useState('علمي');
+
+  const getAdminYearsList = (stage: string) => {
+    if (stage === 'ماستر') {
+      return ['سنة أولى', 'سنة ثانية'];
+    } else if (stage === 'دكتوراة') {
+      return ['سنة أولى', 'سنة ثانية', 'سنة ثالثة'];
+    } else {
+      return ['طالب مستجد', 'سنة أولى', 'سنة ثانية', 'سنة ثالثة', 'سنة رابعة'];
+    }
+  };
+
+  const handleAdminStageChange = (stage: string) => {
+    setNewStudentStage(stage);
+    const allowed = getAdminYearsList(stage);
+    if (!allowed.includes(newStudentYear)) {
+      setNewStudentYear(allowed[0]);
+    }
+  };
   
   // Custom subject controls
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
@@ -455,7 +482,11 @@ export default function AdminDashboard({
           telegram: d.telegram || '@no_telegram',
           scorePct: typeof d.scorePct === 'number' ? d.scorePct : Math.floor(Math.random() * 20) + 75,
           completedCount: typeof d.completedCount === 'number' ? d.completedCount : Math.floor(Math.random() * 10) + 1,
-          signUpDate: d.signUpDate || '2026/06/02'
+          signUpDate: d.signUpDate || '2026/06/02',
+          academicStage: d.academicStage || 'بكالوريوس',
+          academicYear: d.academicYear || 'سنة أولى',
+          academicSemester: d.academicSemester || 'فصل أول',
+          academicTrack: d.academicTrack || 'علمي'
         });
       });
 
@@ -574,13 +605,21 @@ export default function AdminDashboard({
         scorePct: Math.floor(Math.random() * 31) + 70, // 70 to 100
         completedCount: Math.floor(Math.random() * 12) + 1,
         avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(newStudentName.trim())}&backgroundColor=1b365d,c9a24a`,
-        isLoggedIn: false
+        isLoggedIn: false,
+        academicStage: newStudentStage,
+        academicYear: newStudentYear,
+        academicSemester: newStudentSemester,
+        academicTrack: newStudentTrack
       });
 
       addLog(`تم تسجيل الطالب والرفع لـ Firestore بشكل حيّ: ${newStudentName.trim()}`);
       setNewStudentName('');
       setNewStudentEmail('');
       setNewStudentTelegram('');
+      setNewStudentStage('بكالوريوس');
+      setNewStudentYear('سنة أولى');
+      setNewStudentSemester('فصل أول');
+      setNewStudentTrack('علمي');
       alert('✓ تمت إضافة الطالب بنجاح ورفع السجلات لقاعدة البيانات الحية!');
     } catch (error: any) {
       console.error("Firestore Adding Student Error:", error);
@@ -593,7 +632,11 @@ export default function AdminDashboard({
         telegram: telegramForm,
         scorePct: Math.floor(Math.random() * 31) + 70,
         completedCount: Math.floor(Math.random() * 12) + 1,
-        signUpDate: signUpDate
+        signUpDate: signUpDate,
+        academicStage: newStudentStage,
+        academicYear: newStudentYear,
+        academicSemester: newStudentSemester,
+        academicTrack: newStudentTrack
       };
       
       const updated = [newStudentLocal, ...students];
@@ -603,6 +646,10 @@ export default function AdminDashboard({
       setNewStudentName('');
       setNewStudentEmail('');
       setNewStudentTelegram('');
+      setNewStudentStage('بكالوريوس');
+      setNewStudentYear('سنة أولى');
+      setNewStudentSemester('فصل أول');
+      setNewStudentTrack('علمي');
     }
   };
 
@@ -1520,6 +1567,23 @@ export default function AdminDashboard({
                         <span className="text-slate-350 dark:text-slate-700">|</span>
                         <span>تاريخ الانضمام: {student.signUpDate}</span>
                       </div>
+
+                      {!isAdmin && (
+                        <div className="flex items-center gap-1.5 mt-1 sm:mt-1.5 flex-wrap">
+                          <span className="text-[8.5px] font-extrabold bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded-full">
+                            المرحلة: {student.academicStage || 'بكالوريوس'}
+                          </span>
+                          <span className="text-[8.5px] font-extrabold bg-brand-gold/15 text-yellow-600 dark:text-brand-gold px-2 py-0.5 rounded-full">
+                            السنة: {student.academicYear || 'سنة أولى'}
+                          </span>
+                          <span className="text-[8.5px] font-extrabold bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full">
+                            الفصل: {student.academicSemester || 'فصل أول'}
+                          </span>
+                          <span className="text-[8.5px] font-extrabold bg-teal-500/10 text-teal-600 px-2 py-0.5 rounded-full">
+                            المسار: {student.academicTrack || 'علمي'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1585,6 +1649,58 @@ export default function AdminDashboard({
               />
             </div>
 
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 pt-1">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 block pb-0.5">المرحلة الدراسية</label>
+              <select
+                value={newStudentStage}
+                onChange={(e) => handleAdminStageChange(e.target.value)}
+                className="w-full bg-white dark:bg-slate-850 border dark:border-slate-800 rounded-xl text-xs px-2 py-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white cursor-pointer"
+              >
+                <option value="بكالوريوس">بكالوريوس</option>
+                <option value="ماستر">ماجستير / ماستر</option>
+                <option value="دكتوراة">دكتوراه</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 block pb-0.5">السنة الدراسية</label>
+              <select
+                value={newStudentYear}
+                onChange={(e) => setNewStudentYear(e.target.value)}
+                className="w-full bg-white dark:bg-slate-850 border dark:border-slate-800 rounded-xl text-xs px-2 py-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white cursor-pointer"
+              >
+                {getAdminYearsList(newStudentStage).map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 block pb-0.5">الفصل الدراسي</label>
+              <select
+                value={newStudentSemester}
+                onChange={(e) => setNewStudentSemester(e.target.value)}
+                className="w-full bg-white dark:bg-slate-850 border dark:border-slate-800 rounded-xl text-xs px-2 py-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white cursor-pointer"
+              >
+                <option value="فصل أول">الفصل الأول</option>
+                <option value="فصل ثاني">الفصل الثاني</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 block pb-0.5">المسار الدراسي</label>
+              <select
+                value={newStudentTrack}
+                onChange={(e) => setNewStudentTrack(e.target.value)}
+                className="w-full bg-white dark:bg-slate-850 border dark:border-slate-800 rounded-xl text-xs px-2 py-2 text-right focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white cursor-pointer"
+              >
+                <option value="علمي">علمي</option>
+                <option value="أدبي">أدبي</option>
+              </select>
+            </div>
           </div>
 
           <button 

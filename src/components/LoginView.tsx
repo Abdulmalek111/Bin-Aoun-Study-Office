@@ -6,7 +6,15 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'fire
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface LoginViewProps {
-  onLoginSuccess: (username: string, email: string, telegram?: string) => void;
+  onLoginSuccess: (
+    username: string, 
+    email: string, 
+    telegram?: string, 
+    academicStage?: string, 
+    academicYear?: string, 
+    academicSemester?: string,
+    academicTrack?: string
+  ) => void;
   initialMode?: 'login' | 'register';
   onNavigateBack?: () => void;
 }
@@ -32,6 +40,28 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
   const [regEmail, setRegEmail] = useState('');
   const [regTelegram, setRegTelegram] = useState('');
   const [regSuccess, setRegSuccess] = useState(false);
+  const [regStage, setRegStage] = useState('بكالوريوس');
+  const [regYear, setRegYear] = useState('سنة أولى');
+  const [regSemester, setRegSemester] = useState('فصل أول');
+  const [regTrack, setRegTrack] = useState('علمي');
+
+  const getRegYearsList = (stage: string) => {
+    if (stage === 'ماستر') {
+      return ['سنة أولى', 'سنة ثانية'];
+    } else if (stage === 'دكتوراة') {
+      return ['سنة أولى', 'سنة ثانية', 'سنة ثالثة'];
+    } else {
+      return ['طالب مستجد', 'سنة أولى', 'سنة ثانية', 'سنة ثالثة', 'سنة رابعة'];
+    }
+  };
+
+  const handleRegStageChange = (newStage: string) => {
+    setRegStage(newStage);
+    const allowed = getRegYearsList(newStage);
+    if (!allowed.includes(regYear)) {
+      setRegYear(allowed[0]);
+    }
+  };
 
   // On mount, load remembered details if present
   React.useEffect(() => {
@@ -98,11 +128,19 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
         const docSnap = await getDoc(doc(db, 'users', fbUser.uid));
         let userDisplayName = cleanUsername;
         let userTelegram = '@no_telegram';
+        let userStage = 'بكالوريوس';
+        let userYear = 'سنة أولى';
+        let userSemester = 'فصل أول';
+        let userTrack = 'علمي';
 
         if (docSnap.exists()) {
           const d = docSnap.data();
           userDisplayName = d.username || userDisplayName;
           userTelegram = d.telegram || userTelegram;
+          userStage = d.academicStage || userStage;
+          userYear = d.academicYear || userYear;
+          userSemester = d.academicSemester || userSemester;
+          userTrack = d.academicTrack || userTrack;
         } else {
           // If Firestore is empty for some reason, let's write user profile structure to preserve
           const signUpDate = new Date().toISOString().split('T')[0].replace(/-/g, '/');
@@ -114,7 +152,11 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
             isLoggedIn: true,
             signUpDate: signUpDate,
             scorePct: 0,
-            completedCount: 0
+            completedCount: 0,
+            academicStage: userStage,
+            academicYear: userYear,
+            academicSemester: userSemester,
+            academicTrack: userTrack
           });
         }
 
@@ -128,7 +170,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
           localStorage.removeItem('school_remembered_pass');
         }
 
-        onLoginSuccess(userDisplayName, fbUser.email || loginEmail, userTelegram);
+        onLoginSuccess(userDisplayName, fbUser.email || loginEmail, userTelegram, userStage, userYear, userSemester, userTrack);
 
       } catch (error: any) {
         console.error("Firebase Login Error:", error);
@@ -196,7 +238,11 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
         isLoggedIn: true,
         signUpDate: signUpDate,
         scorePct: 0,
-        completedCount: 0
+        completedCount: 0,
+        academicStage: regStage,
+        academicYear: regYear,
+        academicSemester: regSemester,
+        academicTrack: regTrack
       });
 
       // Mapped email in local storage for easy login by name or email
@@ -217,7 +263,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
         setRegPass('');
         setRegEmail('');
         setRegTelegram('');
-        onLoginSuccess(regUser.trim(), regEmail.trim(), telegramHandle);
+        onLoginSuccess(regUser.trim(), regEmail.trim(), telegramHandle, regStage, regYear, regSemester, regTrack);
       }, 1500);
 
     } catch (error: any) {
@@ -242,7 +288,11 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
             isLoggedIn: true,
             signUpDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
             scorePct: 0,
-            completedCount: 0
+            completedCount: 0,
+            academicStage: regStage,
+            academicYear: regYear,
+            academicSemester: regSemester,
+            academicTrack: regTrack
           });
           
           localStorage.setItem(`fb_email_for_${regUser.trim().toLowerCase()}`, regEmail.trim().toLowerCase());
@@ -256,7 +306,7 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
           setTimeout(() => {
             setIsRegistering(false);
             setRegSuccess(false);
-            onLoginSuccess(regUser.trim(), regEmail.trim(), telegramHandle);
+            onLoginSuccess(regUser.trim(), regEmail.trim(), telegramHandle, regStage, regYear, regSemester, regTrack);
           }, 1500);
           return;
         } catch (dbErr) {
@@ -517,6 +567,59 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
                     placeholder="مثال: @abdulmlik"
                     className="w-full pl-4 pr-12 py-3.5 bg-white/5 border border-white/10 hover:border-brand-gold/40 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold text-white rounded-2xl text-sm focus:outline-none transition-all text-left placeholder:text-right placeholder:text-gray-400"
                   />
+                </div>
+              </div>
+
+              {/* Academic Level selections */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-300 block">المرحلة الدراسية</label>
+                  <select
+                    value={regStage}
+                    onChange={(e) => handleRegStageChange(e.target.value)}
+                    className="w-full px-2 py-3.5 bg-white/5 border border-white/10 hover:border-brand-gold/40 focus:border-brand-gold text-white rounded-2xl text-[11px] focus:outline-none transition-all cursor-pointer text-center"
+                  >
+                    <option value="بكالوريوس" className="text-brand-dark">بكالوريوس</option>
+                    <option value="ماستر" className="text-brand-dark">ماجستير / ماستر</option>
+                    <option value="دكتوراة" className="text-brand-dark">دكتوراه</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-300 block">السنة الدراسية</label>
+                  <select
+                    value={regYear}
+                    onChange={(e) => setRegYear(e.target.value)}
+                    className="w-full px-2 py-3.5 bg-white/5 border border-white/10 hover:border-brand-gold/40 focus:border-brand-gold text-white rounded-2xl text-[11px] focus:outline-none transition-all cursor-pointer text-center"
+                  >
+                    {getRegYearsList(regStage).map((year) => (
+                      <option key={year} value={year} className="text-brand-dark">{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-300 block">الفصل الدراسي</label>
+                  <select
+                    value={regSemester}
+                    onChange={(e) => setRegSemester(e.target.value)}
+                    className="w-full px-2 py-3.5 bg-white/5 border border-white/10 hover:border-brand-gold/40 focus:border-brand-gold text-white rounded-2xl text-[11px] focus:outline-none transition-all cursor-pointer text-center"
+                  >
+                    <option value="فصل أول" className="text-brand-dark">الفصل الأول</option>
+                    <option value="فصل ثاني" className="text-brand-dark">الفصل الثاني</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-300 block">المسار الدراسي</label>
+                  <select
+                    value={regTrack}
+                    onChange={(e) => setRegTrack(e.target.value)}
+                    className="w-full px-2 py-3.5 bg-white/5 border border-white/10 hover:border-brand-gold/40 focus:border-brand-gold text-white rounded-2xl text-[11px] focus:outline-none transition-all cursor-pointer text-center"
+                  >
+                    <option value="علمي" className="text-brand-dark">علمي</option>
+                    <option value="أدبي" className="text-brand-dark">أدبي</option>
+                  </select>
                 </div>
               </div>
             </div>

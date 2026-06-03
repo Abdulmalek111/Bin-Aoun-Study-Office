@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider, db } from './lib/firebase';
-import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
@@ -368,10 +368,85 @@ export default function App() {
       });
     }
 
+    // 4. Subscribe to Admin-Published Subject Lectures and Documents
+    const unsubLectures = onSnapshot(collection(db, 'subject_lectures'), (snapshot) => {
+      if (snapshot.empty) {
+        // If empty, seed from default initial values
+        const defaultLectures = {
+          math: [
+            { title: 'المستند المطلوب 1: حساب التفاضل والتكامل المتقدم', duration: 'مستند رئيسي معتمد', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: الدوال اللوغاريتمية والأسية', duration: 'ملخص الباب الأول', type: 'pdf' as const },
+            { title: 'المستند المطلوب 3: المصفوفات والمحددات في الجبر', duration: 'ورقة عمل شاملة', type: 'pdf' as const },
+            { title: 'المستند المطلوب 4: تطبيقات الهندسة الفراغية ثلاثية الأبعاد', duration: 'نموذج محلول وقابل للطباعة', type: 'pdf' as const },
+            { title: 'المستند المطلوب 5: مبادئ الإحصاء والاحتمالات', duration: 'ملخص شامل', type: 'pdf' as const },
+            { title: 'المستند المطلوب 6: حل المعادلات التفاضلية البسيطة', duration: 'اختبار تجريبي', type: 'pdf' as const },
+          ],
+          physics: [
+            { title: 'المستند المطلوب 1: الميكانيكا الكلاسيكية وقوانين الحركة والتسارع', duration: 'مذكرة القوانين وتحضير', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: الديناميكا الحرارية وتطبيقاتها العملي والفيزيائي', duration: 'ملخص معتمد', type: 'pdf' as const },
+            { title: 'المستند المطلوب 3: الكهربية الساكنة وقانون كولوم والشحنات', duration: 'تأسيس شامل', type: 'pdf' as const },
+            { title: 'المستند المطلوب 4: المغناطيسية وتطبيقات الحث الكهرومغناطيسي', duration: 'مرجع كامل', type: 'pdf' as const },
+          ],
+          chemistry: [
+            { title: 'المستند المطلوب 1: الكيمياء العضوية وتراكيب ذرات الكربون وعلاقتها', duration: 'ملخص الباب الأول', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: الجدول الدوري وتوصيف الروابط التساهمية والأيونية', duration: 'توزيع معتمد', type: 'pdf' as const },
+            { title: 'المستند المطلوب 3: معدلات التفاعلات الكيميائية ومفهوم الاتزان الكيميائي', duration: 'ورقة تدريب', type: 'pdf' as const },
+            { title: 'المستند المطلوب 4: الأحماض والقواعد ومقياس الرقم الهيدروجيني pH', duration: 'مستند معملي شامل', type: 'pdf' as const },
+          ],
+          english: [
+            { title: 'المستند المطلوب 1: قواعد الأزمنة وتراكيب الجمل الإنجليزية المعقدة', duration: 'مذكرة القواعد المعتمدة', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: مهارات الكتابة الأكاديمية وصياغة البحوث والتقارير', duration: 'تعبير متميز للترم جاري', type: 'pdf' as const },
+            { title: 'المستند المطلوب 3: مهارات الاستماع والمحادثة في البيئة الجامعية والمهنية', duration: 'دليلك القياسي والصوتي', type: 'pdf' as const },
+            { title: 'المستند المطلوب 4: القراءة السريعة وتحليل النصوص وفك رموز الكلمات المتقدمة', duration: 'اختبار تجريبي قياسي', type: 'pdf' as const },
+          ],
+          safety: [
+            { title: 'المستند المطلوب 1: مقدمة في سلامة الحياة وإدارة المخاطر والتهديدات', duration: 'حقيبة تفصيلية', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: الإجراءات الوقائية في حالات الطوارئ وخطط الإخلاء', duration: 'خارطة السلامة والأمن المعتمدة', type: 'pdf' as const },
+            { title: 'المستند المطلوب 3: الإسعافات الأولية والتعامل الفوري مع الإصابات الطارئة', duration: 'شرح مرئي وتطبيقي', type: 'video' as const }
+          ],
+          programming: [
+            { title: 'المستند المطلوب 1: مفاهيم البرمجة الأساسية وكتابة الأنماط النظيفة', duration: 'تأسيس بايثون وقواعد OOP', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: تحليل الخوارزميات وتصميم البنى البرمجية المعقدة', duration: 'توصيف البيانات والعمليات', type: 'pdf' as const },
+            { title: 'المستند المطلوب 3: مبادئ البرمجة كائنية التوجه OOP وتوزيع الصفوف', duration: 'المرجع الجامعي الشامل', type: 'pdf' as const }
+          ],
+          history: [
+            { title: 'المستند المطلوب 1: تأسيس الدولة الروسية والملوك الأوائل للبلاد', duration: 'ملخص التاريخ', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: روسيا القيصرية والتحولات السياسية الكبرى في القرن الـ 19', duration: 'ملحق الأحداث والقرارات للترم الحالي', type: 'pdf' as const }
+          ],
+          russian: [
+            { title: 'المستند المطلوب 1: الحروف الأبجدية الروسية واللفظ الصحيح للمقاطع', duration: 'حقيبة صوتية وحروف المبتدئ', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: تراكيب الجمل الحوارية والردود السريعة اليومية', duration: 'دليل المحادثة الشائعة المعتمد', type: 'pdf' as const },
+            { title: 'المستند المطلوب 3: قواعد جمع الأسماء وصياغة التفضيلات اللغوية', duration: 'أساسيات الصرف والنحو', type: 'pdf' as const }
+          ],
+          sports: [
+            { title: 'المستند المطلوب 1: اللياقة البدنية والتمارين الهوائية والصحة الغذائية المتكاملة', duration: 'كابتن معتمد لتأهيل مالي', type: 'pdf' as const },
+            { title: 'المستند المطلوب 2: طرق الوقاية من التشنجات والإصابات العضلية والتأهيل الرياضي', duration: 'ملخص حرق وتقوية عضلية', type: 'pdf' as const }
+          ]
+        };
+
+        Object.entries(defaultLectures).forEach(async ([subjId, docsList]) => {
+          try {
+            await setDoc(doc(db, 'subject_lectures', subjId), { lectures: docsList });
+          } catch (seedErr) {
+            console.error(`Failed to seed lectures for subject ${subjId}:`, seedErr);
+          }
+        });
+      } else {
+        const fetchedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]> = {};
+        snapshot.forEach((docRef) => {
+          fetchedMap[docRef.id] = docRef.data().lectures || [];
+        });
+        setSubjectLectures(fetchedMap);
+      }
+    }, (error) => {
+      console.error("Firestore subject_lectures stream error:", error);
+    });
+
     return () => {
       unsubNotif();
       unsubTickets();
       unsubExams();
+      unsubLectures();
     };
   }, [user]);
 
@@ -390,26 +465,54 @@ export default function App() {
         const email = fbUser.email || '';
         const avatarUrl = fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}`;
         
+        const userDocRef = doc(db, 'users', fbUser.uid);
+        let userTelegram = '@google_user';
+        let userStage = 'بكالوريوس';
+        let userYear = 'سنة أولى';
+        let userSemester = 'فصل أول';
+        let userTrack = 'علمي';
+
+        try {
+          const docSnap = await getDoc(userDocRef);
+          if (docSnap.exists()) {
+            const d = docSnap.data();
+            userTelegram = d.telegram || userTelegram;
+            userStage = d.academicStage || userStage;
+            userYear = d.academicYear || userYear;
+            userSemester = d.academicSemester || userSemester;
+            userTrack = d.academicTrack || userTrack;
+          } else {
+            // New Google user, save defaults
+            await setDoc(userDocRef, {
+              username,
+              email,
+              avatarUrl,
+              telegram: userTelegram,
+              isLoggedIn: true,
+              academicStage: userStage,
+              academicYear: userYear,
+              academicSemester: userSemester,
+              academicTrack: userTrack,
+              signUpDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+              scorePct: 100,
+              completedCount: 0
+            });
+          }
+        } catch (dbErr) {
+          console.error("Failed to fetch/write profile to Firestore on Google Login:", dbErr);
+        }
+
         const loggedUser: User = {
           username,
           email,
           avatarUrl,
           isLoggedIn: true,
-          telegram: '@google_user',
+          telegram: userTelegram,
+          academicStage: userStage,
+          academicYear: userYear,
+          academicSemester: userSemester,
+          academicTrack: userTrack
         };
-
-        // Write user profile metadata to Cloud Firestore users directory
-        try {
-          await setDoc(doc(db, 'users', fbUser.uid), {
-            username,
-            email,
-            avatarUrl,
-            telegram: '@google_user',
-            isLoggedIn: true,
-          });
-        } catch (dbErr) {
-          console.error("Failed to write profile to Firestore:", dbErr);
-        }
 
         setUser(loggedUser);
         localStorage.setItem('school_user', JSON.stringify(loggedUser));
@@ -437,15 +540,32 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = async (username: string, email: string, telegram?: string) => {
+  const handleLoginSuccess = async (
+    username: string, 
+    email: string, 
+    telegram?: string,
+    academicStage?: string,
+    academicYear?: string,
+    academicSemester?: string,
+    academicTrack?: string
+  ) => {
     // Premium custom avatar generated from initial letter
     const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=1b365d,c9a24a`;
+    const stage = academicStage || 'بكالوريوس';
+    const year = academicYear || 'سنة أولى';
+    const semester = academicSemester || 'فصل أول';
+    const track = academicTrack || 'علمي';
+
     const loggedUser: User = {
       username,
       email,
       avatarUrl: avatar,
       isLoggedIn: true,
       telegram: telegram || '@abdulmlik_ou',
+      academicStage: stage,
+      academicYear: year,
+      academicSemester: semester,
+      academicTrack: track
     };
 
     // Save profile metadata on standard successful logins too
@@ -456,8 +576,12 @@ export default function App() {
           email,
           avatarUrl: avatar,
           telegram: telegram || '@abdulmlik_ou',
-          isLoggedIn: true
-        });
+          isLoggedIn: true,
+          academicStage: stage,
+          academicYear: year,
+          academicSemester: semester,
+          academicTrack: track
+        }, { merge: true });
       } catch (dbErr) {
         console.error("Failed to write profile on standard signup:", dbErr);
       }
@@ -495,8 +619,12 @@ export default function App() {
           email: updatedUser.email,
           avatarUrl: updatedUser.avatarUrl || '',
           telegram: updatedUser.telegram || '',
-          isLoggedIn: true
-        });
+          isLoggedIn: true,
+          academicStage: updatedUser.academicStage || 'بكالوريوس',
+          academicYear: updatedUser.academicYear || 'سنة أولى',
+          academicSemester: updatedUser.academicSemester || 'فصل أول',
+          academicTrack: updatedUser.academicTrack || 'علمي'
+        }, { merge: true });
       } catch (dbErr) {
         console.error("Failed to sync profile update to Cloud:", dbErr);
       }
@@ -506,6 +634,20 @@ export default function App() {
   const handleUpdateSubjects = (updatedSubjects: Subject[]) => {
     setSubjects(updatedSubjects);
     localStorage.setItem('school_subjects', JSON.stringify(updatedSubjects));
+  };
+
+  const handleUpdateSubjectLectures = async (updatedMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>) => {
+    setSubjectLectures(updatedMap);
+    localStorage.setItem('school_subject_lectures', JSON.stringify(updatedMap));
+
+    // Persist each modified subject list to Cloud Firestore database!
+    for (const [subjId, docsList] of Object.entries(updatedMap)) {
+      try {
+        await setDoc(doc(db, 'subject_lectures', subjId), { lectures: docsList });
+      } catch (err) {
+        console.error(`Failed to sync lectures for ${subjId} to Cloud:`, err);
+      }
+    }
   };
 
   const handleToggleLecture = (subjectId: string, lectureIndex: number) => {
@@ -825,7 +967,7 @@ export default function App() {
                   subjects={subjects}
                   onUpdateSubjects={handleUpdateSubjects}
                   subjectLecturesMap={subjectLectures}
-                  onUpdateSubjectLectures={setSubjectLectures}
+                  onUpdateSubjectLectures={handleUpdateSubjectLectures}
                   supportTickets={supportTickets}
                   onUpdateSupportTickets={handleUpdateSupportTickets}
                   notifications={notifications}
@@ -841,7 +983,7 @@ export default function App() {
                   onUpdateSubjects={handleUpdateSubjects}
                   onNavigateToTab={setActiveTab}
                   subjectLecturesMap={subjectLectures}
-                  onUpdateSubjectLectures={setSubjectLectures}
+                  onUpdateSubjectLectures={handleUpdateSubjectLectures}
                   supportTickets={supportTickets}
                   onUpdateSupportTickets={handleUpdateSupportTickets}
                   notifications={notifications}

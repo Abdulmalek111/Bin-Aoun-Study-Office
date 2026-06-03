@@ -189,7 +189,7 @@ export default function DashboardView({
           <p className="text-[10px] text-slate-300 font-medium">مرحباً بعودتك</p>
           <h2 className="text-xl font-black text-white">{user.username}</h2>
           <p className="text-[10px] text-brand-gold font-bold bg-brand-blue/60 backdrop-blur-sm px-2 py-0.5 rounded-full inline-block">
-            طالب مستجد - المسار العلمي
+            {user.academicYear || 'سنة أولى'} - {user.academicStage || 'بكالوريوس'} {user.academicTrack ? `(${user.academicTrack})` : '(علمي)'}
           </p>
         </div>
 

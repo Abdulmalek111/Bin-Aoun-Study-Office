@@ -53,6 +53,29 @@ export default function ProfileView({
   const [emailUpdated, setEmailUpdated] = useState(false);
   const [profileViewTab, setProfileViewTab] = useState<'profile' | 'admin'>('profile');
   
+  const [academicStageInput, setAcademicStageInput] = useState(user.academicStage || 'بكالوريوس');
+  const [academicYearInput, setAcademicYearInput] = useState(user.academicYear || 'سنة أولى');
+  const [academicSemesterInput, setAcademicSemesterInput] = useState(user.academicSemester || 'فصل أول');
+  const [academicTrackInput, setAcademicTrackInput] = useState(user.academicTrack || 'علمي');
+
+  const getProfileYearsList = (stage: string) => {
+    if (stage === 'ماستر') {
+      return ['سنة أولى', 'سنة ثانية'];
+    } else if (stage === 'دكتوراة') {
+      return ['سنة أولى', 'سنة ثانية', 'سنة ثالثة'];
+    } else {
+      return ['طالب مستجد', 'سنة أولى', 'سنة ثانية', 'سنة ثالثة', 'سنة رابعة'];
+    }
+  };
+
+  const handleProfileStageChange = (newStage: string) => {
+    setAcademicStageInput(newStage);
+    const allowed = getProfileYearsList(newStage);
+    if (!allowed.includes(academicYearInput)) {
+      setAcademicYearInput(allowed[0]);
+    }
+  };
+  
   // Support & Interactive Chat states
   const [supportMsg, setSupportMsg] = useState('');
   const [supportSuccess, setSupportSuccess] = useState(false);
@@ -113,7 +136,11 @@ export default function ProfileView({
       ...user,
       username: usernameInput.trim(),
       email: emailInput.trim(),
-      telegram: formattedTelegram
+      telegram: formattedTelegram,
+      academicStage: academicStageInput,
+      academicYear: academicYearInput,
+      academicSemester: academicSemesterInput,
+      academicTrack: academicTrackInput
     });
     
     setEmailUpdated(true);
@@ -354,6 +381,19 @@ export default function ProfileView({
             <ShieldCheck size={16} className="text-brand-gold" />
           </h3>
           <p className="text-xs text-gray-400 font-mono mt-0.5">{user.email}</p>
+          {user.email !== 'abdulmlikoog@gmail.com' && (
+            <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+              <span className="text-[10px] font-bold bg-brand-blue/10 text-brand-blue px-2.5 py-1 rounded-full">
+                المرحلة: {user.academicStage || 'بكالوريوس'}
+              </span>
+              <span className="text-[10px] font-bold bg-brand-gold/10 text-brand-gold px-2.5 py-1 rounded-full">
+                السنة: {user.academicYear || 'سنة أولى'}
+              </span>
+              <span className="text-[10px] font-bold bg-purple-500/10 text-purple-600 px-2.5 py-1 rounded-full">
+                الفصل: {user.academicSemester || 'فصل أول'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -415,6 +455,60 @@ export default function ProfileView({
                   />
                 </div>
               </div>
+
+              {/* Academic Level selections */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-500 block">المرحلة الدراسية</label>
+                  <select
+                    value={academicStageInput}
+                    onChange={(e) => handleProfileStageChange(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg text-[10px] px-1 py-2 text-right focus:outline-none focus:border-brand-gold cursor-pointer"
+                  >
+                    <option value="بكالوريوس">بكالوريوس</option>
+                    <option value="ماستر">ماجستير / ماستر</option>
+                    <option value="دكتوراة">دكتوراه</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-500 block">السنة الدراسية</label>
+                  <select
+                    value={academicYearInput}
+                    onChange={(e) => setAcademicYearInput(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg text-[10px] px-1 py-2 text-right focus:outline-none focus:border-brand-gold cursor-pointer"
+                  >
+                    {getProfileYearsList(academicStageInput).map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-500 block">الفصل الدراسي</label>
+                  <select
+                    value={academicSemesterInput}
+                    onChange={(e) => setAcademicSemesterInput(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg text-[10px] px-1 py-2 text-right focus:outline-none focus:border-brand-gold cursor-pointer"
+                  >
+                    <option value="فصل أول">الفصل الأول</option>
+                    <option value="فصل ثاني">الفصل الثاني</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-500 block">المسار الدراسي</label>
+                  <select
+                    value={academicTrackInput}
+                    onChange={(e) => setAcademicTrackInput(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-lg text-[10px] px-1 py-2 text-right focus:outline-none focus:border-brand-gold cursor-pointer"
+                  >
+                    <option value="علمي">علمي</option>
+                    <option value="أدبي">أدبي</option>
+                  </select>
+                </div>
+              </div>
+
               <button 
                 type="submit" 
                 className="w-full py-2 bg-brand-dark text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
