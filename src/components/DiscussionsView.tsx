@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, Send, Heart, User, Search, MessageCircle, AlertCircle, HelpCircle, 
-  Mic, MicOff, Volume2, Users, Plus, PhoneOff, Sparkles, Check, X, ShieldAlert,
+  Mic, MicOff, Volume2, VolumeX, Users, Plus, PhoneOff, Sparkles, Check, X, ShieldAlert,
   Radio, Loader2
 } from 'lucide-react';
 import { Subject, User as LoggedUser } from '../types';
@@ -36,6 +36,7 @@ interface VoiceParticipant {
   isMuted: boolean;
   isSpeaking: boolean;
   joinedAt: string;
+  isDeafened?: boolean;
 }
 
 interface VoiceRoom {
@@ -220,14 +221,26 @@ const speakArabicMessage = (text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ar-SA';
-    utterance.rate = 1.0;
+    utterance.rate = 0.95; // Slightly slower for better clarity and pronunciation
     utterance.pitch = 1.0;
     
-    const voices = window.speechSynthesis.getVoices();
-    const arVoice = voices.find(v => v.lang.includes('ar'));
+    // Fetch voices immediately
+    let voices = window.speechSynthesis.getVoices();
+    let arVoice = voices.find(v => v.lang.includes('ar-SA') || v.lang.includes('ar-EG') || v.lang.includes('ar'));
+    
     if (arVoice) {
       utterance.voice = arVoice;
+    } else {
+      // In case of asynchronous initialization of speech voices
+      window.speechSynthesis.onvoiceschanged = () => {
+        const updatedVoices = window.speechSynthesis.getVoices();
+        const retryArVoice = updatedVoices.find(v => v.lang.includes('ar-SA') || v.lang.includes('ar-EG') || v.lang.includes('ar'));
+        if (retryArVoice && utterance) {
+          utterance.voice = retryArVoice;
+        }
+      };
     }
+    
     window.speechSynthesis.speak(utterance);
   } catch (e) {
     console.warn("Speech synthesis error or blocked:", e);
@@ -263,6 +276,12 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   const [activeVoiceRoom, setActiveVoiceRoom] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isDeafened, setIsDeafened] = useState(false);
+  
+  const isDeafenedRef = useRef(false);
+  useEffect(() => {
+    isDeafenedRef.current = isDeafened;
+  }, [isDeafened]);
   
   // Real audio streams
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
@@ -307,6 +326,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
         try {
           for (const msg of initialForumMessages) {
             await setDoc(doc(db, 'discussions', msg.id), {
+              id: msg.id,
               subjectId: msg.subjectId,
               authorName: msg.authorName,
               authorRole: msg.authorRole,
@@ -373,7 +393,24 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       return;
     }
 
-    // Trigger classmate message 3.5 seconds after joining to prove audio is open
+    // Trigger classmate welcome 1.2s after joining to instantly verify audio working
+    const welcomeTimer = setTimeout(() => {
+      const speaker = "المشرف الأكاديمي";
+      const welcomeSpeech = "أهلاً بك في هذا المجلس الحواري! الصوت مفعّل لديك والاتصال ممتاز ومسار الاستماع يعمل بنجاح.";
+      setSubtitleSpeaker(speaker);
+      setSubtitleText(welcomeSpeech);
+      
+      if (!isDeafenedRef.current) {
+        speakArabicMessage(welcomeSpeech);
+      }
+      
+      setTimeout(() => {
+        setSubtitleText(null);
+        setSubtitleSpeaker(null);
+      }, 5000);
+    }, 1200);
+
+    // Trigger classmate message 8.5 seconds after joining to keep flow alive
     const initialTimer = setTimeout(() => {
       const idx = Math.floor(Math.random() * CLASSMATE_SPEECHES.length);
       const randSpeech = CLASSMATE_SPEECHES[idx];
@@ -382,8 +419,11 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       
       setSubtitleSpeaker(speaker);
       setSubtitleText(randSpeech);
-      speakArabicMessage(randSpeech);
-    }, 3500);
+      
+      if (!isDeafenedRef.current) {
+        speakArabicMessage(randSpeech);
+      }
+    }, 8500);
 
     // Continuous discussion loop every 18 seconds
     const talkLoop = setInterval(() => {
@@ -394,16 +434,20 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       
       setSubtitleSpeaker(speaker);
       setSubtitleText(randSpeech);
-      speakArabicMessage(randSpeech);
+      
+      if (!isDeafenedRef.current) {
+        speakArabicMessage(randSpeech);
+      }
 
       // Dismiss subtitle after 6 seconds
       setTimeout(() => {
         setSubtitleText(null);
         setSubtitleSpeaker(null);
       }, 6000);
-    }, 18000);
+    }, 18050);
 
     return () => {
+      clearTimeout(welcomeTimer);
       clearTimeout(initialTimer);
       clearInterval(talkLoop);
       if (window.speechSynthesis) {
@@ -429,6 +473,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     const targetSubjectId = selectedSubjectId === 'all' ? (subjects[0]?.id || 'math') : selectedSubjectId;
 
     const newMsgBody = {
+      id: newMsgId,
       subjectId: targetSubjectId,
       authorName: author,
       authorRole: authorRoleValue,
@@ -525,7 +570,8 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       avatarUrl: avatar,
       isMuted: true, // safe defaults
       isSpeaking: false,
-      joinedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+      joinedAt: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+      isDeafened: false
     };
 
     const targetRef = doc(db, 'voice_rooms', room.id);
@@ -542,6 +588,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       });
       setActiveVoiceRoom(room.id);
       setIsMuted(true);
+      setIsDeafened(false);
       setIsSpeaking(false);
       playJoinSound();
     } catch (error) {
@@ -590,6 +637,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     if (!roomIdToLeave || roomIdToLeave === activeVoiceRoom) {
       setActiveVoiceRoom(null);
       setIsMuted(true);
+      setIsDeafened(false);
       setIsSpeaking(false);
       playLeaveSound();
     }
@@ -648,11 +696,72 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     }
   };
 
+  // Toggle headphones deafen / listen to others
+  const toggleDeafen = async () => {
+    if (!activeVoiceRoom) return;
+    const currentUid = auth.currentUser?.uid || 'user_';
+    const nextDeafenState = !isDeafened;
+    
+    setIsDeafened(nextDeafenState);
+    
+    let nextMuteState = isMuted;
+    if (nextDeafenState) {
+      // Force microphone mute on deafen (so you can't speak if you can't hear)
+      nextMuteState = true;
+      setIsMuted(true);
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+        setAudioStream(null);
+      }
+      if (audioIntervalRef.current) {
+        clearInterval(audioIntervalRef.current);
+      }
+      setIsSpeaking(false);
+      
+      // Stop all ongoing TTS voices instantly
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      playBeep(260, 'sawtooth', 0.15, 0.08); // Deafen sound
+    } else {
+      playBeep(520, 'sine', 0.15, 0.08); // Undeafen sound
+    }
+
+    // Update state in Firestore
+    try {
+      const roomRef = doc(db, 'voice_rooms', activeVoiceRoom);
+      const currentRoomRef = rooms.find(r => r.id === activeVoiceRoom);
+      if (currentRoomRef) {
+        const updated = (currentRoomRef.activeParticipants || []).map(p => {
+          if (p.uid === currentUid) {
+            return { 
+              ...p, 
+              isDeafened: nextDeafenState,
+              isMuted: nextMuteState,
+              isSpeaking: false
+            };
+          }
+          return p;
+        });
+        await updateDoc(roomRef, { activeParticipants: updated });
+      }
+    } catch (error) {
+      console.error("Deafen Firestore state sync issues:", error);
+    }
+  };
+
   // Toggle microphone mute/unmute
   const toggleMute = async () => {
     if (!activeVoiceRoom) return;
     const currentUid = auth.currentUser?.uid || 'user_';
+    // If we're deafened, unmuting the mic will undeafen us too
+    let nextDeafenState = isDeafened;
     const nextMuteState = !isMuted;
+
+    if (!nextMuteState && isDeafened) {
+      nextDeafenState = false;
+      setIsDeafened(false);
+    }
 
     // cleanup stream if muted
     if (nextMuteState) {
@@ -676,7 +785,12 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       if (currentRoomRef) {
         const updated = (currentRoomRef.activeParticipants || []).map(p => {
           if (p.uid === currentUid) {
-            return { ...p, isMuted: nextMuteState, isSpeaking: false };
+            return { 
+              ...p, 
+              isMuted: nextMuteState, 
+              isDeafened: nextDeafenState,
+              isSpeaking: false 
+            };
           }
           return p;
         });
@@ -801,6 +915,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
               <button
                 type="button"
                 onClick={() => {
+                  setIsDeafened(false); // Unmute headphones block instantly
                   playJoinSound();
                   setTimeout(() => {
                     speakArabicMessage("أهلاً بك! تم الاتصال بالقناة الصوتية بنجاح والصوت يعمل لديك بشكل ممتاز وسليم.");
@@ -811,6 +926,21 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
               >
                 <Volume2 size={14} className="animate-bounce" />
                 <span>اختبار الصوت 🔊</span>
+              </button>
+              
+              {/* Deafen Sound Toggler */}
+              <button
+                type="button"
+                onClick={toggleDeafen}
+                className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md ${
+                  isDeafened
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white border border-purple-500/25'
+                    : 'bg-slate-100 hover:bg-gray-250 text-slate-800'
+                }`}
+                title={isDeafened ? 'تحرير سماع القاعة' : 'كتم سماع القاعة'}
+              >
+                {isDeafened ? <VolumeX size={14} className="animate-pulse" /> : <Volume2 size={14} className="text-indigo-600" />}
+                <span>{isDeafened ? 'تشغيل السماعة' : 'كتم السماعة'}</span>
               </button>
               
               {/* Quick interactive action toggler */}
@@ -830,7 +960,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
               <button
                 type="button"
                 onClick={() => handleLeaveVoiceRoom()}
-                className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md"
+                className="p-2.5 bg-red-500 hover:bg-red-650 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md"
               >
                 <PhoneOff size={14} />
                 <span>مغادرة القاعة</span>
@@ -1133,9 +1263,11 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
                                 className={`flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold transition-all ${
                                   showSpeakingIndicator
                                     ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow animate-pulse'
-                                    : p.isMuted
-                                      ? 'bg-gray-55/65 text-gray-500 dark:bg-slate-850 dark:text-slate-400'
-                                      : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                                    : p.isDeafened
+                                      ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/15'
+                                      : p.isMuted
+                                        ? 'bg-gray-55/65 text-gray-500 dark:bg-slate-850 dark:text-slate-400 opacity-80'
+                                        : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
                                 }`}
                               >
                                 <img
@@ -1151,6 +1283,8 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
                                     <span className="w-0.5 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.1s]" />
                                     <span className="w-0.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]" />
                                   </span>
+                                ) : p.isDeafened ? (
+                                  <VolumeX size={8} className="text-purple-500 animate-pulse" title="كتم السماع من القاعة" />
                                 ) : p.isMuted ? (
                                   <MicOff size={8} className="text-gray-400 dark:text-gray-500" />
                                 ) : (
