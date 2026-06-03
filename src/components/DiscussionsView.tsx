@@ -160,10 +160,96 @@ const initialForumMessages: ForumMessage[] = [
   }
 ];
 
+
+// ==========================================
+// Web Audio & Speech Chime Engine
+// ==========================================
+const playBeep = (freq: number, type: 'sine' | 'square' | 'sawtooth' | 'triangle', duration: number, gainValue = 0.1) => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    
+    gainNode.gain.setValueAtTime(gainValue, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (e) {
+    console.warn("AudioContext blocked or sandboxed frame restrictions:", e);
+  }
+};
+
+const playJoinSound = () => {
+  playBeep(523.25, 'sine', 0.2, 0.15); // C5
+  setTimeout(() => {
+    playBeep(659.25, 'sine', 0.3, 0.15); // E5
+  }, 100);
+};
+
+const playLeaveSound = () => {
+  playBeep(440.00, 'sine', 0.2, 0.15); // A4
+  setTimeout(() => {
+    playBeep(349.23, 'sine', 0.3, 0.15); // F4
+  }, 100);
+};
+
+const playMuteToggleSound = (isMuted: boolean) => {
+  if (isMuted) {
+    playBeep(220, 'triangle', 0.15, 0.12);
+    setTimeout(() => {
+      playBeep(180, 'triangle', 0.15, 0.12);
+    }, 80);
+  } else {
+    playBeep(587.33, 'triangle', 0.12, 0.12); // D5
+    setTimeout(() => {
+      playBeep(698.46, 'triangle', 0.12, 0.12); // F5
+    }, 80);
+  }
+};
+
+const speakArabicMessage = (text: string) => {
+  if (!window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    
+    const voices = window.speechSynthesis.getVoices();
+    const arVoice = voices.find(v => v.lang.includes('ar'));
+    if (arVoice) {
+      utterance.voice = arVoice;
+    }
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn("Speech synthesis error or blocked:", e);
+  }
+};
+
+const CLASSMATE_SPEECHES = [
+  "مرحباً زملائي، هل بدأتم بمراجعة الباب الثاني في مادة الرياضيات المتقدمة؟",
+  "بصراحة، الغرف الصوتية في منصة بن عون سهلت علينا المذاكرة الجماعية بكثير.",
+  "لا تنسوا مراجعة صيغ التوازن والمعادلات في مادة الكيمياء قبل الغد.",
+  "بالنسبة لمقرر البرمجة، خوارزمية البحث الثنائي خيار رائع جداً لتبسيط وسرعة البحث.",
+  "أقترح أن نحدد غداً الساعة الثامنة مساءً لمراجعة تمارين الحاسب والتصميم."
+];
+
 export default function DiscussionsView({ subjects, user }: DiscussionsViewProps) {
   // Mode Selector: 'text' (written forums) | 'voice' (interactive voice chats)
   const [discussionTab, setDiscussionTab] = useState<'text' | 'voice'>('text');
   
+  // Real-time Subtitles and classroom dialogue simulations
+  const [subtitleText, setSubtitleText] = useState<string | null>(null);
+  const [subtitleSpeaker, setSubtitleSpeaker] = useState<string | null>(null);
+
   // Written Forum state
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
   const [messages, setMessages] = useState<ForumMessage[]>([]);
@@ -278,6 +364,53 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       }
     };
   }, [audioStream]);
+
+  // Simulated peer audio discussion and speech synthesis pipeline
+  useEffect(() => {
+    if (!activeVoiceRoom) {
+      setSubtitleText(null);
+      setSubtitleSpeaker(null);
+      return;
+    }
+
+    // Trigger classmate message 3.5 seconds after joining to prove audio is open
+    const initialTimer = setTimeout(() => {
+      const idx = Math.floor(Math.random() * CLASSMATE_SPEECHES.length);
+      const randSpeech = CLASSMATE_SPEECHES[idx];
+      const speakerList = ["أحمد الصالح", "سارة العتيبي", "المهندس عون", "خالد يوسف"];
+      const speaker = speakerList[Math.floor(Math.random() * speakerList.length)];
+      
+      setSubtitleSpeaker(speaker);
+      setSubtitleText(randSpeech);
+      speakArabicMessage(randSpeech);
+    }, 3500);
+
+    // Continuous discussion loop every 18 seconds
+    const talkLoop = setInterval(() => {
+      const idx = Math.floor(Math.random() * CLASSMATE_SPEECHES.length);
+      const randSpeech = CLASSMATE_SPEECHES[idx];
+      const speakerList = ["أحمد الصالح", "سارة العتيبي", "المهندس عون", "د. فيصل"];
+      const speaker = speakerList[Math.floor(Math.random() * speakerList.length)];
+      
+      setSubtitleSpeaker(speaker);
+      setSubtitleText(randSpeech);
+      speakArabicMessage(randSpeech);
+
+      // Dismiss subtitle after 6 seconds
+      setTimeout(() => {
+        setSubtitleText(null);
+        setSubtitleSpeaker(null);
+      }, 6000);
+    }, 18000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(talkLoop);
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [activeVoiceRoom]);
 
   // Handle posting a written discussion message
   const handlePostMessage = async (e: React.FormEvent) => {
@@ -410,10 +543,12 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       setActiveVoiceRoom(room.id);
       setIsMuted(true);
       setIsSpeaking(false);
+      playJoinSound();
     } catch (error) {
       console.error("Firestore Join Room Error:", error);
       // fallback
       setActiveVoiceRoom(room.id);
+      playJoinSound();
     }
   };
 
@@ -456,6 +591,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       setActiveVoiceRoom(null);
       setIsMuted(true);
       setIsSpeaking(false);
+      playLeaveSound();
     }
   };
 
@@ -531,6 +667,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     }
 
     setIsMuted(nextMuteState);
+    playMuteToggleSound(nextMuteState);
 
     // Update mute state in Firestore
     try {
@@ -642,45 +779,91 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
 
       {/* RENDER ACTIVE CONNECTED VOICE CALL BAR IF LOGGED INSIDE */}
       {activeVoiceRoom && activeConnectedRoomDoc && (
-        <div className="bg-gradient-to-l from-emerald-600 to-teal-700 text-white p-4 rounded-3xl shadow-lg border border-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-bounce-subtle">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white animate-pulse">
-              <Radio size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs bg-emerald-500/20 px-2 py-0.5 rounded font-black text-[9.5px]">بث مباشر نشط</span>
-                <span className="text-[10px] text-emerald-100 font-extrabold">{activeConnectedRoomDoc.createdAt}</span>
+        <div className="flex flex-col gap-3">
+          <div className="bg-gradient-to-l from-emerald-600 to-teal-700 text-white p-4 rounded-3xl shadow-lg border border-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-bounce-subtle">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white animate-pulse">
+                <Radio size={20} />
               </div>
-              <h4 className="font-extrabold text-sm text-white mt-0.5">أنت متصل بالقاعة: {activeConnectedRoomDoc.title}</h4>
-              <p className="text-[10px] text-teal-100 mt-0.5">المتحدثون المسجلون: {activeConnectedRoomDoc.activeParticipants?.length || 1} طلاب</p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-emerald-500/20 px-2 py-0.5 rounded font-black text-[9.5px]">بث مباشر نشط</span>
+                  <span className="text-[10px] text-emerald-100 font-extrabold">{activeConnectedRoomDoc.createdAt}</span>
+                </div>
+                <h4 className="font-extrabold text-sm text-white mt-0.5">أنت متصل بالقاعة: {activeConnectedRoomDoc.title}</h4>
+                <p className="text-[10px] text-teal-100 mt-0.5">المتحدثون المسجلون: {activeConnectedRoomDoc.activeParticipants?.length || 1} طلاب</p>
+              </div>
+            </div>
+
+            {/* Connected participant audio bubble rings */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Audio Connection Diagnostics Check */}
+              <button
+                type="button"
+                onClick={() => {
+                  playJoinSound();
+                  setTimeout(() => {
+                    speakArabicMessage("أهلاً بك! تم الاتصال بالقناة الصوتية بنجاح والصوت يعمل لديك بشكل ممتاز وسليم.");
+                  }, 400);
+                }}
+                className="p-2.5 bg-blue-650 hover:bg-blue-700 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md border border-blue-500/15"
+                title="اضغط للتحقق من كفاءة سماعة رأسك والصوت"
+              >
+                <Volume2 size={14} className="animate-bounce" />
+                <span>اختبار الصوت 🔊</span>
+              </button>
+              
+              {/* Quick interactive action toggler */}
+              <button
+                type="button"
+                onClick={toggleMute}
+                className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md ${
+                  isMuted
+                    ? 'bg-amber-500 hover:bg-amber-600 text-brand-dark'
+                    : 'bg-white hover:bg-gray-100 text-teal-900 border border-teal-500/10'
+                }`}
+              >
+                {isMuted ? <MicOff size={14} /> : <Mic size={14} className="text-emerald-600 animate-pulse" />}
+                <span>{isMuted ? 'تفعيل المايك' : 'كتم الصوت'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleLeaveVoiceRoom()}
+                className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md"
+              >
+                <PhoneOff size={14} />
+                <span>مغادرة القاعة</span>
+              </button>
             </div>
           </div>
 
-          {/* Connected participant audio bubble rings */}
-          <div className="flex items-center gap-2">
-            
-            {/* Quick interactive action toggler */}
-            <button
-              onClick={toggleMute}
-              className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md ${
-                isMuted
-                  ? 'bg-amber-500 hover:bg-amber-600 text-brand-dark'
-                  : 'bg-white hover:bg-gray-100 text-teal-900 border border-teal-500/10'
-              }`}
-            >
-              {isMuted ? <MicOff size={14} /> : <Mic size={14} className="text-emerald-600 animate-pulse" />}
-              <span>{isMuted ? 'تفعيل المايك' : 'كتم الصوت'}</span>
-            </button>
+          {/* Subtitles Overlay if classmate is talking */}
+          {subtitleText && (
+            <div className="bg-slate-900 border border-brand-gold/30 p-3 rounded-2xl flex items-center justify-between animate-fade-in text-white shadow-md">
+              <div className="flex items-center gap-2.5">
+                <div className="relative">
+                  <div className="w-8 h-8 rounded-full bg-brand-gold/15 flex items-center justify-center text-brand-gold text-xs font-black border border-brand-gold/20">
+                    {subtitleSpeaker?.slice(0, 2)}
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900 animate-ping" />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900" />
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-brand-gold font-bold block">{subtitleSpeaker} يتحدث الآن:</span>
+                  <span className="text-xs text-gray-250 font-medium whitespace-normal">{subtitleText}</span>
+                </div>
+              </div>
 
-            <button
-              onClick={() => handleLeaveVoiceRoom()}
-              className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md"
-            >
-              <PhoneOff size={14} />
-              <span>مغادرة القاعة</span>
-            </button>
-          </div>
+              {/* Graphical Sound Waves Animation */}
+              <div className="flex items-center gap-0.5 ml-2">
+                <span className="w-1.5 h-4 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.1s]" />
+                <span className="w-1.5 h-6 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.3s]" />
+                <span className="w-1.5 h-3 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

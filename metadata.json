@@ -1,6 +1,6 @@
 {
   "name": "Bin Aoun Study Office",
   "description": "منصة بن عون التعليمية - مكتب دراسي لمتابعة الاختبارات والمواد الدراسية والملف الشخصي.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
