@@ -942,6 +942,7 @@ export default function App() {
               {activeTab === 'discussions' && (
                 <DiscussionsView
                   subjects={subjects}
+                  user={user}
                 />
               )}
 

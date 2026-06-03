@@ -24,6 +24,26 @@
         "isLoggedIn": {
           "type": "boolean",
           "description": "Whether the user logged in."
+        },
+        "balance": {
+          "type": "number",
+          "description": "The financial wallet credit balance of the student."
+        },
+        "academicStage": {
+          "type": "string",
+          "description": "Academic stage (بكالوريوس, ماستر, دكتوراة)"
+        },
+        "academicYear": {
+          "type": "string",
+          "description": "Academic year of the student."
+        },
+        "academicSemester": {
+          "type": "string",
+          "description": "Academic semester."
+        },
+        "academicTrack": {
+          "type": "string",
+          "description": "Academic track."
         }
       },
       "required": ["username", "email"]
@@ -206,12 +226,32 @@
         }
       },
       "required": ["lectures"]
+    },
+    "VoiceRoom": {
+      "title": "VoiceRoom",
+      "description": "Real-time interactive voice chat rooms for classes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "activeParticipants": {
+          "type": "array",
+          "description": "List of currently connected participants inside this room."
+        }
+      },
+      "required": ["id", "title", "activeParticipants", "createdAt"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "User profiles database."
+    },
+    "voice_rooms/{roomId}": {
+      "schema": "VoiceRoom",
+      "description": "Real-time educational voice chat discussions rooms."
     },
     "subject_lectures/{subjectId}": {
       "schema": "SubjectLectures",

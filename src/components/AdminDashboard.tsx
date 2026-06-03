@@ -57,6 +57,7 @@ interface SimulatedStudent {
   academicYear?: string;
   academicSemester?: string;
   academicTrack?: string;
+  balance?: number;
 }
 
 export default function AdminDashboard({ 
@@ -486,7 +487,8 @@ export default function AdminDashboard({
           academicStage: d.academicStage || 'بكالوريوس',
           academicYear: d.academicYear || 'سنة أولى',
           academicSemester: d.academicSemester || 'فصل أول',
-          academicTrack: d.academicTrack || 'علمي'
+          academicTrack: d.academicTrack || 'علمي',
+          balance: typeof d.balance === 'number' ? d.balance : 0
         });
       });
 
@@ -508,10 +510,10 @@ export default function AdminDashboard({
       
       // Seed with initial template profiles if Firestore doesn't have them, ensuring student list is populated
       const initialMockStudents: SimulatedStudent[] = [
-        { uid: 'mock_abdulmlik', username: 'عبدالملك بن عون', email: 'abdulmlikoog@gmail.com', telegram: '@abdulmlik_ou', scorePct: 98, completedCount: 22, signUpDate: '2026/05/29' },
-        { uid: 'mock_ahmed', username: 'أحمد الصالح', email: 'ahmed.salih@gmail.com', telegram: '@ahmed_salih99', scorePct: 84, completedCount: 14, signUpDate: '2026/05/30' },
-        { uid: 'mock_sara', username: 'سارة العتيبي', email: 'sara.otb@outlook.com', telegram: '@sara_otb', scorePct: 92, completedCount: 19, signUpDate: '2026/05/31' },
-        { uid: 'mock_mharbi', username: 'محمد الحربي', email: 'm.harbi@gmail.com', telegram: '@m_harbi9', scorePct: 79, completedCount: 9, signUpDate: '2026/05/31' }
+        { uid: 'mock_abdulmlik', username: 'عبدالملك بن عون', email: 'abdulmlikoog@gmail.com', telegram: '@abdulmlik_ou', scorePct: 98, completedCount: 22, signUpDate: '2026/05/29', balance: 1500 },
+        { uid: 'mock_ahmed', username: 'أحمد الصالح', email: 'ahmed.salih@gmail.com', telegram: '@ahmed_salih99', scorePct: 84, completedCount: 14, signUpDate: '2026/05/30', balance: 350 },
+        { uid: 'mock_sara', username: 'سارة العتيبي', email: 'sara.otb@outlook.com', telegram: '@sara_otb', scorePct: 92, completedCount: 19, signUpDate: '2026/05/31', balance: 1200 },
+        { uid: 'mock_mharbi', username: 'محمد الحربي', email: 'm.harbi@gmail.com', telegram: '@m_harbi9', scorePct: 79, completedCount: 9, signUpDate: '2026/05/31', balance: 0 }
       ];
 
       initialMockStudents.forEach(m => {
@@ -672,6 +674,54 @@ export default function AdminDashboard({
         addLog(`تمت إزالة العضوية الموقوتة لـ ${name}`);
         alert(`✓ تم حذف سجل الطالب "${name}" بنجاح!`);
       }
+    }
+  };
+
+  const handleUpdateStudentBalance = async (studentEmail: string, studentUid: string, currentBalance: number, amount: number) => {
+    const updatedBalance = Math.max(0, currentBalance + amount);
+    const targetUid = studentUid || 'unknown';
+
+    try {
+      if (targetUid && targetUid !== 'unknown' && !targetUid.startsWith('mock_')) {
+        await updateDoc(doc(db, 'users', targetUid), {
+          balance: updatedBalance
+        });
+        addLog(`تمت مواءمة وتعديل رصيد الطالب السحابي ${studentEmail} بـ ${amount} ريال`);
+      } else {
+        addLog(`تم تعديل رصيد الطالب المحاكي ${studentEmail} بـ ${amount} ريال`);
+      }
+      
+      const updated = students.map((s: any) => {
+        if (s.email === studentEmail) {
+          return { ...s, balance: updatedBalance };
+        }
+        return s;
+      });
+      setStudents(updated);
+      localStorage.setItem('admin_simulated_students', JSON.stringify(updated));
+
+      // Also compose a personal notification for the target student to notify them
+      if (targetUid && !targetUid.startsWith('mock_')) {
+        try {
+          const freshId = `balance_notif_${Date.now()}`;
+          await setDoc(doc(db, 'notifications', freshId), {
+            id: freshId,
+            senderName: 'عمادة شؤون وأرصدة الطلاب',
+            message: `تم تعديل وتحديث رصيد محفظتك الدراسية الذكية بنجاح من قبل الشؤون المالية. الرصيد الحالي المتوفر: ${updatedBalance} ريال سعودي.`,
+            createdAt: new Date().toLocaleDateString('ar-EG'),
+            read: false,
+            targetEmail: studentEmail
+          });
+          addLog(`تم بث إشعار تعديل الرصيد بنجاح للطالب ${studentEmail}`);
+        } catch (errNotif) {
+          console.warn("Notifications write silent alert:", errNotif);
+        }
+      }
+
+      alert(`✓ تم تحديث الرصيد بنجاح! الرصيد الجديد للطالب: ${updatedBalance} ريال.`);
+    } catch (e) {
+      console.error("Error updating student balance:", e);
+      alert("فشل تحديث الرصيد. يرجى التحقق من القوانين الأمنية.");
     }
   };
 
@@ -1582,6 +1632,53 @@ export default function AdminDashboard({
                           <span className="text-[8.5px] font-extrabold bg-teal-500/10 text-teal-600 px-2 py-0.5 rounded-full">
                             المسار: {student.academicTrack || 'علمي'}
                           </span>
+
+                          {/* Student Balance display inside row with administrative modifiers */}
+                          <div className="flex items-center gap-1 bg-slate-900 border border-brand-gold/20 text-white rounded-full pl-2 pr-1.5 py-0.5 shadow-sm text-[8.5px] font-black">
+                            <span className="text-brand-gold">الرصيد:</span>
+                            <span className="font-sans font-extrabold text-brand-gold">{student.balance !== undefined ? student.balance : 0} ريال</span>
+                            
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const amt = prompt("اكتب المبلغ لإضافته للرصيد (أرقام فقط بـ الريال):");
+                                if (amt) {
+                                  const parsed = parseFloat(amt);
+                                  if (!isNaN(parsed) && parsed > 0) {
+                                    handleUpdateStudentBalance(student.email, student.uid || '', student.balance || 0, parsed);
+                                  } else {
+                                    alert("يرجى إدخال رقم صحيح.");
+                                  }
+                                }
+                              }}
+                              className="mr-1 bg-white/10 hover:bg-white/20 px-1 rounded text-[8px] text-emerald-400 font-bold cursor-pointer"
+                              title="إضافة رصيد"
+                            >
+                              + شحن
+                            </button>
+                            
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const amt = prompt("اكتب المبلغ لخصمه من الرصيد (أرقام فقط بـ الريال):");
+                                if (amt) {
+                                  const parsed = parseFloat(amt);
+                                  if (!isNaN(parsed) && parsed > 0) {
+                                    handleUpdateStudentBalance(student.email, student.uid || '', student.balance || 0, -parsed);
+                                  } else {
+                                    alert("يرجى إدخال رقم صحيح.");
+                                  }
+                                }
+                              }}
+                              className="bg-white/10 hover:bg-white/20 px-1 rounded text-[8px] text-red-500 font-bold cursor-pointer"
+                              title="خصم رصيد"
+                            >
+                              - خصم
+                            </button>
+                          </div>
+
                         </div>
                       )}
                     </div>

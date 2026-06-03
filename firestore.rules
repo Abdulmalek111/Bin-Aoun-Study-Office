@@ -94,8 +94,12 @@ service cloud.firestore {
       allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
       allow update: if (
         isOwner(userId) && isValidUser(request.resource.data) && (
-          // Student is forbidden from editing their email or role fields to prevent spoof/escalation
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'avatarUrl', 'telegram', 'isLoggedIn'])
+          // Student is forbidden from editing their email or balance or admin status directly.
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'username', 'avatarUrl', 'telegram', 'isLoggedIn',
+            'academicStage', 'academicYear', 'academicSemester', 'academicTrack',
+            'scorePct', 'completedCount', 'signUpDate'
+          ])
         )
       ) || isAdmin();
       allow delete: if isAdmin();
@@ -177,6 +181,14 @@ service cloud.firestore {
     match /admins/{adminUid} {
       allow read: if isSignedIn();
       allow write: if false; // Only manageable through Cloud Console
+    }
+
+    // Voice Chat Rooms Match Block
+    match /voice_rooms/{roomId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
     }
   }
 }

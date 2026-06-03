@@ -382,17 +382,33 @@ export default function ProfileView({
           </h3>
           <p className="text-xs text-gray-400 font-mono mt-0.5">{user.email}</p>
           {user.email !== 'abdulmlikoog@gmail.com' && (
-            <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
-              <span className="text-[10px] font-bold bg-brand-blue/10 text-brand-blue px-2.5 py-1 rounded-full">
-                المرحلة: {user.academicStage || 'بكالوريوس'}
-              </span>
-              <span className="text-[10px] font-bold bg-brand-gold/10 text-brand-gold px-2.5 py-1 rounded-full">
-                السنة: {user.academicYear || 'سنة أولى'}
-              </span>
-              <span className="text-[10px] font-bold bg-purple-500/10 text-purple-600 px-2.5 py-1 rounded-full">
-                الفصل: {user.academicSemester || 'فصل أول'}
-              </span>
-            </div>
+            <>
+              <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-[10px] font-bold bg-brand-blue/10 text-brand-blue px-2.5 py-1 rounded-full">
+                  المرحلة: {user.academicStage || 'بكالوريوس'}
+                </span>
+                <span className="text-[10px] font-bold bg-brand-gold/10 text-brand-gold px-2.5 py-1 rounded-full">
+                  السنة: {user.academicYear || 'سنة أولى'}
+                </span>
+                <span className="text-[10px] font-bold bg-purple-500/10 text-purple-600 px-2.5 py-1 rounded-full">
+                  الفصل: {user.academicSemester || 'فصل أول'}
+                </span>
+              </div>
+
+              {/* Verified Digital Wallet Card */}
+              <div className="mt-4 max-w-sm mx-auto bg-gradient-to-l from-brand-dark to-slate-900 text-white p-3.5 rounded-2xl border border-brand-gold/25 flex items-center justify-between shadow-md">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8.5 h-8.5 bg-brand-gold/15 rounded-xl flex items-center justify-center text-brand-gold">
+                    <CreditCard size={15} />
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[9px] text-gray-400 block font-bold leading-none mb-1">رصيد محفظة الطالب</span>
+                    <span className="text-xs font-black text-brand-gold leading-none">{user.balance !== undefined ? `${user.balance} ريال سعودي` : '0 ريال سعودي'}</span>
+                  </div>
+                </div>
+                <span className="text-[8px] bg-brand-gold/20 text-brand-gold px-2 py-0.5 rounded font-extrabold border border-brand-gold/15 animate-pulse">نشط ومحدث</span>
+              </div>
+            </>
           )}
         </div>
       </div>

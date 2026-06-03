@@ -13,6 +13,7 @@ export interface User {
   academicYear?: string;  // سنة أولى, سنة ثانية, سنة ثالثة, سنة رابعة, طالب مستجد
   academicSemester?: string; // فصل أول, فصل ثاني
   academicTrack?: string; // علمي, أدبي
+  balance?: number; // رصيد المحفظة المالي للطالب
 }
 
 export interface Subject {
