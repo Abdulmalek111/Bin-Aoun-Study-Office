@@ -165,23 +165,62 @@ const initialForumMessages: ForumMessage[] = [
 // ==========================================
 // Web Audio & Speech Chime Engine
 // ==========================================
+let activeAudioElement: HTMLAudioElement | null = null;
+let globalAudioCtx: AudioContext | null = null;
+let globalIsDeafened = false;
+
+const stopAllActiveAudio = () => {
+  if (activeAudioElement) {
+    try {
+      activeAudioElement.pause();
+      activeAudioElement.src = "";
+    } catch (e) {}
+    activeAudioElement = null;
+  }
+  if (window.speechSynthesis) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+};
+
+const unlockAudio = () => {
+  try {
+    if (!globalAudioCtx) {
+      globalAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (globalAudioCtx.state === 'suspended') {
+      globalAudioCtx.resume();
+    }
+    if (window.speechSynthesis) {
+      window.speechSynthesis.resume();
+    }
+  } catch (e) {
+    console.warn("Failed to unlock audio context:", e);
+  }
+};
+
 const playBeep = (freq: number, type: 'sine' | 'square' | 'sawtooth' | 'triangle', duration: number, gainValue = 0.1) => {
   try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+    unlockAudio();
+    if (!globalAudioCtx) {
+      globalAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    
+    const osc = globalAudioCtx.createOscillator();
+    const gainNode = globalAudioCtx.createGain();
     
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(freq, globalAudioCtx.currentTime);
     
-    gainNode.gain.setValueAtTime(gainValue, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    gainNode.gain.setValueAtTime(gainValue, globalAudioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, globalAudioCtx.currentTime + duration);
     
     osc.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
+    gainNode.connect(globalAudioCtx.destination);
     
     osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    osc.stop(globalAudioCtx.currentTime + duration);
   } catch (e) {
     console.warn("AudioContext blocked or sandboxed frame restrictions:", e);
   }
@@ -215,26 +254,27 @@ const playMuteToggleSound = (isMuted: boolean) => {
   }
 };
 
-const speakArabicMessage = (text: string) => {
+const speakArabicLocal = (text: string) => {
   if (!window.speechSynthesis) return;
   try {
     window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ar-SA';
-    utterance.rate = 0.95; // Slightly slower for better clarity and pronunciation
-    utterance.pitch = 1.0;
+    utterance.rate = 0.90; 
+    utterance.pitch = 1.05;
+    utterance.volume = 1.0;
     
-    // Fetch voices immediately
     let voices = window.speechSynthesis.getVoices();
-    let arVoice = voices.find(v => v.lang.includes('ar-SA') || v.lang.includes('ar-EG') || v.lang.includes('ar'));
+    let arVoice = voices.find(v => v.lang.toLowerCase().includes('ar'));
     
     if (arVoice) {
       utterance.voice = arVoice;
     } else {
-      // In case of asynchronous initialization of speech voices
       window.speechSynthesis.onvoiceschanged = () => {
         const updatedVoices = window.speechSynthesis.getVoices();
-        const retryArVoice = updatedVoices.find(v => v.lang.includes('ar-SA') || v.lang.includes('ar-EG') || v.lang.includes('ar'));
+        const retryArVoice = updatedVoices.find(v => v.lang.toLowerCase().includes('ar'));
         if (retryArVoice && utterance) {
           utterance.voice = retryArVoice;
         }
@@ -242,8 +282,38 @@ const speakArabicMessage = (text: string) => {
     }
     
     window.speechSynthesis.speak(utterance);
+    setTimeout(() => {
+      window.speechSynthesis.resume();
+    }, 50);
+  } catch(e) {
+    console.warn("Local fallback speech synthesis failed:", e);
+  }
+};
+
+const speakArabicMessage = (text: string) => {
+  if (globalIsDeafened) return;
+  if (!text || !text.trim()) return;
+  
+  try {
+    stopAllActiveAudio();
+    unlockAudio();
+    
+    // We use Google Translate TTS API as our high-fidelity, native human voice audio source.
+    // It works perfectly cross-platform and delivers clear, beautifully spoken Arabic.
+    const encodedText = encodeURIComponent(text);
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ar&client=tw-ob&q=${encodedText}`;
+    
+    const audio = new Audio(ttsUrl);
+    activeAudioElement = audio;
+    audio.volume = 1.0;
+    
+    audio.play().catch((err) => {
+      console.warn("Stream audio.play blocked/failed, trying local fallback:", err);
+      speakArabicLocal(text);
+    });
   } catch (e) {
-    console.warn("Speech synthesis error or blocked:", e);
+    console.warn("Speak audio creator block, trying local SpeechSynthesis fallback:", e);
+    speakArabicLocal(text);
   }
 };
 
@@ -281,6 +351,10 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   const isDeafenedRef = useRef(false);
   useEffect(() => {
     isDeafenedRef.current = isDeafened;
+    globalIsDeafened = isDeafened;
+    if (isDeafened) {
+      stopAllActiveAudio();
+    }
   }, [isDeafened]);
   
   // Real audio streams
@@ -385,74 +459,13 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     };
   }, [audioStream]);
 
-  // Simulated peer audio discussion and speech synthesis pipeline
+  // Stop any active audio and SpeechSynthesis on room exit / change
   useEffect(() => {
     if (!activeVoiceRoom) {
-      setSubtitleText(null);
-      setSubtitleSpeaker(null);
-      return;
+      stopAllActiveAudio();
     }
-
-    // Trigger classmate welcome 1.2s after joining to instantly verify audio working
-    const welcomeTimer = setTimeout(() => {
-      const speaker = "المشرف الأكاديمي";
-      const welcomeSpeech = "أهلاً بك في هذا المجلس الحواري! الصوت مفعّل لديك والاتصال ممتاز ومسار الاستماع يعمل بنجاح.";
-      setSubtitleSpeaker(speaker);
-      setSubtitleText(welcomeSpeech);
-      
-      if (!isDeafenedRef.current) {
-        speakArabicMessage(welcomeSpeech);
-      }
-      
-      setTimeout(() => {
-        setSubtitleText(null);
-        setSubtitleSpeaker(null);
-      }, 5000);
-    }, 1200);
-
-    // Trigger classmate message 8.5 seconds after joining to keep flow alive
-    const initialTimer = setTimeout(() => {
-      const idx = Math.floor(Math.random() * CLASSMATE_SPEECHES.length);
-      const randSpeech = CLASSMATE_SPEECHES[idx];
-      const speakerList = ["أحمد الصالح", "سارة العتيبي", "المهندس عون", "خالد يوسف"];
-      const speaker = speakerList[Math.floor(Math.random() * speakerList.length)];
-      
-      setSubtitleSpeaker(speaker);
-      setSubtitleText(randSpeech);
-      
-      if (!isDeafenedRef.current) {
-        speakArabicMessage(randSpeech);
-      }
-    }, 8500);
-
-    // Continuous discussion loop every 18 seconds
-    const talkLoop = setInterval(() => {
-      const idx = Math.floor(Math.random() * CLASSMATE_SPEECHES.length);
-      const randSpeech = CLASSMATE_SPEECHES[idx];
-      const speakerList = ["أحمد الصالح", "سارة العتيبي", "المهندس عون", "د. فيصل"];
-      const speaker = speakerList[Math.floor(Math.random() * speakerList.length)];
-      
-      setSubtitleSpeaker(speaker);
-      setSubtitleText(randSpeech);
-      
-      if (!isDeafenedRef.current) {
-        speakArabicMessage(randSpeech);
-      }
-
-      // Dismiss subtitle after 6 seconds
-      setTimeout(() => {
-        setSubtitleText(null);
-        setSubtitleSpeaker(null);
-      }, 6000);
-    }, 18050);
-
     return () => {
-      clearTimeout(welcomeTimer);
-      clearTimeout(initialTimer);
-      clearInterval(talkLoop);
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      stopAllActiveAudio();
     };
   }, [activeVoiceRoom]);
 
@@ -595,6 +608,9 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       console.error("Firestore Join Room Error:", error);
       // fallback
       setActiveVoiceRoom(room.id);
+      setIsMuted(true);
+      setIsDeafened(false);
+      setIsSpeaking(false);
       playJoinSound();
     }
   };
@@ -605,6 +621,9 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     if (!targetRoomId) return;
 
     const currentUid = auth.currentUser?.uid || 'user_';
+
+    // Stop all active dialogs/audios immediately
+    stopAllActiveAudio();
 
     // Disconnect stream
     if (audioStream) {
@@ -718,10 +737,8 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       }
       setIsSpeaking(false);
       
-      // Stop all ongoing TTS voices instantly
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      // Stop all ongoing TTS voices and audio elements instantly
+      stopAllActiveAudio();
       playBeep(260, 'sawtooth', 0.15, 0.08); // Deafen sound
     } else {
       playBeep(520, 'sine', 0.15, 0.08); // Undeafen sound
@@ -967,33 +984,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
               </button>
             </div>
           </div>
-
-          {/* Subtitles Overlay if classmate is talking */}
-          {subtitleText && (
-            <div className="bg-slate-900 border border-brand-gold/30 p-3 rounded-2xl flex items-center justify-between animate-fade-in text-white shadow-md">
-              <div className="flex items-center gap-2.5">
-                <div className="relative">
-                  <div className="w-8 h-8 rounded-full bg-brand-gold/15 flex items-center justify-center text-brand-gold text-xs font-black border border-brand-gold/20">
-                    {subtitleSpeaker?.slice(0, 2)}
-                  </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900 animate-ping" />
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900" />
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-brand-gold font-bold block">{subtitleSpeaker} يتحدث الآن:</span>
-                  <span className="text-xs text-gray-250 font-medium whitespace-normal">{subtitleText}</span>
-                </div>
-              </div>
-
-              {/* Graphical Sound Waves Animation */}
-              <div className="flex items-center gap-0.5 ml-2">
-                <span className="w-1.5 h-4 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.1s]" />
-                <span className="w-1.5 h-6 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.3s]" />
-                <span className="w-1.5 h-3 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1.5 h-5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
-              </div>
-            </div>
-          )}
         </div>
       )}
 
