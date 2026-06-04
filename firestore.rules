@@ -146,29 +146,27 @@ service cloud.firestore {
 
     // Private Chats Match Block
     match /private_chats/{chatId} {
-      allow get: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$'));
-      allow list: if isSignedIn() && (request.auth.uid in resource.data.participants);
-      allow create, update: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$')) && isValidPrivateChat(request.resource.data);
+      allow get: if isSignedIn() && (chatId.startsWith(request.auth.uid + '_') || chatId.endsWith('_' + request.auth.uid));
+      allow create, update: if isSignedIn() && (chatId.startsWith(request.auth.uid + '_') || chatId.endsWith('_' + request.auth.uid)) && isValidPrivateChat(request.resource.data);
 
       match /messages/{messageId} {
-        allow get, list: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$'));
-        allow create: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$')) && isValidPrivateMessage(request.resource.data);
-        allow update, delete: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$'));
+        allow get, list: if isSignedIn() && (chatId.startsWith(request.auth.uid + '_') || chatId.endsWith('_' + request.auth.uid));
+        allow create: if isSignedIn() && (chatId.startsWith(request.auth.uid + '_') || chatId.endsWith('_' + request.auth.uid)) && isValidPrivateMessage(request.resource.data);
+        allow update, delete: if isSignedIn() && (chatId.startsWith(request.auth.uid + '_') || chatId.endsWith('_' + request.auth.uid));
       }
     }
 
     // Private 1-on-1 Calls Match Block
     match /private_calls/{callId} {
-      allow get: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
-      allow list: if isSignedIn() && (resource.data.calleeUid == request.auth.uid || resource.data.callerUid == request.auth.uid);
-      allow create: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$')) && isValidPrivateCall(request.resource.data);
-      allow update: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$') || resource.data.callerUid == request.auth.uid || resource.data.calleeUid == request.auth.uid);
-      allow delete: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$') || resource.data.callerUid == request.auth.uid || resource.data.calleeUid == request.auth.uid);
+      allow get, list: if isSignedIn() && (callId.startsWith(request.auth.uid + '_') || callId.endsWith('_' + request.auth.uid));
+      allow create: if isSignedIn() && (callId.startsWith(request.auth.uid + '_') || callId.endsWith('_' + request.auth.uid)) && isValidPrivateCall(request.resource.data);
+      allow update: if isSignedIn() && (callId.startsWith(request.auth.uid + '_') || callId.endsWith('_' + request.auth.uid));
+      allow delete: if isSignedIn() && (callId.startsWith(request.auth.uid + '_') || callId.endsWith('_' + request.auth.uid));
 
       match /audio_packets/{packetId} {
-        allow get, list: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
-        allow create: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$')) && isValidAudioPacket(request.resource.data);
-        allow update, delete: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
+        allow get, list: if isSignedIn() && (callId.startsWith(request.auth.uid + '_') || callId.endsWith('_' + request.auth.uid));
+        allow create: if isSignedIn() && (callId.startsWith(request.auth.uid + '_') || callId.endsWith('_' + request.auth.uid)) && isValidAudioPacket(request.resource.data);
+        allow update, delete: if isSignedIn() && (callId.startsWith(request.auth.uid + '_') || chatId.endsWith('_' + request.auth.uid));
       }
     }
 
