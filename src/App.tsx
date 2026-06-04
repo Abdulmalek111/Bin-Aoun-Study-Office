@@ -20,7 +20,6 @@ import ProfileView from './components/ProfileView';
 import DiscussionsView from './components/DiscussionsView';
 import AdminDashboard from './components/AdminDashboard';
 import StudentsView, { getBinStudentId } from './components/StudentsView';
-import { playIncomingCallRingtone, stopIncomingCallRingtone, unlockAudioEngine } from './lib/ringtone';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -337,41 +336,6 @@ export default function App() {
     });
     return () => unsub();
   }, [user, activeTab]);
-
-  // Autoplay and AudioContext activation on the first user click
-  useEffect(() => {
-    let triggered = false;
-    const handleFirstUserInteraction = () => {
-      if (triggered) return;
-      triggered = true;
-      console.log("First user interaction click detected; unlocking Autoplay.");
-      unlockAudioEngine();
-      
-      // Clean up event listeners immediately
-      window.removeEventListener('click', handleFirstUserInteraction);
-      window.removeEventListener('touchstart', handleFirstUserInteraction);
-    };
-
-    window.addEventListener('click', handleFirstUserInteraction, { passive: true });
-    window.addEventListener('touchstart', handleFirstUserInteraction, { passive: true });
-
-    return () => {
-      window.removeEventListener('click', handleFirstUserInteraction);
-      window.removeEventListener('touchstart', handleFirstUserInteraction);
-    };
-  }, []);
-
-  // Play ringtone when there is a global incoming call
-  useEffect(() => {
-    if (globalIncomingCall) {
-      playIncomingCallRingtone();
-    } else {
-      stopIncomingCallRingtone();
-    }
-    return () => {
-      stopIncomingCallRingtone();
-    };
-  }, [globalIncomingCall]);
 
   // Real-time unread messages monitoring
   useEffect(() => {
@@ -972,14 +936,16 @@ export default function App() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Users size={15} />
+                    <div className="relative">
+                      <Users size={15} />
+                      {unreadChatsCount > 0 && (
+                        <span id="unread-sidebar-count-badge" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-black text-[7px] w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white shrink-0 z-10 shadow-sm">
+                          {unreadChatsCount}
+                        </span>
+                      )}
+                    </div>
                     <span>دليل الطُلاب والدردشة</span>
                   </div>
-                  {unreadChatsCount > 0 && (
-                    <span id="unread-sidebar-count-badge" className="bg-red-500 text-white font-black text-[9px] px-2 py-0.5 rounded-full min-w-[16px] text-center shrink-0">
-                      {unreadChatsCount}
-                    </span>
-                  )}
                 </button>
 
                 <button
@@ -1214,7 +1180,7 @@ export default function App() {
               <div className="relative">
                 <Users size={20} className={activeTab === 'students' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
                 {unreadChatsCount > 0 && (
-                  <span id="unread-mobile-badge" className="absolute -top-1.5 -left-1.5 bg-red-500 text-white font-black text-[8px] h-4 w-4 rounded-full flex items-center justify-center animate-pulse border border-white">
+                  <span id="unread-mobile-badge" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-black text-[8px] h-4 w-4 rounded-full flex items-center justify-center animate-pulse border border-white z-10 shadow-sm">
                     {unreadChatsCount}
                   </span>
                 )}
