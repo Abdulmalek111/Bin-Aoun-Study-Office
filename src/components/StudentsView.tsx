@@ -184,13 +184,6 @@ export default function StudentsView({
             uid,
             binId
           });
-
-          // Check if this student in Firestore doesn't have studentId saved yet, and write it
-          if (!dat.studentId && currentUid !== 'anonymous') {
-            updateDoc(doc(db, 'users', uid), {
-              studentId: binId
-            }).catch(() => {});
-          }
         }
       });
       setStudents(list);

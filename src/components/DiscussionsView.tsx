@@ -168,6 +168,7 @@ const initialForumMessages: ForumMessage[] = [
 let activeAudioElement: HTMLAudioElement | null = null;
 let globalAudioCtx: AudioContext | null = null;
 let globalIsDeafened = false;
+let autoplayUnblocked = false;
 
 const stopAllActiveAudio = () => {
   if (activeAudioElement) {
@@ -196,11 +197,16 @@ const unlockAudio = () => {
       window.speechSynthesis.resume();
     }
     
+    if (autoplayUnblocked) {
+      return;
+    }
+    
     // Play an extremely brief, completely silent base64 wave to register successful user media play gesture
     const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
     silentAudio.volume = 0.01;
     silentAudio.play().then(() => {
       console.log("[Audio Engine] Autoplay system unblocked successfully.");
+      autoplayUnblocked = true;
     }).catch(err => {
       console.warn("[Audio Engine] Silent autoplay unblock was passive:", err);
     });
