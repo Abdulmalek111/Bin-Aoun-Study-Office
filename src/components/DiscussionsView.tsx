@@ -195,6 +195,15 @@ const unlockAudio = () => {
     if (window.speechSynthesis) {
       window.speechSynthesis.resume();
     }
+    
+    // Play an extremely brief, completely silent base64 wave to register successful user media play gesture
+    const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+    silentAudio.volume = 0.01;
+    silentAudio.play().then(() => {
+      console.log("[Audio Engine] Autoplay system unblocked successfully.");
+    }).catch(err => {
+      console.warn("[Audio Engine] Silent autoplay unblock was passive:", err);
+    });
   } catch (e) {
     console.warn("Failed to unlock audio context:", e);
   }
@@ -381,6 +390,18 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   const audioQueueRef = useRef<string[]>([]);
   const isPlayingQueueRef = useRef<boolean>(false);
 
+  // Synchronized refs to avoid closure state capturing bugs inside MediaRecorder ondataavailable
+  const isMutedRef = useRef(true);
+  const activeVoiceRoomRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    activeVoiceRoomRef.current = activeVoiceRoom;
+  }, [activeVoiceRoom]);
+
   // Helper helper to format blob to base64
   const blobToBase64 = (blob: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -453,11 +474,12 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       const currentUserName = user?.username || 'طالب مستخدم';
       
       recorder.ondataavailable = async (e) => {
-        if (e.data && e.data.size > 0 && activeVoiceRoom && !isMuted) {
+        const roomId = activeVoiceRoomRef.current;
+        if (e.data && e.data.size > 0 && roomId && !isMutedRef.current) {
           try {
             const base64 = await blobToBase64(e.data);
             if (base64 && base64.length > 200) {
-              const packetsColl = collection(db, 'voice_rooms', activeVoiceRoom, 'audio_packets');
+              const packetsColl = collection(db, 'voice_rooms', roomId, 'audio_packets');
               const packetId = `${currentUid}_${Date.now()}`;
               await setDoc(doc(packetsColl, packetId), {
                 id: packetId,
@@ -612,6 +634,69 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       }
     };
   }, [audioStream]);
+
+  // Global click event to resume any suspended AudioContext or HTMLAudioElement due to browser autoplay policies
+  useEffect(() => {
+    const handleGlobalClickUnblock = () => {
+      unlockAudio();
+      // Try to trigger playing any paused remote WebRTC feeds
+      remoteAudiosRef.current.forEach((aud) => {
+        if (aud.paused) {
+          aud.play().catch(() => {});
+        }
+      });
+    };
+
+    window.addEventListener('click', handleGlobalClickUnblock);
+    window.addEventListener('touchstart', handleGlobalClickUnblock);
+    return () => {
+      window.removeEventListener('click', handleGlobalClickUnblock);
+      window.removeEventListener('touchstart', handleGlobalClickUnblock);
+    };
+  }, []);
+
+  // Synchronize microphone audio track across existing WebRTC peer connections when stream state changes
+  useEffect(() => {
+    if (!audioStream) {
+      // If we muted, stop or remove local tracks from current peer connections
+      peerConnectionsRef.current.forEach((pc) => {
+        pc.getSenders().forEach((sender) => {
+          try {
+            pc.removeTrack(sender);
+          } catch (e) {}
+        });
+      });
+      return;
+    }
+
+    const audioTrack = audioStream.getAudioTracks()[0];
+    if (audioTrack) {
+      peerConnectionsRef.current.forEach((pc, peerUid) => {
+        const senders = pc.getSenders();
+        const hasTrack = senders.some(s => s.track === audioTrack);
+        if (!hasTrack) {
+          try {
+            pc.addTrack(audioTrack, audioStream);
+            // Trigger renegotiating offer for established connections if we are the caller
+            const isCaller = currentUid < peerUid;
+            if (isCaller && activeVoiceRoom) {
+              pc.createOffer().then(async (offer) => {
+                await pc.setLocalDescription(offer);
+                const signalingColl = collection(db, 'voice_rooms', activeVoiceRoom, 'signaling');
+                const signalDocId = `${currentUid}_${peerUid}`;
+                await updateDoc(doc(signalingColl, signalDocId), {
+                  offer: { type: offer.type, sdp: offer.sdp },
+                  status: 'offered'
+                }).catch(() => {});
+              }).catch(() => {});
+            }
+          } catch (e) {
+            console.warn("Failed to add track dynamically to existing PeerConnection:", e);
+          }
+        }
+      });
+    }
+  }, [audioStream, activeVoiceRoom, currentUid]);
 
   // Stop any active audio and SpeechSynthesis on room exit / change
   useEffect(() => {
@@ -945,6 +1030,19 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     e.preventDefault();
     if (!newRoomTitle.trim()) return;
 
+    // Capture User Gesture for Autoplay Unblock
+    unlockAudio();
+
+    // 1. Request microphone permission explicitly before creating the room
+    try {
+      const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      permissionStream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      console.warn("Microphone access denied before creating voice room:", err);
+      alert("عذراً، يجب السماح للمتصفح بالوصول إلى الميكروفون أولاً قبل المباشرة بإنشاء وحجز قاعة صوتية جديدة.");
+      return;
+    }
+
     const currentUserName = user?.username || 'مشرّف عام';
     const roomId = `room_${Date.now()}`;
     const timeFormatted = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
@@ -969,7 +1067,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
         createdAt: timeFormatted,
         activeParticipants: []
       };
-      handleJoinVoiceRoom(freshRoom);
+      await handleJoinVoiceRoom(freshRoom);
 
     } catch (err) {
       console.error("Error creating voice room in Firestore:", err);
@@ -979,6 +1077,19 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
 
   // Join a Real-time Voice Chat Room
   const handleJoinVoiceRoom = async (room: VoiceRoom) => {
+    // 1. Capture User Gesture synchronously to unlock browser autoplay policy unhindered
+    unlockAudio();
+
+    // 2. Request microphone permission explicitly before entering the room
+    try {
+      const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      permissionStream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      console.warn("Microphone access denied before joining voice room:", err);
+      alert("تنبيه: لتتمكن من سماع الآخرين والتفاعل معهم بالصوت، يرجى منح صلاحية استخدام الميكروفون للموقع أولاً في المتصفح.");
+      return;
+    }
+
     const currentUserName = user?.username || 'طالب مستخدم';
     const avatar = user?.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUserName)}&backgroundColor=1b365d,c9a24a`;
 
