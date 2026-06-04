@@ -37,7 +37,6 @@ export default function App() {
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [activeChatUser, setActiveChatUser] = useState<User | null>(null);
   const [globalIncomingCall, setGlobalIncomingCall] = useState<any>(null);
-  const [unreadChatsCount, setUnreadChatsCount] = useState<number>(0);
 
   // Technical Support Tickets state
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
@@ -336,60 +335,6 @@ export default function App() {
     });
     return () => unsub();
   }, [user, activeTab]);
-
-  // Real-time unread messages monitoring
-  useEffect(() => {
-    if (!user || !auth.currentUser) {
-      setUnreadChatsCount(0);
-      return;
-    }
-    const currentUid = auth.currentUser.uid;
-    const q = query(
-      collection(db, 'private_chats'),
-      where('participants', 'array-contains', currentUid)
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      const savedSeen = localStorage.getItem(`chat_seen_${currentUid}`);
-      const seenMap = savedSeen ? JSON.parse(savedSeen) : {};
-
-      if (activeTab === 'students' && activeChatUser) {
-        const chatId = [currentUid, (activeChatUser as any).uid].sort().join('_');
-        seenMap[chatId] = Date.now();
-        localStorage.setItem(`chat_seen_${currentUid}`, JSON.stringify(seenMap));
-      }
-
-      let count = 0;
-      snapshot.forEach((docSnap) => {
-        const chat = docSnap.data();
-        if (chat.lastSenderUid && chat.lastSenderUid !== currentUid) {
-          const lastSeen = seenMap[chat.id] || 0;
-          if (chat.lastMessageAt && chat.lastMessageAt > lastSeen) {
-            count++;
-          }
-        }
-      });
-      setUnreadChatsCount(count);
-    }, (err) => {
-      console.warn("Unread messages watch bypassed:", err);
-    });
-
-    return () => unsub();
-  }, [user, activeTab, activeChatUser]);
-
-  // Immediate mark as read on tab or chat selection change
-  useEffect(() => {
-    if (!user || !auth.currentUser) return;
-    const currentUid = auth.currentUser.uid;
-    if (activeTab === 'students' && activeChatUser) {
-      const chatId = [currentUid, (activeChatUser as any).uid].sort().join('_');
-      const savedSeen = localStorage.getItem(`chat_seen_${currentUid}`);
-      const seenMap = savedSeen ? JSON.parse(savedSeen) : {};
-      seenMap[chatId] = Date.now();
-      localStorage.setItem(`chat_seen_${currentUid}`, JSON.stringify(seenMap));
-      setUnreadChatsCount(prev => Math.max(0, prev - 1));
-    }
-  }, [activeTab, activeChatUser, user]);
 
   // Real-time Cloud Database sync via Firestore subscriptions
   useEffect(() => {
@@ -929,23 +874,14 @@ export default function App() {
 
                 <button
                   onClick={() => setActiveTab('students')}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
                     activeTab === 'students' 
                       ? 'bg-brand-gold text-brand-dark shadow-md shadow-brand-gold/10 font-black' 
                       : 'text-gray-300 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Users size={15} />
-                      {unreadChatsCount > 0 && (
-                        <span id="unread-sidebar-count-badge" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-black text-[7px] w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white shrink-0 z-10 shadow-sm">
-                          {unreadChatsCount}
-                        </span>
-                      )}
-                    </div>
-                    <span>دليل الطُلاب والدردشة</span>
-                  </div>
+                  <Users size={15} />
+                  <span>دليل الطُلاب والدردشة</span>
                 </button>
 
                 <button
@@ -1177,14 +1113,7 @@ export default function App() {
                 activeTab === 'students' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
               }`}
             >
-              <div className="relative">
-                <Users size={20} className={activeTab === 'students' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-                {unreadChatsCount > 0 && (
-                  <span id="unread-mobile-badge" className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-black text-[8px] h-4 w-4 rounded-full flex items-center justify-center animate-pulse border border-white z-10 shadow-sm">
-                    {unreadChatsCount}
-                  </span>
-                )}
-              </div>
+              <Users size={20} className={activeTab === 'students' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
               <span className="text-[10px]">الزملاء</span>
             </button>
 
@@ -1230,6 +1159,7 @@ export default function App() {
               <button 
                 onClick={async () => {
                   // Accept and redirect to students tab
+                  const coll = collection(db, 'users');
                   const dRef = doc(db, 'users', globalIncomingCall.callerUid);
                   try {
                     const docS = await getDoc(dRef);
@@ -1237,14 +1167,6 @@ export default function App() {
                       setActiveChatUser({ ...docS.data(), uid: docS.id } as any);
                     }
                   } catch (e) {}
-                  
-                  // Save state to accepted immediately in the cloud
-                  try {
-                    await updateDoc(doc(db, 'private_calls', globalIncomingCall.id), { status: 'accepted' });
-                  } catch (e) {
-                    console.warn("Failed marking call accepted globally:", e);
-                  }
-
                   setActiveCallId(globalIncomingCall.id);
                   setActiveTab('students');
                 }}

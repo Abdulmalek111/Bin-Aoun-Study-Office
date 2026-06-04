@@ -85,38 +85,6 @@ service cloud.firestore {
       return data.keys().hasAll(['lectures']) && data.lectures is list;
     }
 
-    function isValidPrivateChat(data) {
-      return data.keys().hasAll(['id', 'participants']) &&
-             data.id is string && data.id.size() <= 128 &&
-             data.participants is list && data.participants.size() >= 1;
-    }
-
-    function isValidPrivateMessage(data) {
-      return data.keys().hasAll(['id', 'senderUid', 'senderName', 'content', 'timestamp']) &&
-             data.id is string && data.id.size() <= 128 &&
-             data.senderUid is string && data.senderUid == request.auth.uid &&
-             data.senderName is string && data.senderName.size() <= 128 &&
-             data.content is string && data.content.size() <= 10000;
-    }
-
-    function isValidPrivateCall(data) {
-      return data.keys().hasAll(['id', 'callerUid', 'callerName', 'calleeUid', 'calleeName', 'status', 'createdAt']) &&
-             data.id is string && data.id.size() <= 128 &&
-             data.callerUid is string && data.callerUid.size() <= 128 &&
-             data.callerName is string && data.callerName.size() <= 128 &&
-             data.calleeUid is string && data.calleeUid.size() <= 128 &&
-             data.calleeName is string && data.calleeName.size() <= 128 &&
-             data.status in ['calling', 'ringing', 'accepted', 'declined', 'ended'];
-    }
-
-    function isValidAudioPacket(data) {
-      return data.keys().hasAll(['id', 'senderUid', 'senderName', 'audioBase64', 'timestamp']) &&
-             data.id is string && data.id.size() <= 128 &&
-             data.senderUid is string && data.senderUid == request.auth.uid &&
-             data.senderName is string && data.senderName.size() <= 128 &&
-             data.audioBase64 is string && data.audioBase64.size() <= 500000;
-    }
-
     // --- Path Match Blocks (Phase 1 Codebase Match Mapping) ---
 
     // User Profiles Match Block
@@ -146,28 +114,21 @@ service cloud.firestore {
 
     // Private Chats Match Block
     match /private_chats/{chatId} {
-      allow get: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$'));
-      allow create, update: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$')) && isValidPrivateChat(request.resource.data);
+      allow get: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+      allow create, update: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
 
       match /messages/{messageId} {
-        allow get, list: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$'));
-        allow create: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$')) && isValidPrivateMessage(request.resource.data);
-        allow update, delete: if isSignedIn() && (chatId.matches('^' + request.auth.uid + '_.*') || chatId.matches('.*_' + request.auth.uid + '$'));
+        allow get, list: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+        allow create: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid) ;
+        allow update, delete: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
       }
     }
 
     // Private 1-on-1 Calls Match Block
     match /private_calls/{callId} {
-      allow get, list: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
-      allow create: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$')) && isValidPrivateCall(request.resource.data);
-      allow update: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
-      allow delete: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
-
-      match /audio_packets/{packetId} {
-        allow get, list: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
-        allow create: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$')) && isValidAudioPacket(request.resource.data);
-        allow update, delete: if isSignedIn() && (callId.matches('^' + request.auth.uid + '_.*') || callId.matches('.*_' + request.auth.uid + '$'));
-      }
+      allow get, list: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      allow create, update: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      allow delete: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
     }
 
     // Technical Support Tickets Match Block
