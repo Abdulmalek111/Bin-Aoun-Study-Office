@@ -20,6 +20,7 @@ import ProfileView from './components/ProfileView';
 import DiscussionsView from './components/DiscussionsView';
 import AdminDashboard from './components/AdminDashboard';
 import StudentsView, { getBinStudentId } from './components/StudentsView';
+import { playIncomingCallRingtone, stopIncomingCallRingtone, unlockAudioEngine } from './lib/ringtone';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -336,6 +337,41 @@ export default function App() {
     });
     return () => unsub();
   }, [user, activeTab]);
+
+  // Autoplay and AudioContext activation on the first user click
+  useEffect(() => {
+    let triggered = false;
+    const handleFirstUserInteraction = () => {
+      if (triggered) return;
+      triggered = true;
+      console.log("First user interaction click detected; unlocking Autoplay.");
+      unlockAudioEngine();
+      
+      // Clean up event listeners immediately
+      window.removeEventListener('click', handleFirstUserInteraction);
+      window.removeEventListener('touchstart', handleFirstUserInteraction);
+    };
+
+    window.addEventListener('click', handleFirstUserInteraction, { passive: true });
+    window.addEventListener('touchstart', handleFirstUserInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener('click', handleFirstUserInteraction);
+      window.removeEventListener('touchstart', handleFirstUserInteraction);
+    };
+  }, []);
+
+  // Play ringtone when there is a global incoming call
+  useEffect(() => {
+    if (globalIncomingCall) {
+      playIncomingCallRingtone();
+    } else {
+      stopIncomingCallRingtone();
+    }
+    return () => {
+      stopIncomingCallRingtone();
+    };
+  }, [globalIncomingCall]);
 
   // Real-time unread messages monitoring
   useEffect(() => {

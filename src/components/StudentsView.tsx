@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { User } from '../types';
+import { playIncomingCallRingtone, stopIncomingCallRingtone, unlockAudioEngine as ringtoneUnlock } from '../lib/ringtone';
 import { 
   MessageSquare, 
   Phone, 
@@ -628,6 +629,23 @@ export default function StudentsView({
 
     return () => unsub();
   }, [currentUid, activeCall?.id]);
+
+  // Play ringtone with dual tone repeats when there is an active incoming call
+  useEffect(() => {
+    const isIncomingRinging = activeCall && 
+      (activeCall.status === 'calling' || activeCall.status === 'ringing') && 
+      activeCall.calleeUid === currentUid;
+
+    if (isIncomingRinging) {
+      playIncomingCallRingtone();
+    } else {
+      stopIncomingCallRingtone();
+    }
+
+    return () => {
+      stopIncomingCallRingtone();
+    };
+  }, [activeCall, currentUid]);
 
   // Search filtering
   const filteredStudents = students.filter(student => {
