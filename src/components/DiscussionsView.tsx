@@ -326,6 +326,32 @@ const CLASSMATE_SPEECHES = [
 ];
 
 export default function DiscussionsView({ subjects, user }: DiscussionsViewProps) {
+  // Generate a stable session-lifetime UID for WebRTC & Fallback Audio
+  const [currentUid, setCurrentUid] = useState<string>(() => {
+    const sessionSuffix = sessionStorage.getItem('bin_aoun_voice_session') || Math.floor(1000 + Math.random() * 9000).toString();
+    sessionStorage.setItem('bin_aoun_voice_session', sessionSuffix);
+    
+    if (auth.currentUser?.uid) {
+      return `${auth.currentUser.uid}_${sessionSuffix}`;
+    }
+    if (user?.email) {
+      return `u_${user.email.replace(/[^a-zA-Z0-9]/g, '_')}_${sessionSuffix}`;
+    }
+    return `user_temp_${sessionSuffix}`;
+  });
+
+  // Keep currentUid updated if Firebase Auth completes late
+  useEffect(() => {
+    const sessionSuffix = sessionStorage.getItem('bin_aoun_voice_session') || Math.floor(1000 + Math.random() * 9000).toString();
+    sessionStorage.setItem('bin_aoun_voice_session', sessionSuffix);
+    
+    if (auth.currentUser?.uid) {
+      setCurrentUid(`${auth.currentUser.uid}_${sessionSuffix}`);
+    } else if (user?.email) {
+      setCurrentUid(`u_${user.email.replace(/[^a-zA-Z0-9]/g, '_')}_${sessionSuffix}`);
+    }
+  }, [user?.email, auth.currentUser]);
+
   // Mode Selector: 'text' (written forums) | 'voice' (interactive voice chats)
   const [discussionTab, setDiscussionTab] = useState<'text' | 'voice'>('text');
   
@@ -424,7 +450,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
       
-      const currentUid = auth.currentUser?.uid || 'user_' + Date.now();
       const currentUserName = user?.username || 'طالب مستخدم';
       
       recorder.ondataavailable = async (e) => {
@@ -628,7 +653,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   useEffect(() => {
     if (!activeVoiceRoom) return;
     
-    const currentUid = auth.currentUser?.uid || '';
     const joinTime = Date.now() - 3000; // Only play audio created *after* we joined, minus 3s margin
     
     const packetsColl = collection(db, 'voice_rooms', activeVoiceRoom, 'audio_packets');
@@ -654,13 +678,12 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       audioQueueRef.current = [];
       isPlayingQueueRef.current = false;
     };
-  }, [activeVoiceRoom]);
+  }, [activeVoiceRoom, currentUid]);
 
   // WebRTC Mesh Multi-user dynamic signaling over Firestore
   useEffect(() => {
     if (!activeVoiceRoom) return;
     
-    const currentUid = auth.currentUser?.uid || 'user_' + Date.now();
     const currentUserName = user?.username || 'طالب مستخدم';
     const signalingColl = collection(db, 'voice_rooms', activeVoiceRoom, 'signaling');
     
@@ -855,7 +878,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       clearTimeout(timer);
       unsubscribeSignaling();
     };
-  }, [activeVoiceRoom, rooms, audioStream]);
+  }, [activeVoiceRoom, rooms, audioStream, currentUid]);
 
   // Handle posting a written discussion message
   const handlePostMessage = async (e: React.FormEvent) => {
@@ -956,7 +979,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
 
   // Join a Real-time Voice Chat Room
   const handleJoinVoiceRoom = async (room: VoiceRoom) => {
-    const currentUid = auth.currentUser?.uid || 'user_' + Date.now();
     const currentUserName = user?.username || 'طالب مستخدم';
     const avatar = user?.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUserName)}&backgroundColor=1b365d,c9a24a`;
 
@@ -1007,8 +1029,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   const handleLeaveVoiceRoom = async (roomIdToLeave?: string) => {
     const targetRoomId = roomIdToLeave || activeVoiceRoom;
     if (!targetRoomId) return;
-
-    const currentUid = auth.currentUser?.uid || 'user_';
 
     // Stop all active dialogs/audios immediately
     stopAllActiveAudio();
@@ -1062,7 +1082,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
 
-      const currentUid = auth.currentUser?.uid || 'user_';
       let lastSpeakingState = false;
 
       audioIntervalRef.current = setInterval(async () => {
@@ -1107,7 +1126,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   // Toggle headphones deafen / listen to others
   const toggleDeafen = async () => {
     if (!activeVoiceRoom) return;
-    const currentUid = auth.currentUser?.uid || 'user_';
     const nextDeafenState = !isDeafened;
     
     setIsDeafened(nextDeafenState);
@@ -1159,7 +1177,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   // Toggle microphone mute/unmute
   const toggleMute = async () => {
     if (!activeVoiceRoom) return;
-    const currentUid = auth.currentUser?.uid || 'user_';
     // If we're deafened, unmuting the mic will undeafen us too
     let nextDeafenState = isDeafened;
     const nextMuteState = !isMuted;

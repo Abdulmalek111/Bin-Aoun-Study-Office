@@ -190,6 +190,18 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn();
       allow delete: if isAdmin();
+
+      // Audio packets subcollection
+      match /audio_packets/{packetId} {
+        allow get, list, create: if isSignedIn();
+        allow update, delete: if isSignedIn();
+      }
+
+      // Signaling subcollection
+      match /signaling/{signalId} {
+        allow get, list, create, update: if isSignedIn();
+        allow delete: if isSignedIn();
+      }
     }
   }
 }

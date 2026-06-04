@@ -242,6 +242,36 @@
         }
       },
       "required": ["id", "title", "activeParticipants", "createdAt"]
+    },
+    "AudioPacket": {
+      "title": "AudioPacket",
+      "description": "A slice of fallback audio recorded by a participant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "audioBase64": { "type": "string" },
+        "timestamp": { "type": "integer" }
+      },
+      "required": ["id", "senderUid", "senderName", "audioBase64", "timestamp"]
+    },
+    "WebRtcSignaling": {
+      "title": "WebRtcSignaling",
+      "description": "WebRTC multi-directional mesh negotiation channel.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "callerUid": { "type": "string" },
+        "calleeUid": { "type": "string" },
+        "status": { "type": "string", "enum": ["offered", "answered"] },
+        "offer": { "type": "object" },
+        "answer": { "type": "object" },
+        "candidates_caller": { "type": "array" },
+        "candidates_callee": { "type": "array" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["id", "callerUid", "calleeUid", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -252,6 +282,14 @@
     "voice_rooms/{roomId}": {
       "schema": "VoiceRoom",
       "description": "Real-time educational voice chat discussions rooms."
+    },
+    "voice_rooms/{roomId}/audio_packets/{packetId}": {
+      "schema": "AudioPacket",
+      "description": "Real-time voice recordings subcollection."
+    },
+    "voice_rooms/{roomId}/signaling/{signalId}": {
+      "schema": "WebRtcSignaling",
+      "description": "WebRTC mesh connection handshakes subcollection."
     },
     "subject_lectures/{subjectId}": {
       "schema": "SubjectLectures",
