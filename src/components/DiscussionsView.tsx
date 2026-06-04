@@ -9,7 +9,7 @@ import SubjectIcon from './SubjectIcon';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, 
-  query, getDocs 
+  query, getDocs, arrayUnion 
 } from 'firebase/firestore';
 
 interface DiscussionsViewProps {
@@ -348,12 +348,141 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   
+  // WebRTC Multi-peer & Fallback Audio System References
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const remoteAudiosRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const mediaRecorderRef = useRef<any>(null);
+  const audioQueueRef = useRef<string[]>([]);
+  const isPlayingQueueRef = useRef<boolean>(false);
+
+  // Helper helper to format blob to base64
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Safe and synchronized sequential playing queue for fallback audio chunks
+  const playNextInQueue = () => {
+    if (audioQueueRef.current.length === 0) {
+      isPlayingQueueRef.current = false;
+      return;
+    }
+    if (isDeafenedRef.current) {
+      audioQueueRef.current = [];
+      isPlayingQueueRef.current = false;
+      return;
+    }
+    
+    isPlayingQueueRef.current = true;
+    const nextSrc = audioQueueRef.current.shift()!;
+    
+    try {
+      const aud = new Audio(nextSrc);
+      aud.volume = 1.0;
+      aud.play().then(() => {
+        aud.onended = () => {
+          playNextInQueue();
+        };
+      }).catch((err) => {
+        console.warn("Queue audio track rejected by browser audio stream policies:", err);
+        setTimeout(playNextInQueue, 300);
+      });
+    } catch (e) {
+      console.warn("Queue player exception:", e);
+      setTimeout(playNextInQueue, 300);
+    }
+  };
+
+  const queueAudio = (base64src: string) => {
+    if (isDeafenedRef.current) return;
+    audioQueueRef.current.push(base64src);
+    if (!isPlayingQueueRef.current) {
+      playNextInQueue();
+    }
+  };
+
+  // Push to talk automatic voice slice transmitter (fallback audio system)
+  const startRecordingAudioPackets = (stream: MediaStream) => {
+    try {
+      stopRecordingAudioPackets();
+      
+      let mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/ogg';
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = ''; // fallback
+      }
+      
+      const options = mimeType ? { mimeType } : undefined;
+      const recorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = recorder;
+      
+      const currentUid = auth.currentUser?.uid || 'user_' + Date.now();
+      const currentUserName = user?.username || 'طالب مستخدم';
+      
+      recorder.ondataavailable = async (e) => {
+        if (e.data && e.data.size > 0 && activeVoiceRoom && !isMuted) {
+          try {
+            const base64 = await blobToBase64(e.data);
+            if (base64 && base64.length > 200) {
+              const packetsColl = collection(db, 'voice_rooms', activeVoiceRoom, 'audio_packets');
+              const packetId = `${currentUid}_${Date.now()}`;
+              await setDoc(doc(packetsColl, packetId), {
+                id: packetId,
+                senderUid: currentUid,
+                senderName: currentUserName,
+                audioBase64: base64,
+                timestamp: Date.now()
+              });
+            }
+          } catch (err) {
+            console.warn("Error uploading fallback audio packet:", err);
+          }
+        }
+      };
+      
+      // Request chunks every 1.5s for seamless interactive experience
+      recorder.start(1500);
+      console.log("[Voice Engine] Instant micro audio packet recorder started successfully");
+    } catch (e) {
+      console.warn("Failed to initiate audio packets recording fallback:", e);
+    }
+  };
+
+  const stopRecordingAudioPackets = () => {
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e){}
+      mediaRecorderRef.current = null;
+    }
+  };
+  
   const isDeafenedRef = useRef(false);
   useEffect(() => {
     isDeafenedRef.current = isDeafened;
     globalIsDeafened = isDeafened;
     if (isDeafened) {
       stopAllActiveAudio();
+      audioQueueRef.current = [];
+      isPlayingQueueRef.current = false;
+      remoteAudiosRef.current.forEach((aud) => {
+        aud.volume = 0;
+      });
+    } else {
+      remoteAudiosRef.current.forEach((aud) => {
+        aud.volume = 1.0;
+        aud.play().catch(() => {});
+      });
     }
   }, [isDeafened]);
   
@@ -468,6 +597,265 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       stopAllActiveAudio();
     };
   }, [activeVoiceRoom]);
+
+  // Close and clean up all WebRTC peer connections on exit or change
+  useEffect(() => {
+    return () => {
+      stopRecordingAudioPackets();
+      // Clean up peer connections
+      const pcs = peerConnectionsRef.current;
+      pcs.forEach((pc) => {
+        try {
+          pc.close();
+        } catch (e) {}
+      });
+      pcs.clear();
+      
+      // Clean up remote audio elements
+      const auds = remoteAudiosRef.current;
+      auds.forEach((aud) => {
+        try {
+          aud.pause();
+          aud.srcObject = null;
+          aud.remove();
+        } catch (e) {}
+      });
+      auds.clear();
+    };
+  }, [activeVoiceRoom]);
+
+  // Listen for fall-back audio packets from other users in the same room
+  useEffect(() => {
+    if (!activeVoiceRoom) return;
+    
+    const currentUid = auth.currentUser?.uid || '';
+    const joinTime = Date.now() - 3000; // Only play audio created *after* we joined, minus 3s margin
+    
+    const packetsColl = collection(db, 'voice_rooms', activeVoiceRoom, 'audio_packets');
+    
+    const unsubscribe = onSnapshot(packetsColl, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          if (data && data.senderUid !== currentUid && data.timestamp > joinTime) {
+            if (data.audioBase64) {
+              queueAudio(data.audioBase64);
+            }
+          }
+        }
+      });
+    }, (err) => {
+      console.warn("Error subscribing to fallback audio packets:", err);
+    });
+    
+    return () => {
+      unsubscribe();
+      // Clear queue on room exit
+      audioQueueRef.current = [];
+      isPlayingQueueRef.current = false;
+    };
+  }, [activeVoiceRoom]);
+
+  // WebRTC Mesh Multi-user dynamic signaling over Firestore
+  useEffect(() => {
+    if (!activeVoiceRoom) return;
+    
+    const currentUid = auth.currentUser?.uid || 'user_' + Date.now();
+    const currentUserName = user?.username || 'طالب مستخدم';
+    const signalingColl = collection(db, 'voice_rooms', activeVoiceRoom, 'signaling');
+    
+    const peerConnections = peerConnectionsRef.current;
+    
+    const getOrCreatePeerConnection = (peerUid: string, peerName: string) => {
+      if (peerConnections.has(peerUid)) {
+        return peerConnections.get(peerUid)!;
+      }
+      
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+      });
+      
+      peerConnections.set(peerUid, pc);
+      
+      // Add local audio tracks if we have them, otherwise configure receive-only
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => {
+          pc.addTrack(track, audioStream);
+        });
+      } else {
+        try {
+          pc.addTransceiver('audio', { direction: 'recvonly' });
+        } catch (e) {
+          console.warn("Failed to add receiver transceiver:", e);
+        }
+      }
+      
+      pc.ontrack = (event) => {
+        console.log(`[WebRTC] Received remote stream track from peer: ${peerUid} (${peerName})`);
+        const remoteStream = event.streams[0];
+        if (remoteStream) {
+          let audioEl = remoteAudiosRef.current.get(peerUid);
+          if (!audioEl) {
+            audioEl = document.createElement('audio');
+            audioEl.autoplay = true;
+            audioEl.id = `audio_peer_${peerUid}`;
+            document.body.appendChild(audioEl);
+            remoteAudiosRef.current.set(peerUid, audioEl);
+          }
+          audioEl.srcObject = remoteStream;
+          audioEl.volume = globalIsDeafened ? 0 : 1.0;
+          audioEl.play().catch(e => {
+            console.warn("Autoplay block on WebRTC remote play", e);
+          });
+        }
+      };
+      
+      pc.onicecandidate = async (event) => {
+        if (event.candidate) {
+          try {
+            const isCaller = currentUid < peerUid;
+            const signalDocId = isCaller ? `${currentUid}_${peerUid}` : `${peerUid}_${currentUid}`;
+            const candidateData = event.candidate.toJSON();
+            const ref = doc(signalingColl, signalDocId);
+            const candKey = isCaller ? 'candidates_caller' : 'candidates_callee';
+            
+            await updateDoc(ref, {
+              [candKey]: arrayUnion(candidateData)
+            }).catch(async () => {
+              await setDoc(ref, {
+                [candKey]: [candidateData]
+              }, { merge: true });
+            });
+          } catch (ex) {}
+        }
+      };
+      
+      return pc;
+    };
+    
+    const unsubscribeSignaling = onSnapshot(signalingColl, async (snapshot) => {
+      for (const d of snapshot.docs) {
+        const data = d.data();
+        const docId = d.id;
+        
+        if (!docId.includes(currentUid)) continue;
+        
+        const parts = docId.split('_');
+        const callerUid = parts[0];
+        const calleeUid = parts[1];
+        
+        const isCaller = currentUid === callerUid;
+        const peerUid = isCaller ? calleeUid : callerUid;
+        
+        const peerInRoom = rooms.find(r => r.id === activeVoiceRoom)
+          ?.activeParticipants?.some(p => p.uid === peerUid);
+          
+        if (!peerInRoom) continue;
+        
+        const pc = getOrCreatePeerConnection(peerUid, 'زميل مجهول');
+        
+        if (isCaller) {
+          if (data.status === 'answered' && data.answer && pc.signalingState === 'have-local-offer') {
+            try {
+              await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+              console.log(`[WebRTC] Set remote answer for callee: ${peerUid}`);
+              
+              if (data.candidates_callee && Array.isArray(data.candidates_callee)) {
+                for (const cand of data.candidates_callee) {
+                  await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+                }
+              }
+            } catch (err) {
+              console.warn("Error setting remote description for answer:", err);
+            }
+          }
+        } else {
+          if (data.status === 'offered' && data.offer && pc.signalingState === 'stable') {
+            try {
+              await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+              console.log(`[WebRTC] Received offer from caller: ${peerUid}`);
+              
+              if (data.candidates_caller && Array.isArray(data.candidates_caller)) {
+                for (const cand of data.candidates_caller) {
+                  await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+                }
+              }
+              
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              
+              await updateDoc(doc(signalingColl, docId), {
+                answer: { type: answer.type, sdp: answer.sdp },
+                status: 'answered'
+              });
+              
+            } catch (err) {
+              console.warn("Error setting remote offer / sending answer:", err);
+            }
+          }
+        }
+        
+        if (pc.remoteDescription) {
+          const freshCands = isCaller ? data.candidates_callee : data.candidates_caller;
+          if (freshCands && Array.isArray(freshCands)) {
+            for (const cand of freshCands) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+              } catch (e) {}
+            }
+          }
+        }
+      }
+    });
+    
+    const activeRoomParticipants = rooms.find(r => r.id === activeVoiceRoom)?.activeParticipants || [];
+    
+    const initiateCallOffers = async () => {
+      for (const peer of activeRoomParticipants) {
+        if (peer.uid === currentUid) continue;
+        
+        const isCaller = currentUid < peer.uid;
+        if (isCaller) {
+          const pc = getOrCreatePeerConnection(peer.uid, peer.username);
+          
+          if (pc.signalingState === 'stable') {
+            try {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              
+              const signalDocId = `${currentUid}_${peer.uid}`;
+              await setDoc(doc(signalingColl, signalDocId), {
+                id: signalDocId,
+                offer: { type: offer.type, sdp: offer.sdp },
+                callerUid: currentUid,
+                calleeUid: peer.uid,
+                status: 'offered',
+                candidates_caller: [],
+                candidates_callee: [],
+                createdAt: Date.now()
+              });
+              console.log(`[WebRTC] Created connection offer for callee: ${peer.username}`);
+            } catch (err) {
+              console.warn("Failed to create offer for peer:", peer.uid, err);
+            }
+          }
+        }
+      }
+    };
+    
+    const timer = setTimeout(() => {
+      initiateCallOffers();
+    }, 1500);
+    
+    return () => {
+      clearTimeout(timer);
+      unsubscribeSignaling();
+    };
+  }, [activeVoiceRoom, rooms, audioStream]);
 
   // Handle posting a written discussion message
   const handlePostMessage = async (e: React.FormEvent) => {
@@ -626,6 +1014,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     stopAllActiveAudio();
 
     // Disconnect stream
+    stopRecordingAudioPackets();
     if (audioStream) {
       audioStream.getTracks().forEach(track => track.stop());
       setAudioStream(null);
@@ -782,6 +1171,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
 
     // cleanup stream if muted
     if (nextMuteState) {
+      stopRecordingAudioPackets();
       if (audioStream) {
         audioStream.getTracks().forEach(track => track.stop());
         setAudioStream(null);
@@ -823,6 +1213,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         setAudioStream(stream);
         startMicAnalysis(stream);
+        startRecordingAudioPackets(stream);
       } catch (err) {
         console.warn("Microphone blocked or running in an iframe sandboxed environment. Degrading to fluid live sound simulation...", err);
         // Fallback simulation triggers nicely inside pre-rendered workspace preview
