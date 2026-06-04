@@ -152,6 +152,38 @@ export default function StudentsView({
     }
   }, [propChatUser, students]);
 
+  // Synchronize dynamic activeCallId from Parent Component (e.g. if accepted globally)
+  useEffect(() => {
+    if (propCallId && (!activeCall || activeCall.id !== propCallId)) {
+      activeCallIdRef.current = propCallId;
+      const docRef = doc(db, 'private_calls', propCallId);
+      const unsub = onSnapshot(docRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const callData = snapshot.data() as ActiveCall;
+          setActiveCall(callData);
+          setIsCalling(true);
+
+          if (callData.status === 'accepted' && !localAudioStream) {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+              localStreamRef.current = stream;
+              setLocalAudioStream(stream);
+            }).catch((err) => {
+              console.warn("Failed getting stream for synced accepted call:", err);
+            });
+          }
+        } else {
+          setActiveCall(null);
+          setIsCalling(false);
+          setLocalAudioStream(null);
+        }
+      }, (err) => {
+        console.warn("Failed listening to synced call doc:", err);
+      });
+
+      return () => unsub();
+    }
+  }, [propCallId, activeCall, localAudioStream]);
+
   // Unlock background Web Audio policy unblocked gesture helper
   const unlockAudioEngine = () => {
     try {
@@ -265,7 +297,8 @@ export default function StudentsView({
         id: chatDocId,
         participants: [currentUid, selectedChatUser.uid],
         lastMessage: text,
-        lastMessageAt: Date.now()
+        lastMessageAt: Date.now(),
+        lastSenderUid: currentUid
       }, { merge: true });
 
     } catch (err) {
