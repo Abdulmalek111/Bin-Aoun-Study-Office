@@ -272,12 +272,68 @@
         "createdAt": { "type": "integer" }
       },
       "required": ["id", "callerUid", "calleeUid", "status", "createdAt"]
+    },
+    "PrivateChat": {
+      "title": "PrivateChat",
+      "description": "Private direct chat channel between two students.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array" },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "integer" }
+      },
+      "required": ["id", "participants"]
+    },
+    "PrivateMessage": {
+      "title": "PrivateMessage",
+      "description": "A single private text message sent between students.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "integer" }
+      },
+      "required": ["id", "senderUid", "senderName", "content", "timestamp"]
+    },
+    "PrivateCall": {
+      "title": "PrivateCall",
+      "description": "A 1-on-1 private voice call between two students.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "callerUid": { "type": "string" },
+        "callerName": { "type": "string" },
+        "calleeUid": { "type": "string" },
+        "calleeName": { "type": "string" },
+        "status": { "type": "string", "enum": ["calling", "ringing", "accepted", "declined", "ended"] },
+        "createdAt": { "type": "integer" },
+        "offer": { "type": "object" },
+        "answer": { "type": "object" },
+        "callerCandidates": { "type": "array" },
+        "calleeCandidates": { "type": "array" }
+      },
+      "required": ["id", "callerUid", "callerName", "calleeUid", "calleeName", "status", "createdAt"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "User profiles database."
+    },
+    "private_chats/{chatId}": {
+      "schema": "PrivateChat",
+      "description": "Private direct chat collections between students."
+    },
+    "private_chats/{chatId}/messages/{messageId}": {
+      "schema": "PrivateMessage",
+      "description": "Subcollection containing private messages sent inside a private chat."
+    },
+    "private_calls/{callId}": {
+      "schema": "PrivateCall",
+      "description": "Private 1-on-1 voice calling sessions between students."
     },
     "voice_rooms/{roomId}": {
       "schema": "VoiceRoom",

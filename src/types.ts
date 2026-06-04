@@ -14,6 +14,7 @@ export interface User {
   academicSemester?: string; // فصل أول, فصل ثاني
   academicTrack?: string; // علمي, أدبي
   balance?: number; // رصيد المحفظة المالي للطالب
+  studentId?: string; // المعرف الفريد للطالب المبتدئ بـ bin_
 }
 
 export interface Subject {
@@ -43,7 +44,7 @@ export interface Exam {
   timeSlot: string;
 }
 
-export type TabType = 'home' | 'exams' | 'subjects' | 'profile' | 'discussions' | 'admin';
+export type TabType = 'home' | 'exams' | 'subjects' | 'profile' | 'discussions' | 'students' | 'admin';
 
 export interface ChatMessage {
   id: string;

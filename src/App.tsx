@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield } from 'lucide-react';
+import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield, Users, PhoneIncoming, X, Check } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, getDoc, query, where, limit, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
@@ -19,6 +19,7 @@ import ActiveExamView from './components/ActiveExamView';
 import ProfileView from './components/ProfileView';
 import DiscussionsView from './components/DiscussionsView';
 import AdminDashboard from './components/AdminDashboard';
+import StudentsView, { getBinStudentId } from './components/StudentsView';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -31,6 +32,11 @@ export default function App() {
     const saved = localStorage.getItem('school_dark_mode');
     return saved !== 'false';
   });
+
+  // Students Private Chat and Call session states
+  const [activeCallId, setActiveCallId] = useState<string | null>(null);
+  const [activeChatUser, setActiveChatUser] = useState<User | null>(null);
+  const [globalIncomingCall, setGlobalIncomingCall] = useState<any>(null);
 
   // Technical Support Tickets state
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
@@ -286,6 +292,49 @@ export default function App() {
       }
     }
   }, [user]);
+
+  // Auto-resolve custom Student ID starting with 'bin'
+  useEffect(() => {
+    if (user && auth.currentUser) {
+      const computedBinId = getBinStudentId(auth.currentUser.uid);
+      if (!user.studentId || user.studentId !== computedBinId) {
+        const updated = { ...user, studentId: computedBinId };
+        setUser(updated);
+        localStorage.setItem('school_user', JSON.stringify(updated));
+        
+        // Save to Firestore background-style
+        setDoc(doc(db, 'users', auth.currentUser.uid), {
+          studentId: computedBinId
+        }, { merge: true }).catch(err => {
+          console.warn("Failed background syncing student ID prefix:", err);
+        });
+      }
+    }
+  }, [user]);
+
+  // Monitor incoming calls globally across other tabs
+  useEffect(() => {
+    if (!user || !auth.currentUser || activeTab === 'students') {
+      setGlobalIncomingCall(null);
+      return;
+    }
+    const currentUid = auth.currentUser.uid;
+    const q = query(collection(db, 'private_calls'), where('calleeUid', '==', currentUid), limit(1));
+    const unsub = onSnapshot(q, (snapshot) => {
+      let foundCall = false;
+      snapshot.forEach((docSnap) => {
+        const call = docSnap.data();
+        if (call.status === 'calling' || call.status === 'ringing') {
+          setGlobalIncomingCall(call);
+          foundCall = true;
+        }
+      });
+      if (!foundCall) setGlobalIncomingCall(null);
+    }, (err) => {
+      console.warn("Global incoming private call scan bypassed:", err);
+    });
+    return () => unsub();
+  }, [user, activeTab]);
 
   // Real-time Cloud Database sync via Firestore subscriptions
   useEffect(() => {
@@ -824,6 +873,18 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('students')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
+                    activeTab === 'students' 
+                      ? 'bg-brand-gold text-brand-dark shadow-md shadow-brand-gold/10 font-black' 
+                      : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <Users size={15} />
+                  <span>دليل الطُلاب والدردشة</span>
+                </button>
+
+                <button
                   onClick={() => setActiveTab('exams')}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-right font-black text-xs cursor-pointer ${
                     activeTab === 'exams' 
@@ -946,6 +1007,17 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'students' && (
+                <StudentsView
+                  user={user}
+                  onNavigateToTab={setActiveTab}
+                  activeCallId={activeCallId}
+                  setActiveCallId={setActiveCallId}
+                  activeChatUser={activeChatUser}
+                  setActiveChatUser={setActiveChatUser}
+                />
+              )}
+
               {activeTab === 'exams' && (
                 <ExamsView
                   exams={initialExams}
@@ -1034,6 +1106,17 @@ export default function App() {
               <span className="text-[10px]">المناقشات</span>
             </button>
 
+            {/* Students tab button */}
+            <button
+              onClick={() => setActiveTab('students')}
+              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                activeTab === 'students' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
+              }`}
+            >
+              <Users size={20} className={activeTab === 'students' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
+              <span className="text-[10px]">الزملاء</span>
+            </button>
+
             {/* Exams tab button */}
             <button
               onClick={() => setActiveTab('exams')}
@@ -1057,6 +1140,59 @@ export default function App() {
             </button>
 
           </nav>
+        )}
+
+        {/* Global Passive Ringing floating notifier */}
+        {globalIncomingCall && (
+          <div className="fixed bottom-20 sm:bottom-24 left-4 right-4 sm:left-auto sm:right-6 sm:w-80 bg-white border border-gray-150 rounded-2xl p-4 shadow-2xl z-50 flex items-center justify-between gap-3 animate-bounce select-none" dir="rtl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center animate-pulse shrink-0">
+                <PhoneIncoming size={20} />
+              </div>
+              <div className="text-right min-w-0">
+                <h4 className="font-extrabold text-xs text-gray-800 truncate">مكالمة واردة ومباشرة</h4>
+                <p className="text-[10px] text-gray-500 font-bold truncate mt-0.5">الزميل {globalIncomingCall.callerName}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button 
+                onClick={async () => {
+                  // Accept and redirect to students tab
+                  const coll = collection(db, 'users');
+                  const dRef = doc(db, 'users', globalIncomingCall.callerUid);
+                  try {
+                    const docS = await getDoc(dRef);
+                    if (docS.exists()) {
+                      setActiveChatUser({ ...docS.data(), uid: docS.id } as any);
+                    }
+                  } catch (e) {}
+                  setActiveCallId(globalIncomingCall.id);
+                  setActiveTab('students');
+                }}
+                className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm shadow-emerald-500/10"
+                title="الرد على المكالمة"
+              >
+                <Check size={14} className="stroke-[2.5]" />
+              </button>
+              
+              <button 
+                onClick={async () => {
+                  try {
+                    await updateDoc(doc(db, 'private_calls', globalIncomingCall.id), { status: 'declined' });
+                    setTimeout(async () => {
+                      await deleteDoc(doc(db, 'private_calls', globalIncomingCall.id)).catch(() => {});
+                    }, 1000);
+                  } catch (e) {}
+                  setGlobalIncomingCall(null);
+                }}
+                className="p-2 bg-red-100 hover:bg-red-500 hover:text-white rounded-xl text-red-500 transition-all cursor-pointer"
+                title="رفض"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
         )}
 
       </div>

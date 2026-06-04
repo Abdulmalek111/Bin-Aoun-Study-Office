@@ -89,8 +89,8 @@ service cloud.firestore {
 
     // User Profiles Match Block
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
       allow update: if (
         isOwner(userId) && isValidUser(request.resource.data) && (
@@ -98,7 +98,7 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'username', 'avatarUrl', 'telegram', 'isLoggedIn',
             'academicStage', 'academicYear', 'academicSemester', 'academicTrack',
-            'scorePct', 'completedCount', 'signUpDate'
+            'scorePct', 'completedCount', 'signUpDate', 'studentId'
           ])
         )
       ) || isAdmin();
@@ -110,6 +110,25 @@ service cloud.firestore {
         allow create, update: if isOwner(userId) && isValidExamResult(request.resource.data);
         allow delete: if isAdmin();
       }
+    }
+
+    // Private Chats Match Block
+    match /private_chats/{chatId} {
+      allow get: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+      allow create, update: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+        allow create: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid) ;
+        allow update, delete: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+      }
+    }
+
+    // Private 1-on-1 Calls Match Block
+    match /private_calls/{callId} {
+      allow get, list: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      allow create, update: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      allow delete: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
     }
 
     // Technical Support Tickets Match Block
