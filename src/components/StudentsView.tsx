@@ -330,10 +330,7 @@ export default function StudentsView({
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64data = reader.result as string;
-        // Strip out metadata head
-        const base = base64data.substring(base64data.indexOf(',') + 1);
-        resolve(base);
+        resolve(reader.result as string);
       };
       reader.onerror = reject;
       reader.readAsDataURL(blob);
@@ -531,22 +528,50 @@ export default function StudentsView({
 
       const nextBase64 = audioQueueRef.current.shift();
       if (nextBase64) {
-        try {
-          const audioSrc = `data:audio/webm;base64,${nextBase64}`;
-          const aud = new Audio(audioSrc);
-          aud.volume = 1.0;
-          await aud.play();
-          
-          aud.onended = () => {
-            run();
-          };
-          aud.onerror = () => {
-            // Fallback try next right away
-            run();
-          };
-        } catch (err) {
-          // Playback blocked or decode error, proceed
+        let played = false;
+        let timeoutId: any = null;
+        let aud: HTMLAudioElement | null = null;
+        
+        const cleanupAndRunNext = () => {
+          if (played) return;
+          played = true;
+          if (timeoutId) clearTimeout(timeoutId);
+          if (aud) {
+            aud.onended = null;
+            aud.onerror = null;
+            try {
+              aud.pause();
+            } catch (e) {}
+            aud = null;
+          }
           run();
+        };
+
+        try {
+          const audioSrc = nextBase64.startsWith('data:') 
+            ? nextBase64 
+            : `data:audio/webm;base64,${nextBase64}`;
+          
+          aud = new Audio(audioSrc);
+          aud.volume = 1.0;
+          
+          timeoutId = setTimeout(() => {
+            console.warn("[Voice Engine] Playback timeout safety trigger in private chat.");
+            cleanupAndRunNext();
+          }, 2500); // Private chunks are 1s, 2.5s is safe
+
+          aud.onended = () => {
+            cleanupAndRunNext();
+          };
+
+          aud.onerror = () => {
+            console.warn("[Voice Engine] Audio track error in private chat.");
+            cleanupAndRunNext();
+          };
+
+          await aud.play();
+        } catch (err) {
+          cleanupAndRunNext();
         }
       } else {
         run();
