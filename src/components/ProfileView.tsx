@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield, Send, ArrowRight, MessageSquare, Lock } from 'lucide-react';
 import { User as UserType, SupportTicket, ChatMessage } from '../types';
 import AdminDashboard from './AdminDashboard';
+import AudioService from '../lib/audioService';
 
 interface ProfileViewProps {
   user: UserType;
@@ -111,6 +112,11 @@ export default function ProfileView({
   const [notifExam, setNotifExam] = useState(true);
   const [notifLectures, setNotifLectures] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Audio Notification Settings
+  const [soundEnabled, setSoundEnabled] = useState(() => AudioService.isSoundEnabled('bin_aoun_sound_alerts_enabled'));
+  const [examSoundEnabled, setExamSoundEnabled] = useState(() => AudioService.isSoundEnabled('bin_aoun_sound_exam_enabled'));
+  const [soundVolume, setSoundVolume] = useState(() => AudioService.getVolume());
 
   const handleSaveAccount = (e: React.FormEvent) => {
     e.preventDefault();
@@ -558,7 +564,7 @@ export default function ProfileView({
 
           {/* Notifications Subview */}
           {activeSubSection === 'notifications' && (
-            <div className="space-y-3.5 text-xs">
+            <div className="space-y-4 text-xs">
               <label className="flex items-center justify-between cursor-pointer">
                 <span className="font-semibold text-gray-600">تنبيهات اقتراب موعد الاختبارات</span>
                 <input 
@@ -568,7 +574,8 @@ export default function ProfileView({
                   className="rounded text-brand-gold focus:ring-brand-gold h-4 w-4"
                 />
               </label>
-              <label className="flex items-center justify-between cursor-pointer">
+
+              <label className="flex items-center justify-between cursor-pointer pb-2.5 border-b border-gray-100">
                 <span className="font-semibold text-gray-600">إشعارات رفع مذكرات أو غرف نقاش جديدة</span>
                 <input 
                   type="checkbox" 
@@ -577,6 +584,84 @@ export default function ProfileView({
                   className="rounded text-brand-gold focus:ring-brand-gold h-4 w-4"
                 />
               </label>
+
+              {/* Custom Audio Alert Controls */}
+              <div className="space-y-3.5 pt-2 text-right">
+                <h5 className="font-bold text-xs text-brand-blue flex items-center gap-1.5 justify-end">
+                  <span>⚙️ نظام التنبيهات والأصوات التفاعلية بالمنصة</span>
+                </h5>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-semibold text-gray-600">تشغيل تنبيه صوتي عند تلقي رسائل دردشة جديدة</span>
+                  <input 
+                    type="checkbox" 
+                    checked={soundEnabled} 
+                    onChange={(e) => {
+                      const val = e.target.checked;
+                      setSoundEnabled(val);
+                      AudioService.setSoundEnabled('bin_aoun_sound_alerts_enabled', val);
+                    }} 
+                    className="rounded text-brand-gold focus:ring-brand-gold h-4 w-4"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-semibold text-gray-600">تشغيل تنبيه مخصص عند بدء اختبار أو كويز</span>
+                  <input 
+                    type="checkbox" 
+                    checked={examSoundEnabled} 
+                    onChange={(e) => {
+                      const val = e.target.checked;
+                      setExamSoundEnabled(val);
+                      AudioService.setSoundEnabled('bin_aoun_sound_exam_enabled', val);
+                    }} 
+                    className="rounded text-brand-gold focus:ring-brand-gold h-4 w-4"
+                  />
+                </label>
+
+                {/* Sound Volume Slider */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between text-[11px] font-bold text-gray-650">
+                    <span className="font-mono text-brand-blue">{Math.round(soundVolume * 100)}%</span>
+                    <span>التحكم في مستوى درجة الصوت للتنبيهات 🔊</span>
+                  </div>
+                  <input 
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={soundVolume}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setSoundVolume(val);
+                      AudioService.setVolume(val);
+                    }}
+                    className="w-full accent-brand-gold cursor-pointer bg-gray-200 rounded-lg appearance-none h-1.5"
+                  />
+                </div>
+
+                {/* Direct audio test simulation buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      AudioService.playMessageSound();
+                    }}
+                    className="px-3 py-2 bg-gradient-to-l from-slate-100 to-gray-50 border border-gray-250/20 text-gray-750 hover:bg-gray-150 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <span>💬 تجربة صوت الرسائل</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      AudioService.playExamStartSound();
+                    }}
+                    className="px-3 py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <span>🎯 تجربة صوت بدء الاختبار</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

@@ -11,6 +11,7 @@ import {
   collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, 
   query, getDocs, arrayUnion 
 } from 'firebase/firestore';
+import AudioService from '../lib/audioService';
 
 interface DiscussionsViewProps {
   subjects: Subject[];
@@ -565,6 +566,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
 
   // Synchronise with Firestore 'discussions' collection in Real-time
   useEffect(() => {
+    let isFirstLoad = true;
     const collRef = collection(db, 'discussions');
     const unsubscribe = onSnapshot(collRef, async (snapshot) => {
       let items: ForumMessage[] = [];
@@ -601,8 +603,26 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
           console.error("Failed to seed initial forum items in Firestore:", error);
         }
       } else {
+        // play alert sound on added message if not first loading and message is not from current user
+        let hasNewAdded = false;
+        if (!isFirstLoad) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const msgData = change.doc.data();
+              if (user && msgData.authorName !== user.username) {
+                hasNewAdded = true;
+              }
+            }
+          });
+        }
+        isFirstLoad = false;
+
         items.sort((a, b) => b.id.localeCompare(a.id));
         setMessages(items);
+
+        if (hasNewAdded) {
+          AudioService.playMessageSound();
+        }
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'discussions');

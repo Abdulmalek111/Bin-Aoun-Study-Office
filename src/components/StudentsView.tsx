@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { User } from '../types';
+import AudioService from '../lib/audioService';
 import { 
   MessageSquare, 
   Phone, 
@@ -244,12 +245,31 @@ export default function StudentsView({
     // Sort messages by timestamp ascending
     const q = query(messagesColl, orderBy('timestamp', 'asc'), limit(150));
 
+    let isFirstLoadDirect = true;
     const unsub = onSnapshot(q, (snapshot) => {
       const msgs: PrivateMessage[] = [];
       snapshot.forEach((docSnap) => {
         msgs.push(docSnap.data() as PrivateMessage);
       });
+      
+      let incomingMsg = false;
+      if (!isFirstLoadDirect) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const m = change.doc.data();
+            if (m.senderUid !== currentUid) {
+              incomingMsg = true;
+            }
+          }
+        });
+      }
+      isFirstLoadDirect = false;
+
       setChatMessages(msgs);
+
+      if (incomingMsg) {
+        AudioService.playMessageSound();
+      }
     }, (err) => {
       console.warn("Permission restricted or failed fetching private messages:", err);
     });
