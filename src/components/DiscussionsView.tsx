@@ -441,50 +441,20 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     isPlayingQueueRef.current = true;
     const nextSrc = audioQueueRef.current.shift()!;
     
-    let played = false;
-    let timeoutId: any = null;
-    let aud: HTMLAudioElement | null = null;
-
-    const cleanupAndRunNext = () => {
-      if (played) return;
-      played = true;
-      if (timeoutId) clearTimeout(timeoutId);
-      if (aud) {
-        aud.onended = null;
-        aud.onerror = null;
-        try {
-          aud.pause();
-        } catch (e) {}
-        aud = null;
-      }
-      playNextInQueue();
-    };
-
     try {
-      aud = new Audio(nextSrc);
+      const aud = new Audio(nextSrc);
       aud.volume = 1.0;
-      
-      timeoutId = setTimeout(() => {
-        console.warn("[Voice Engine] Playback timeout safety trigger in voice room.");
-        cleanupAndRunNext();
-      }, 3500); // Voice room chunks are 1.5s, 3.5s wait is safe
-
-      aud.onended = () => {
-        cleanupAndRunNext();
-      };
-
-      aud.onerror = () => {
-        console.warn("[Voice Engine] Audio track error in voice room.");
-        cleanupAndRunNext();
-      };
-
-      aud.play().catch((err) => {
+      aud.play().then(() => {
+        aud.onended = () => {
+          playNextInQueue();
+        };
+      }).catch((err) => {
         console.warn("Queue audio track rejected by browser audio stream policies:", err);
-        cleanupAndRunNext();
+        setTimeout(playNextInQueue, 300);
       });
     } catch (e) {
       console.warn("Queue player exception:", e);
-      cleanupAndRunNext();
+      setTimeout(playNextInQueue, 300);
     }
   };
 
