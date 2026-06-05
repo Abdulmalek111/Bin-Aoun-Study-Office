@@ -48,6 +48,27 @@ interface VoiceRoom {
   activeParticipants: VoiceParticipant[];
 }
 
+const PERMANENT_ROOMS: Omit<VoiceRoom, 'activeParticipants'>[] = [
+  {
+    id: 'room_main',
+    title: 'الديوانية الكبرى المفتوحة للنقاش العام ☕',
+    creatorName: 'إدارة الكلية',
+    createdAt: 'دائم ⭐️',
+  },
+  {
+    id: 'room_programming',
+    title: 'قاعة المراجعة لمادة البرمجة والحاسب الآلي 💻',
+    creatorName: 'أكاديمية بن عون',
+    createdAt: 'دائم ⭐️',
+  },
+  {
+    id: 'room_math',
+    title: 'مجلس حوار الرياضيات والعلوم الطبيعية 📐',
+    creatorName: 'أكاديمية بن عون',
+    createdAt: 'دائم ⭐️',
+  }
+];
+
 // Pre-seeded authentic discussion posts in Arabic based on subjects to make the environment instantly alive
 const initialForumMessages: ForumMessage[] = [
   {
@@ -731,6 +752,25 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
           activeParticipants: data.activeParticipants || []
         });
       });
+
+      // Synchronize/Preseed default permanent rooms asynchronously if they are missing in Firebase
+      const existingIds = list.map(r => r.id);
+      const missingRooms = PERMANENT_ROOMS.filter(p => !existingIds.includes(p.id));
+
+      if (missingRooms.length > 0) {
+        Promise.all(missingRooms.map(room => 
+          setDoc(doc(db, 'voice_rooms', room.id), {
+            id: room.id,
+            title: room.title,
+            creatorName: room.creatorName,
+            createdAt: room.createdAt,
+            activeParticipants: []
+          })
+        )).catch(error => {
+          console.error("Failed to seed permanent voice rooms in Firestore:", error);
+        });
+      }
+
       setRooms(list);
     }, (error) => {
       console.warn("Failed to subscribe to voice rooms collection:", error);
@@ -1309,9 +1349,17 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
         const updatedList = (targetRoom.activeParticipants || []).filter(p => p.uid !== currentUid);
         const ref = doc(db, 'voice_rooms', targetRoomId);
 
+        const isPermanent = PERMANENT_ROOMS.some(p => p.id === targetRoomId);
         if (updatedList.length === 0) {
-          // No more users. Remove room safely
-          await deleteDoc(ref);
+          if (isPermanent) {
+            // Keep permanent rooms empty but open in Firestore
+            await updateDoc(ref, {
+              activeParticipants: []
+            });
+          } else {
+            // Remove custom ephemeral user room safely
+            await deleteDoc(ref);
+          }
         } else {
           await updateDoc(ref, {
             activeParticipants: updatedList
@@ -2016,6 +2064,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
               rooms.map((room) => {
                 const isUserInsideThisRoom = activeVoiceRoom === room.id;
                 const participantsCount = room.activeParticipants?.length || 0;
+                const isPermanent = PERMANENT_ROOMS.some(p => p.id === room.id);
                 
                 return (
                   <div 
@@ -2023,18 +2072,31 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
                     className={`bg-white dark:bg-slate-900 border p-4 rounded-3xl shadow-sm transition-all duration-300 flex flex-col justify-between space-y-4 hover:shadow-md ${
                       isUserInsideThisRoom 
                         ? 'border-emerald-500 dark:border-emerald-500/40 bg-emerald-500/5' 
-                        : 'border-gray-100 dark:border-slate-850'
+                        : isPermanent
+                          ? 'border-brand-gold/30 dark:border-brand-gold/15 bg-amber-500/[0.02]'
+                          : 'border-gray-100 dark:border-slate-850'
                     }`}
                   >
                     <div>
                       {/* Top bar info */}
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[8px] font-bold bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded">
-                          بواسطة: {room.creatorName}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-[8px] font-bold px-2 py-0.5 rounded ${
+                            isPermanent 
+                              ? 'bg-brand-gold/20 text-yellow-600 dark:text-brand-gold' 
+                              : 'bg-brand-blue/10 text-brand-blue'
+                          }`}>
+                            بواسطة: {room.creatorName}
+                          </span>
+                          {isPermanent && (
+                            <span className="text-[7px] font-black bg-brand-gold text-white dark:text-slate-900 px-1.5 py-0.5 rounded-md font-sans">
+                              مجلس رسمي دائم ⭐️
+                            </span>
+                          )}
+                        </div>
                         
                         <div className="flex items-center gap-1.5 text-gray-450 text-[9.5px]">
-                          <Volume2 size={12} className="text-gray-450" />
+                          <Volume2 size={12} className={isPermanent ? "text-brand-gold" : "text-gray-450"} />
                           <span className="font-extrabold">بث نشط: {room.createdAt}</span>
                         </div>
                       </div>
