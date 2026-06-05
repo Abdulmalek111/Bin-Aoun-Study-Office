@@ -1997,6 +1997,21 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       {discussionTab === 'voice' && (
         <div className="space-y-4">
           
+          {/* Informative Guidance Banner regarding Voice control */}
+          {!activeVoiceRoom && (
+            <div className="bg-slate-50 dark:bg-slate-900 border border-brand-gold/30 p-4 rounded-3xl flex flex-col sm:flex-row items-center gap-3.5 text-right animate-pulse">
+              <div className="w-10 h-10 rounded-2xl bg-brand-gold/15 flex items-center justify-center shrink-0 text-brand-gold">
+                <Sparkles size={20} />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-extrabold text-xs text-yellow-600 dark:text-brand-gold">🎙️ أين تجد أزرار فتح المايك والسماعة؟</h4>
+                <p className="text-[10px] text-gray-600 dark:text-gray-450 mt-1 leading-relaxed">
+                  تظهر أزرار التحكم الكامل ومؤشرات التحدث بشكل تفاعلي بمجرد <strong className="text-brand-dark dark:text-white">الانضمام إلى أي من القاعات بالأسفل</strong>. اضغط على زر <span className="text-emerald-600 dark:text-emerald-400 font-black">"انضمام الآن وعبر عن رأيك"</span> لتفتح لك لوحة التحكم الكبيرة فوراً في أعلى الصفحة!
+                </p>
+              </div>
+            </div>
+          )}
+          
           <div className="bg-brand-blue/5 dark:bg-amber-500/5 p-4 rounded-3xl border border-brand-blue/10 dark:border-brand-gold/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-extrabold text-sm text-brand-dark dark:text-white flex items-center gap-1.5">
