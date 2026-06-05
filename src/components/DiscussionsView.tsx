@@ -489,22 +489,8 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     }
   };
 
-  const queueAudio = (senderUid: string, base64src: string) => {
+  const queueAudio = (base64src: string) => {
     if (isDeafenedRef.current) return;
-
-    // Echo prevention: If WebRTC is actively connected to this specific sender,
-    // we should bypass/skip playing their fallback audio packets to avoid double-voice static/echo!
-    const pc = peerConnectionsRef.current.get(senderUid);
-    if (pc) {
-      const isConnected = pc.connectionState === 'connected' || 
-                          pc.iceConnectionState === 'connected' || 
-                          pc.iceConnectionState === 'completed';
-      if (isConnected) {
-        console.log(`[Voice Engine] Echo Prevention: Skipped fallback audio packet from ${senderUid} because WebRTC is fully connected.`);
-        return;
-      }
-    }
-
     audioQueueRef.current.push(base64src);
     if (!isPlayingQueueRef.current) {
       playNextInQueue();
@@ -850,39 +836,6 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     };
   }, [activeVoiceRoom]);
 
-  // Peer connection pruning and synchronization on participant updates
-  useEffect(() => {
-    if (!activeVoiceRoom) return;
-    const currentRoom = rooms.find(r => r.id === activeVoiceRoom);
-    if (!currentRoom) return;
-
-    const activeUids = new Set((currentRoom.activeParticipants || []).map(p => p.uid));
-    
-    // Peer Connections Pruning
-    peerConnectionsRef.current.forEach((pc, peerUid) => {
-      if (!activeUids.has(peerUid)) {
-        console.log(`[WebRTC] Pruning stale peer connection for user who left: ${peerUid}`);
-        try {
-          pc.close();
-        } catch (e) {}
-        peerConnectionsRef.current.delete(peerUid);
-      }
-    });
-
-    // Remote Audios Pruning
-    remoteAudiosRef.current.forEach((aud, peerUid) => {
-      if (!activeUids.has(peerUid)) {
-        console.log(`[WebRTC] Removing remote audio element for user who left: ${peerUid}`);
-        try {
-          aud.pause();
-          aud.srcObject = null;
-          aud.remove();
-        } catch (e) {}
-        remoteAudiosRef.current.delete(peerUid);
-      }
-    });
-  }, [rooms, activeVoiceRoom]);
-
   // Listen for fall-back audio packets from other users in the same room
   useEffect(() => {
     if (!activeVoiceRoom) return;
@@ -897,7 +850,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
           const data = change.doc.data();
           if (data && data.senderUid !== currentUid && data.timestamp > joinTime) {
             if (data.audioBase64) {
-              queueAudio(data.senderUid, data.audioBase64);
+              queueAudio(data.audioBase64);
             }
           }
         }
