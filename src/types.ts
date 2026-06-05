@@ -15,6 +15,8 @@ export interface User {
   academicTrack?: string; // علمي, أدبي
   balance?: number; // رصيد المحفظة المالي للطالب
   studentId?: string; // المعرف الفريد للطالب المبتدئ بـ bin_
+  isOnline?: boolean;
+  lastActive?: number;
 }
 
 export interface Subject {

@@ -717,6 +717,16 @@ export default function StudentsView({
     return () => unsub();
   }, [currentUid, activeCall?.id]);
 
+  // Helper to determine presence
+  const isOnlineNow = (st: User) => {
+    return !!(st.isOnline && st.lastActive && (Date.now() - st.lastActive < 120000));
+  };
+
+  // Resolve live state for selected chat user
+  const liveSelectedUser = selectedChatUser 
+    ? (students.find(s => s.uid === selectedChatUser.uid) || selectedChatUser) 
+    : null;
+
   // Search filtering
   const filteredStudents = students.filter(student => {
     const queryLower = searchQuery.toLowerCase();
@@ -806,7 +816,11 @@ export default function StudentsView({
                         className="w-11 h-11 rounded-2xl border border-white shrink-0 object-cover"
                         referrerPolicy="no-referrer"
                       />
-                      <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" title="نشط الآن"></span>
+                      {isOnlineNow(st) ? (
+                        <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm animate-pulse" title="متصل الآن"></span>
+                      ) : (
+                        <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 bg-gray-300 border-2 border-white rounded-full shadow-sm" title="غير متصل"></span>
+                      )}
                     </div>
 
                     <div className="min-w-0 text-right">
@@ -874,7 +888,7 @@ export default function StudentsView({
       </div>
 
       {/* 2. LEFT PANEL: Active Chat & Ongoing Voice Call Pane */}
-      {selectedChatUser && (
+      {selectedChatUser && liveSelectedUser && (
         <div className="lg:col-span-7 bg-slate-50 rounded-3xl border border-gray-150 shadow-sm flex flex-col justify-between overflow-hidden relative">
           
           {/* Active Chat Header */}
@@ -891,23 +905,27 @@ export default function StudentsView({
 
               <div className="relative">
                 <img 
-                  src={selectedChatUser.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(selectedChatUser.username)}`} 
-                  alt={selectedChatUser.username}
-                  className="w-10 h-10 rounded-2xl border border-slate-100 shrink-0"
+                  src={liveSelectedUser.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(liveSelectedUser.username)}`} 
+                  alt={liveSelectedUser.username}
+                  className="w-10 h-10 rounded-2xl border border-slate-100 shrink-0 object-cover"
                   referrerPolicy="no-referrer"
                 />
-                <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                {isOnlineNow(liveSelectedUser) ? (
+                  <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse" title="متصل الآن"></span>
+                ) : (
+                  <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-gray-300 border-2 border-white rounded-full" title="غير متصل"></span>
+                )}
               </div>
 
               <div className="text-right">
                 <h3 className="font-black text-xs text-slate-800 leading-tight flex items-center gap-1">
-                  <span>{selectedChatUser.username}</span>
+                  <span>{liveSelectedUser.username}</span>
                   <span className="text-[9px] bg-brand-gold/15 text-brand-dark font-black px-1.5 py-0.5 rounded-full">
-                    {selectedChatUser.binId}
+                    {liveSelectedUser.binId}
                   </span>
                 </h3>
                 <p className="text-[9px] text-gray-400 mt-1">
-                  {selectedChatUser.academicStage} ({selectedChatUser.academicYear})
+                  {liveSelectedUser.academicStage} ({liveSelectedUser.academicYear})
                 </p>
               </div>
             </div>
@@ -960,7 +978,7 @@ export default function StudentsView({
                       {/* Sender handle */}
                       {!isMe && (
                         <p className="text-[10px] font-black text-brand-dark/80 mb-1">
-                          {selectedChatUser.username}
+                          {liveSelectedUser.username}
                         </p>
                       )}
                       

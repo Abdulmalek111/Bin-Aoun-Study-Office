@@ -323,6 +323,57 @@ export default function App() {
     }
   }, [user]);
 
+  // Real-time Presence Engine for active users
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const uid = auth.currentUser.uid;
+    const uRef = doc(db, 'users', uid);
+
+    // 1. Declare online immediately
+    const goOnline = async () => {
+      try {
+        await setDoc(uRef, {
+          isOnline: true,
+          lastActive: Date.now()
+        }, { merge: true });
+      } catch (err) {
+        console.warn("[Presence Engine] Error setting online status:", err);
+      }
+    };
+
+    // 2. Declare offline function using the captured uid
+    const goOffline = async (targetUid: string) => {
+      try {
+        await setDoc(doc(db, 'users', targetUid), {
+          isOnline: false,
+          lastActive: Date.now()
+        }, { merge: true });
+      } catch (err) {
+        console.warn("[Presence Engine] Error setting offline status:", err);
+      }
+    };
+
+    goOnline();
+
+    // 3. Heartbeat keeping-alive every 45 seconds
+    const interval = setInterval(() => {
+      goOnline();
+    }, 45000);
+
+    // 4. Handle browser closing / tab unloading
+    const handleUnload = () => {
+      goOffline(uid);
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+      // Clean up when unmounting or user logging out
+      goOffline(uid);
+    };
+  }, [user]);
+
   // Monitor incoming calls globally across other tabs
   useEffect(() => {
     if (!user || !auth.currentUser || activeTab === 'students') {
