@@ -1578,25 +1578,144 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
 
       {/* RENDER ACTIVE CONNECTED VOICE CALL BAR IF LOGGED INSIDE */}
       {activeVoiceRoom && activeConnectedRoomDoc && (
-        <div className="flex flex-col gap-3">
-          <div className="bg-gradient-to-l from-emerald-600 to-teal-700 text-white p-4 rounded-3xl shadow-lg border border-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-bounce-subtle">
+        <div className="bg-slate-900 border border-emerald-500/30 text-white p-6 rounded-3xl shadow-xl space-y-6 animate-fade-in relative overflow-hidden">
+          {/* Ambient background decoration */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-555/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-555/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
+
+          {/* Header section with live badge */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-5 relative z-10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white animate-pulse">
-                <Radio size={20} />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30 animate-pulse shrink-0">
+                <Radio size={24} />
               </div>
-              <div>
+              <div className="text-right">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs bg-emerald-500/20 px-2 py-0.5 rounded font-black text-[9.5px]">بث مباشر نشط</span>
-                  <span className="text-[10px] text-emerald-100 font-extrabold">{activeConnectedRoomDoc.createdAt}</span>
+                  <span className="text-[10px] bg-emerald-600 text-white font-black px-2.5 py-0.5 rounded-full animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                    بث مباشر صوتي مستمر
+                  </span>
+                  <span className="text-[10px] text-emerald-300 font-extrabold">منذ: {activeConnectedRoomDoc.createdAt}</span>
                 </div>
-                <h4 className="font-extrabold text-sm text-white mt-0.5">أنت متصل بالقاعة: {activeConnectedRoomDoc.title}</h4>
-                <p className="text-[10px] text-teal-100 mt-0.5">المتحدثون المسجلون: {activeConnectedRoomDoc.activeParticipants?.length || 1} طلاب</p>
+                <h3 className="font-extrabold text-base sm:text-lg text-white mt-1.5 flex items-center gap-2">
+                  <span>القاعة التعليمية النشطة: {activeConnectedRoomDoc.title}</span>
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-1">بواسطة المتحدث والمشرف: <span className="text-emerald-300 font-black">{activeConnectedRoomDoc.creatorName}</span></p>
               </div>
             </div>
 
-            {/* Connected participant audio bubble rings */}
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              {/* Audio Connection Diagnostics Check */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs bg-slate-800 text-gray-300 px-3.5 py-1.5 rounded-xl border border-white/5 font-bold flex items-center gap-1.5">
+                <Users size={14} className="text-emerald-400" />
+                <span>إجمالي المتواجدين حالياً: {activeConnectedRoomDoc.activeParticipants?.length || 1} طلاب</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Participant avatars with real-time status details */}
+          <div className="space-y-3 relative z-10">
+            <h4 className="text-xs font-black text-gray-300 tracking-wider font-sans">👥 المشاركون في الجلسة والحالة اللحظية للميكروفون والسماعة:</h4>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {activeConnectedRoomDoc.activeParticipants && activeConnectedRoomDoc.activeParticipants.length > 0 ? (
+                activeConnectedRoomDoc.activeParticipants.map((participant) => {
+                  const isS = participant.isSpeaking && !participant.isMuted;
+                  const isCurrent = participant.uid === currentUid;
+                  
+                  return (
+                    <div 
+                      key={participant.uid}
+                      className={`p-3 rounded-2xl border transition-all flex flex-col items-center justify-center text-center relative ${
+                        isS 
+                          ? 'bg-emerald-950/40 border-emerald-500/50 shadow-md shadow-emerald-500/10' 
+                          : isCurrent
+                            ? 'bg-slate-800/80 border-blue-500/30'
+                            : 'bg-slate-850/60 border-white/5'
+                      }`}
+                    >
+                      {/* Avatar with speaking wave aura */}
+                      <div className="relative mb-2">
+                        <img 
+                          src={participant.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(participant.username)}`} 
+                          alt={participant.username}
+                          className={`w-12 h-12 rounded-2xl object-cover border-2 ${
+                            isS 
+                              ? 'border-emerald-400 ring-4 ring-emerald-500/20' 
+                              : isCurrent
+                                ? 'border-blue-400'
+                                : 'border-slate-700'
+                          }`}
+                          referrerPolicy="no-referrer"
+                        />
+                        
+                        {/* Audio wave pulse overlay */}
+                        {isS && (
+                          <span className="absolute -bottom-1 -left-1 flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 w-full">
+                        <p className="text-xs font-bold text-white truncate flex items-center justify-center gap-1">
+                          <span>{participant.username}</span>
+                          {isCurrent && <span className="text-[8px] bg-blue-500/35 text-blue-300 px-1 py-0.2 rounded font-black">أنت</span>}
+                        </p>
+                        
+                        {/* Participant detailed state micro tags */}
+                        <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+                          {participant.isDeafened ? (
+                            <span className="text-[8px] bg-purple-500/20 text-purple-300 font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-1" title="السماعة مقفلة">
+                              <VolumeX size={8} />
+                              <span>صامت</span>
+                            </span>
+                          ) : participant.isMuted ? (
+                            <span className="text-[8px] bg-red-500/20 text-red-300 font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-1" title="المايك مقفل">
+                              <MicOff size={8} />
+                              <span>صامت</span>
+                            </span>
+                          ) : isS ? (
+                            <span className="text-[8px] bg-emerald-500/20 text-emerald-350 font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-1 animate-pulse" title="يتحدث الآن">
+                              <Mic size={8} />
+                              <span>يتحدث</span>
+                            </span>
+                          ) : (
+                            <span className="text-[8px] bg-slate-700 text-slate-350 font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-1" title="مستمع نشط">
+                              <Mic size={8} className="text-slate-450" />
+                              <span>متصل</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Speaks animation waves bars */}
+                      {isS && (
+                        <div className="flex items-end justify-center gap-0.5 mt-2.5 h-3 w-full">
+                          <span className="w-0.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-duration:0.6s]"></span>
+                          <span className="w-0.5 h-3 bg-emerald-300 rounded-full animate-bounce [animation-duration:0.4s]"></span>
+                          <span className="w-0.5 h-2 bg-emerald-400 rounded-full animate-bounce [animation-duration:0.5s]"></span>
+                          <span className="w-0.5 h-1.5 bg-emerald-300 rounded-full animate-bounce [animation-duration:0.3s]"></span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-full py-4 text-center text-gray-500 text-xs font-semibold italic">لا يوجد مشاركين مسجلين في الغرفة</div>
+              )}
+            </div>
+          </div>
+
+          {/* Interactive lock/unlock mic and headset switches panel */}
+          <div className="bg-slate-850 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 relative z-10">
+            <div className="text-right">
+              <h4 className="text-xs font-extrabold text-emerald-400 font-sans">🎛️ أزار التحكم الفورية في الصوت والمميزات:</h4>
+              <p className="text-[10px] text-gray-400 mt-1">تحديث الحالة فوري لجميع الزملاء، اضغط لتفعيل أو كتم المايكروفون أو السماعة.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 justify-end">
+              {/* Audio diagnostics check */}
               <button
                 type="button"
                 onClick={() => {
@@ -1606,49 +1725,69 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
                     speakArabicMessage("أهلاً بك! تم الاتصال بالقناة الصوتية بنجاح والصوت يعمل لديك بشكل ممتاز وسليم.");
                   }, 400);
                 }}
-                className="p-2.5 bg-blue-650 hover:bg-blue-700 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md border border-blue-500/15"
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-extrabold shadow-sm border border-white/5 active:scale-95 text-right font-sans"
                 title="اضغط للتحقق من كفاءة سماعة رأسك والصوت"
               >
-                <Volume2 size={14} className="animate-bounce" />
+                <Volume2 size={13} className="text-amber-400 animate-bounce" />
                 <span>اختبار الصوت 🔊</span>
               </button>
-              
-              {/* Deafen Sound Toggler */}
+
+              {/* Headphone/Speaker switch */}
               <button
                 type="button"
                 onClick={toggleDeafen}
-                className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md ${
+                className={`px-4 py-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2 text-xs font-extrabold shadow-md active:scale-95 font-sans ${
                   isDeafened
-                    ? 'bg-purple-600 hover:bg-purple-700 text-white border border-purple-500/25'
-                    : 'bg-slate-100 hover:bg-gray-250 text-slate-800'
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white border border-purple-500/30'
+                    : 'bg-slate-800 hover:bg-slate-750 text-teal-300 border border-white/5'
                 }`}
-                title={isDeafened ? 'تحرير سماع القاعة' : 'كتم سماع القاعة'}
+                title={isDeafened ? 'تشغيل سماع القاعة' : 'كتم سماع القاعة'}
               >
-                {isDeafened ? <VolumeX size={14} className="animate-pulse" /> : <Volume2 size={14} className="text-indigo-600" />}
-                <span>{isDeafened ? 'تشغيل السماعة' : 'كتم السماعة'}</span>
+                {isDeafened ? (
+                  <>
+                    <VolumeX size={15} className="animate-pulse text-white" />
+                    <span>تفعيل السماعة 🔊</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 size={15} className="text-red-400" />
+                    <span>كتم السماعة 🔇</span>
+                  </>
+                )}
               </button>
-              
-              {/* Quick interactive action toggler */}
+
+              {/* Mic lock / unlock switcher */}
               <button
                 type="button"
                 onClick={toggleMute}
-                className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md ${
+                className={`px-4 py-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2 text-xs font-extrabold shadow-md active:scale-95 font-sans ${
                   isMuted
-                    ? 'bg-amber-500 hover:bg-amber-600 text-brand-dark'
-                    : 'bg-white hover:bg-gray-100 text-teal-900 border border-teal-500/10'
+                    ? 'bg-amber-500 hover:bg-amber-650 text-slate-900 font-extrabold'
+                    : 'bg-emerald-600 hover:bg-emerald-650 text-white font-extrabold animate-pulse'
                 }`}
+                title={isMuted ? 'تفعيل الميكروفون للحديث' : 'كتم الميكروفون المباشر'}
               >
-                {isMuted ? <MicOff size={14} /> : <Mic size={14} className="text-emerald-600 animate-pulse" />}
-                <span>{isMuted ? 'تفعيل المايك' : 'كتم الصوت'}</span>
+                {isMuted ? (
+                  <>
+                    <MicOff size={15} className="text-slate-900" />
+                    <span>فتح المايك 🎙️</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic size={15} className="text-white animate-bounce" />
+                    <span>كتم المايك 🔇</span>
+                  </>
+                )}
               </button>
 
+              {/* Safe exit button */}
               <button
                 type="button"
                 onClick={() => handleLeaveVoiceRoom()}
-                className="p-2.5 bg-red-500 hover:bg-red-650 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-black shadow-md"
+                className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs font-extrabold shadow-md active:scale-95 font-sans"
               >
                 <PhoneOff size={14} />
-                <span>مغادرة القاعة</span>
+                <span>مغادرة المجلس</span>
               </button>
             </div>
           </div>
