@@ -394,6 +394,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const remoteAudiosRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const mediaRecorderRef = useRef<any>(null);
+  const voiceRoomIntervalRef = useRef<any>(null);
   const audioQueueRef = useRef<string[]>([]);
   const isPlayingQueueRef = useRef<boolean>(false);
 
@@ -510,35 +511,71 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       }
       
       const options = mimeType ? { mimeType } : undefined;
-      const recorder = new MediaRecorder(stream, options);
-      mediaRecorderRef.current = recorder;
-      
       const currentUserName = user?.username || 'طالب مستخدم';
-      
-      recorder.ondataavailable = async (e) => {
+
+      const recordSlice = async () => {
         const roomId = activeVoiceRoomRef.current;
-        if (e.data && e.data.size > 0 && roomId && !isMutedRef.current) {
-          try {
-            const base64 = await blobToBase64(e.data);
-            if (base64 && base64.length > 200) {
-              const packetsColl = collection(db, 'voice_rooms', roomId, 'audio_packets');
-              const packetId = `${currentUid}_${Date.now()}`;
-              await setDoc(doc(packetsColl, packetId), {
-                id: packetId,
-                senderUid: currentUid,
-                senderName: currentUserName,
-                audioBase64: base64,
-                timestamp: Date.now()
-              });
+        if (!roomId) return; // not in room
+
+        try {
+          if (isMutedRef.current) return; // active mute
+
+          const recorder = new MediaRecorder(stream, options);
+          mediaRecorderRef.current = recorder;
+
+          const chunks: Blob[] = [];
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              chunks.push(e.data);
             }
-          } catch (err) {
-            console.warn("Error uploading fallback audio packet:", err);
-          }
+          };
+
+          recorder.onstop = async () => {
+            if (chunks.length > 0) {
+              try {
+                const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+                const base64 = await blobToBase64(blob);
+                if (base64 && base64.length > 200) {
+                  const packetsColl = collection(db, 'voice_rooms', roomId, 'audio_packets');
+                  const packetId = `${currentUid}_${Date.now()}`;
+                  await setDoc(doc(packetsColl, packetId), {
+                    id: packetId,
+                    senderUid: currentUid,
+                    senderName: currentUserName,
+                    audioBase64: base64,
+                    timestamp: Date.now()
+                  });
+                }
+              } catch (err) {
+                console.warn("Error uploading fallback audio packet:", err);
+              }
+            }
+          };
+
+          recorder.start();
+
+          // Stop recording after 1500ms to produce a fully self-contained valid audio file chunk
+          setTimeout(() => {
+            if (recorder.state !== 'inactive') {
+              try {
+                recorder.stop();
+              } catch (ev) {}
+            }
+          }, 1500);
+
+        } catch (err) {
+          console.warn("Error in voice room slice recorder:", err);
         }
       };
-      
-      // Request chunks every 1.5s for seamless interactive experience
-      recorder.start(1500);
+
+      // Run immediately
+      recordSlice();
+
+      // Repeated loop every 1.55s (slightly more than the 1.5s timeout to allow clean buffer transition)
+      voiceRoomIntervalRef.current = setInterval(() => {
+        recordSlice();
+      }, 1550);
+
       console.log("[Voice Engine] Instant micro audio packet recorder started successfully");
     } catch (e) {
       console.warn("Failed to initiate audio packets recording fallback:", e);
@@ -546,6 +583,10 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   };
 
   const stopRecordingAudioPackets = () => {
+    if (voiceRoomIntervalRef.current) {
+      clearInterval(voiceRoomIntervalRef.current);
+      voiceRoomIntervalRef.current = null;
+    }
     if (mediaRecorderRef.current) {
       try {
         if (mediaRecorderRef.current.state !== 'inactive') {

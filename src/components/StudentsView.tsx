@@ -117,6 +117,7 @@ export default function StudentsView({
   // Audio packet capture & play refs/states
   const [localAudioStream, setLocalAudioStream] = useState<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const privateCallIntervalRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const [peerSpeaking, setPeerSpeaking] = useState(false);
   
@@ -468,40 +469,83 @@ export default function StudentsView({
   // Fallback voice packets uploader loops
   const startRecordingVoicePackets = (stream: MediaStream, callId: string) => {
     try {
+      stopRecordingVoicePackets();
+
       let mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/ogg';
       if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
 
       const options = mimeType ? { mimeType } : undefined;
-      const r = new MediaRecorder(stream, options);
-      mediaRecorderRef.current = r;
 
-      r.ondataavailable = async (e) => {
-        if (e.data && e.data.size > 0 && !isMutedRef.current) {
-          try {
-            const base64 = await blobToBase64(e.data);
-            if (base64 && base64.length > 200) {
-              const pColl = collection(db, 'private_calls', callId, 'audio_packets');
-              const packetId = `p_${currentUid}_${Date.now()}`;
-              await setDoc(doc(pColl, packetId), {
-                id: packetId,
-                senderUid: currentUid,
-                senderName: currentUserName,
-                audioBase64: base64,
-                timestamp: Date.now()
-              });
+      const recordSlice = async () => {
+        if (activeCallIdRef.current !== callId) return; // call ended
+        try {
+          if (isMutedRef.current) return; // active mute
+
+          const r = new MediaRecorder(stream, options);
+          mediaRecorderRef.current = r;
+
+          const chunks: Blob[] = [];
+          r.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              chunks.push(e.data);
             }
-          } catch (err) {}
+          };
+
+          r.onstop = async () => {
+            if (chunks.length > 0) {
+              try {
+                const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+                const base64 = await blobToBase64(blob);
+                if (base64 && base64.length > 200) {
+                  const pColl = collection(db, 'private_calls', callId, 'audio_packets');
+                  const packetId = `p_${currentUid}_${Date.now()}`;
+                  await setDoc(doc(pColl, packetId), {
+                    id: packetId,
+                    senderUid: currentUid,
+                    senderName: currentUserName,
+                    audioBase64: base64,
+                    timestamp: Date.now()
+                  });
+                }
+              } catch (err) {}
+            }
+          };
+
+          r.start();
+
+          // Stop recording after 1000ms to produce a fully self-contained valid audio file chunk
+          setTimeout(() => {
+            if (r.state !== 'inactive') {
+              try {
+                r.stop();
+              } catch (ev) {}
+            }
+          }, 1000);
+
+        } catch (err) {
+          console.warn("Error in private call slice recorder:", err);
         }
       };
 
-      r.start(1000); // 1-second chunks for instant real-time conversation response
+      // Run immediately
+      recordSlice();
+
+      // Repeated loop every 1.05s (slightly more than the 1s timeout to allow clean buffer transition)
+      privateCallIntervalRef.current = setInterval(() => {
+        recordSlice();
+      }, 1050);
+
     } catch (e) {
       console.warn("Failed private call recorder initialization:", e);
     }
   };
 
   const stopRecordingVoicePackets = () => {
+    if (privateCallIntervalRef.current) {
+      clearInterval(privateCallIntervalRef.current);
+      privateCallIntervalRef.current = null;
+    }
     if (mediaRecorderRef.current) {
       try {
         if (mediaRecorderRef.current.state !== 'inactive') {
