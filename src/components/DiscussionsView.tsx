@@ -399,6 +399,11 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
   // Synchronized refs to avoid closure state capturing bugs inside MediaRecorder ondataavailable
   const isMutedRef = useRef(true);
   const activeVoiceRoomRef = useRef<string | null>(null);
+  const roomsRef = useRef<VoiceRoom[]>([]);
+
+  useEffect(() => {
+    roomsRef.current = rooms;
+  }, [rooms]);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -865,7 +870,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
         const isCaller = currentUid === callerUid;
         const peerUid = isCaller ? calleeUid : callerUid;
         
-        const peerInRoom = rooms.find(r => r.id === activeVoiceRoom)
+        const peerInRoom = roomsRef.current.find(r => r.id === activeVoiceRoom)
           ?.activeParticipants?.some(p => p.uid === peerUid);
           
         if (!peerInRoom) continue;
@@ -926,7 +931,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       }
     });
     
-    const activeRoomParticipants = rooms.find(r => r.id === activeVoiceRoom)?.activeParticipants || [];
+    const activeRoomParticipants = roomsRef.current.find(r => r.id === activeVoiceRoom)?.activeParticipants || [];
     
     const initiateCallOffers = async () => {
       for (const peer of activeRoomParticipants) {
@@ -969,7 +974,7 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
       clearTimeout(timer);
       unsubscribeSignaling();
     };
-  }, [activeVoiceRoom, rooms, audioStream, currentUid]);
+  }, [activeVoiceRoom, audioStream, currentUid]);
 
   // Handle posting a written discussion message
   const handlePostMessage = async (e: React.FormEvent) => {
@@ -1819,6 +1824,27 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
                       <div className="flex items-center gap-1.5 text-[9.5px] text-gray-500 dark:text-gray-400 font-extrabold">
                         <Users size={12} className="text-brand-gold animate-pulse" />
                         <span>{participantsCount} طلاب حالياً</span>
+                        
+                        {/* Instructor Admin Moderation Action */}
+                        {user?.email === 'abdulmlikoog@gmail.com' && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (window.confirm('هل تريد إلغاء وإخلاء هذه القاعة الصوتية بالكامل؟')) {
+                                try {
+                                  if (isUserInsideThisRoom) {
+                                    handleLeaveVoiceRoom();
+                                  }
+                                  await deleteDoc(doc(db, 'voice_rooms', room.id));
+                                } catch (e) {}
+                              }
+                            }}
+                            className="mr-2 px-2 py-1 bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-500 hover:text-white rounded-lg text-[8px] font-black transition-all cursor-pointer"
+                            title="إخلاء وحذف القاعة"
+                          >
+                            حذف القاعة 🗑️
+                          </button>
+                        )}
                       </div>
 
                       <button

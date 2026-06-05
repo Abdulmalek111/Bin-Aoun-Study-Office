@@ -132,6 +132,40 @@ export default function StudentsView({
     isMutedRef.current = callMuted;
   }, [callMuted]);
 
+  useEffect(() => {
+    activeCallIdRef.current = activeCall?.id || null;
+  }, [activeCall?.id]);
+
+  // Cleanup audio recorder and microphone tracks on unmount gracefully to prevent background recording and device freezes
+  useEffect(() => {
+    return () => {
+      // Direct stop call packet stream
+      if (mediaRecorderRef.current) {
+        try {
+          if (mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+        } catch (e) {}
+        mediaRecorderRef.current = null;
+      }
+      if (localStreamRef.current) {
+        try {
+          localStreamRef.current.getTracks().forEach(track => track.stop());
+        } catch (e) {}
+        localStreamRef.current = null;
+      }
+      
+      const callId = activeCallIdRef.current;
+      if (callId) {
+        // Safe fast termination of call in db
+        updateDoc(doc(db, 'private_calls', callId), { status: 'ended' }).catch(() => {});
+        setTimeout(async () => {
+          await deleteDoc(doc(db, 'private_calls', callId)).catch(() => {});
+        }, 1500);
+      }
+    };
+  }, []);
+
   // Sync prop setters/getters if parent holds state
   const setGlobalChatUser = (u: any) => {
     setSelectedChatUser(u);
