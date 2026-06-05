@@ -117,6 +117,7 @@ export default function StudentsView({
   // Audio packet capture & play refs/states
   const [localAudioStream, setLocalAudioStream] = useState<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const privateCallIntervalRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const [peerSpeaking, setPeerSpeaking] = useState(false);
   
@@ -204,6 +205,10 @@ export default function StudentsView({
 
   // 1. Fetch Students/Users in Real-time from Firestore
   useEffect(() => {
+    if (!auth.currentUser || currentUid === 'anonymous') {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
       const list: (User & { uid: string; binId: string })[] = [];
@@ -326,10 +331,7 @@ export default function StudentsView({
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64data = reader.result as string;
-        // Strip out metadata head
-        const base = base64data.substring(base64data.indexOf(',') + 1);
-        resolve(base);
+        resolve(reader.result as string);
       };
       reader.onerror = reject;
       reader.readAsDataURL(blob);
@@ -467,40 +469,83 @@ export default function StudentsView({
   // Fallback voice packets uploader loops
   const startRecordingVoicePackets = (stream: MediaStream, callId: string) => {
     try {
+      stopRecordingVoicePackets();
+
       let mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/ogg';
       if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
 
       const options = mimeType ? { mimeType } : undefined;
-      const r = new MediaRecorder(stream, options);
-      mediaRecorderRef.current = r;
 
-      r.ondataavailable = async (e) => {
-        if (e.data && e.data.size > 0 && !isMutedRef.current) {
-          try {
-            const base64 = await blobToBase64(e.data);
-            if (base64 && base64.length > 200) {
-              const pColl = collection(db, 'private_calls', callId, 'audio_packets');
-              const packetId = `p_${currentUid}_${Date.now()}`;
-              await setDoc(doc(pColl, packetId), {
-                id: packetId,
-                senderUid: currentUid,
-                senderName: currentUserName,
-                audioBase64: base64,
-                timestamp: Date.now()
-              });
+      const recordSlice = async () => {
+        if (activeCallIdRef.current !== callId) return; // call ended
+        try {
+          if (isMutedRef.current) return; // active mute
+
+          const r = new MediaRecorder(stream, options);
+          mediaRecorderRef.current = r;
+
+          const chunks: Blob[] = [];
+          r.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              chunks.push(e.data);
             }
-          } catch (err) {}
+          };
+
+          r.onstop = async () => {
+            if (chunks.length > 0) {
+              try {
+                const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+                const base64 = await blobToBase64(blob);
+                if (base64 && base64.length > 200) {
+                  const pColl = collection(db, 'private_calls', callId, 'audio_packets');
+                  const packetId = `p_${currentUid}_${Date.now()}`;
+                  await setDoc(doc(pColl, packetId), {
+                    id: packetId,
+                    senderUid: currentUid,
+                    senderName: currentUserName,
+                    audioBase64: base64,
+                    timestamp: Date.now()
+                  });
+                }
+              } catch (err) {}
+            }
+          };
+
+          r.start();
+
+          // Stop recording after 1000ms to produce a fully self-contained valid audio file chunk
+          setTimeout(() => {
+            if (r.state !== 'inactive') {
+              try {
+                r.stop();
+              } catch (ev) {}
+            }
+          }, 1000);
+
+        } catch (err) {
+          console.warn("Error in private call slice recorder:", err);
         }
       };
 
-      r.start(1000); // 1-second chunks for instant real-time conversation response
+      // Run immediately
+      recordSlice();
+
+      // Repeated loop every 1.05s (slightly more than the 1s timeout to allow clean buffer transition)
+      privateCallIntervalRef.current = setInterval(() => {
+        recordSlice();
+      }, 1050);
+
     } catch (e) {
       console.warn("Failed private call recorder initialization:", e);
     }
   };
 
   const stopRecordingVoicePackets = () => {
+    if (privateCallIntervalRef.current) {
+      clearInterval(privateCallIntervalRef.current);
+      privateCallIntervalRef.current = null;
+    }
     if (mediaRecorderRef.current) {
       try {
         if (mediaRecorderRef.current.state !== 'inactive') {
@@ -527,22 +572,50 @@ export default function StudentsView({
 
       const nextBase64 = audioQueueRef.current.shift();
       if (nextBase64) {
-        try {
-          const audioSrc = `data:audio/webm;base64,${nextBase64}`;
-          const aud = new Audio(audioSrc);
-          aud.volume = 1.0;
-          await aud.play();
-          
-          aud.onended = () => {
-            run();
-          };
-          aud.onerror = () => {
-            // Fallback try next right away
-            run();
-          };
-        } catch (err) {
-          // Playback blocked or decode error, proceed
+        let played = false;
+        let timeoutId: any = null;
+        let aud: HTMLAudioElement | null = null;
+        
+        const cleanupAndRunNext = () => {
+          if (played) return;
+          played = true;
+          if (timeoutId) clearTimeout(timeoutId);
+          if (aud) {
+            aud.onended = null;
+            aud.onerror = null;
+            try {
+              aud.pause();
+            } catch (e) {}
+            aud = null;
+          }
           run();
+        };
+
+        try {
+          const audioSrc = nextBase64.startsWith('data:') 
+            ? nextBase64 
+            : `data:audio/webm;base64,${nextBase64}`;
+          
+          aud = new Audio(audioSrc);
+          aud.volume = 1.0;
+          
+          timeoutId = setTimeout(() => {
+            console.warn("[Voice Engine] Playback timeout safety trigger in private chat.");
+            cleanupAndRunNext();
+          }, 2500); // Private chunks are 1s, 2.5s is safe
+
+          aud.onended = () => {
+            cleanupAndRunNext();
+          };
+
+          aud.onerror = () => {
+            console.warn("[Voice Engine] Audio track error in private chat.");
+            cleanupAndRunNext();
+          };
+
+          await aud.play();
+        } catch (err) {
+          cleanupAndRunNext();
         }
       } else {
         run();
@@ -623,6 +696,7 @@ export default function StudentsView({
 
   // Incoming Call passive monitoring scanner
   useEffect(() => {
+    if (!auth.currentUser || currentUid === 'anonymous') return;
     if (activeCall?.id) return; // already in active dialog
 
     // Listen to private_calls collection to capture if someone calls us in real-time
