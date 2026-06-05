@@ -204,10 +204,6 @@ export default function StudentsView({
 
   // 1. Fetch Students/Users in Real-time from Firestore
   useEffect(() => {
-    if (!auth.currentUser || currentUid === 'anonymous') {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
       const list: (User & { uid: string; binId: string })[] = [];
@@ -627,7 +623,6 @@ export default function StudentsView({
 
   // Incoming Call passive monitoring scanner
   useEffect(() => {
-    if (!auth.currentUser || currentUid === 'anonymous') return;
     if (activeCall?.id) return; // already in active dialog
 
     // Listen to private_calls collection to capture if someone calls us in real-time
