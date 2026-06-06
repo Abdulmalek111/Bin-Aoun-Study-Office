@@ -2,9 +2,19 @@ import { io, Socket } from 'socket.io-client';
 
 class SocketService {
   private socket: Socket | null = null;
+  private queue: { event: string; data: any }[] = [];
 
   connect(token?: string): Socket {
-    if (this.socket?.connected) {
+    // If socket exists and is already connected, simply update token if provided and return
+    if (this.socket) {
+      if (token) {
+        console.log('[SocketService] Updating Firebase ID Token on existing socket instance');
+        this.socket.auth = { ...this.socket.auth, token };
+      }
+      if (this.socket.disconnected) {
+        console.log('[SocketService] Socket client present but offline, reconnecting...');
+        this.socket.connect();
+      }
       return this.socket;
     }
 
@@ -25,14 +35,16 @@ class SocketService {
       }
     }
 
-    console.log(`[SocketService] Connecting to signaling backend: ${serverUrl}`);
+    console.log(`[SocketService] Initializing connection to signaling backend: ${serverUrl}`);
 
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 15,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
       auth: {
         token
       }
@@ -41,18 +53,24 @@ class SocketService {
     this.queue = [];
 
     this.socket.on('connect', () => {
-      console.log(`[SocketService] Socket connection opened successfully: ${this.socket?.id}`);
+      console.log(`[SocketService] Socket connection opened successfully with SID: ${this.socket?.id}`);
       this.flushQueue();
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('[SocketService] Socket connection error:', error);
+      console.error('[SocketService] Socket handshake transport/authorization breakdown:', error);
+    });
+
+    this.socket.on('reconnect_attempt', (attempt) => {
+      console.log(`[SocketService] Reconnection attempt #${attempt} underway...`);
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.error('[SocketService] Socket reconnection exhausted maximum retries. Link failed.');
     });
 
     return this.socket;
   }
-
-  private queue: { event: string; data: any }[] = [];
 
   getSocket(): Socket | null {
     return this.socket;
@@ -61,7 +79,7 @@ class SocketService {
   disconnect() {
     this.queue = [];
     if (this.socket) {
-      console.log('[SocketService] Disconnecting socket...');
+      console.log('[SocketService] Cleaning up listeners and disconnecting socket connection...');
       this.socket.disconnect();
       this.socket = null;
     }
@@ -71,9 +89,10 @@ class SocketService {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
     } else {
-      console.warn(`[SocketService] Socket is disconnected. Queuing event "${event}"`);
-      const nonSignalEvents = ['state-change', 'speaking', 'mute', 'unmute', 'deafen', 'undeafen', 'hand-raised'];
-      if (nonSignalEvents.includes(event)) {
+      console.warn(`[SocketService] Socket offline. Queuing event "${event}" to dispatch on connection recovery...`);
+      const bufferableEvents = ['state-change', 'speaking', 'mute', 'unmute', 'deafen', 'undeafen', 'hand-raised', 'leave-room'];
+      if (bufferableEvents.includes(event)) {
+        // Debounce subsequent updates of the same event type to keep dispatch minimal
         this.queue = this.queue.filter(q => q.event !== event);
         this.queue.push({ event, data });
       }
@@ -82,7 +101,7 @@ class SocketService {
 
   flushQueue() {
     if (!this.socket || !this.socket.connected || this.queue.length === 0) return;
-    console.log(`[SocketService] Flushing ${this.queue.length} buffered events on reconnect...`);
+    console.log(`[SocketService] Transmitting ${this.queue.length} buffered changes to matching channel descriptors...`);
     const toFlush = [...this.queue];
     this.queue = [];
     toFlush.forEach(item => {
