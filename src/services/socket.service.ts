@@ -9,7 +9,22 @@ class SocketService {
     }
 
     // Read the SIGNALING_SERVER_URL from env or default to current origin
-    const serverUrl = (import.meta as any).env?.VITE_SIGNALING_SERVER_URL || window.location.origin;
+    const envUrl = (import.meta as any).env?.VITE_SIGNALING_SERVER_URL;
+    let serverUrl = envUrl;
+    
+    if (!serverUrl) {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.');
+      const isSandboxContainer = hostname.endsWith('.run.app');
+      
+      if (isLocal || isSandboxContainer) {
+        serverUrl = window.location.origin;
+      } else {
+        // Fallback to the dedicated full-stack Cloud Run environment for socket signaling
+        serverUrl = 'https://ais-pre-roeohboghpyrq4ykcwdvql-347858127241.europe-west2.run.app';
+      }
+    }
+
     console.log(`[SocketService] Connecting to signaling backend: ${serverUrl}`);
 
     this.socket = io(serverUrl, {
