@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { socketService } from '../services/socket.service';
-import { voiceService } from '../services/voice.service';
 import { VoiceMember, VoiceRoom } from '../types/voice';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
@@ -20,7 +19,7 @@ export function useVoiceRoom(roomId: string | null) {
   const [socketId, setSocketId] = useState<string>('');
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
   const [firestoreStatus, setFirestoreStatus] = useState<string>('مكتمل الأركان / Ready');
-  const [webrtcStatus, setWebrtcStatus] = useState<string>('בانتظار الإشارة / Waiting');
+  const [webrtcStatus, setWebrtcStatus] = useState<string>('بانتظار الإشارة / Waiting');
   const [microphoneStatus, setMicrophoneStatus] = useState<string>('غير متصل / Offline');
 
   // Keep refs of values needed in async callbacks to prevent closures stale references
@@ -30,6 +29,22 @@ export function useVoiceRoom(roomId: string | null) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  // WebRTC multi-peer connection store
+  const peerConnectionsRef = useRef<Map<string, {
+    peerConnection: RTCPeerConnection;
+    audioElement: HTMLAudioElement;
+    stream: MediaStream;
+  }>>(new Map());
+
+  // ICE Servers config
+  const rtcConfig: RTCConfiguration = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ]
+  };
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -42,6 +57,55 @@ export function useVoiceRoom(roomId: string | null) {
   useEffect(() => {
     handRaisedRef.current = handRaised;
   }, [handRaised]);
+
+  // Capture user mic with ideal echo cancellation, noise suppression and auto gain criteria
+  const startLocalMic = async (): Promise<MediaStream> => {
+    try {
+      console.log('[useVoiceRoom] Requesting microphone access with echo cancellation & noise suppression...');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false
+      });
+      localStreamRef.current = stream;
+      setMicrophoneStatus('متصل ونشط 🎙️');
+      return stream;
+    } catch (err: any) {
+      console.error('[useVoiceRoom] Microphone access denied:', err);
+      throw new Error('يرجى السماح باستخدام المايكروفون من إعدادات المتصفح.');
+    }
+  };
+
+  const stopLocalMic = () => {
+    if (localStreamRef.current) {
+      console.log('[useVoiceRoom] Requesting local mic track stop...');
+      localStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+      });
+      localStreamRef.current = null;
+      setMicrophoneStatus('غير متصل / Offline');
+    }
+  };
+
+  const setMuteState = (muted: boolean) => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(track => {
+        track.enabled = !muted;
+      });
+      console.log(`[useVoiceRoom] Local mic track set enabled: ${!muted}`);
+      setMicrophoneStatus(muted ? 'مكتوم 🔇' : 'نشط 🎙️');
+    }
+  };
+
+  const setDeafenState = (deafened: boolean) => {
+    peerConnectionsRef.current.forEach(wrapper => {
+      wrapper.audioElement.volume = deafened ? 0 : 1;
+    });
+    console.log(`[useVoiceRoom] Audio volume deafened toggle: ${deafened}`);
+  };
 
   // Speaking Analyzer logic: analyzes amplitude of mic capture stream
   const startSpeakingDetector = useCallback((stream: MediaStream) => {
@@ -117,6 +181,187 @@ export function useVoiceRoom(roomId: string | null) {
     setIsSpeaking(false);
   }, []);
 
+  // WebRTC Setup Operations
+  const closePeerConnection = useCallback((socketId: string) => {
+    const wrapper = peerConnectionsRef.current.get(socketId);
+    if (wrapper) {
+      console.log(`[useVoiceRoom] Tearing down WebRTC connection with: ${socketId}`);
+      try {
+        wrapper.peerConnection.close();
+        wrapper.audioElement.pause();
+        wrapper.audioElement.srcObject = null;
+        wrapper.audioElement.remove();
+      } catch (e) {
+        // Safe bypass
+      }
+      peerConnectionsRef.current.delete(socketId);
+      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
+    }
+  }, []);
+
+  const initiateOffer = useCallback(async (targetSocketId: string) => {
+    if (peerConnectionsRef.current.has(targetSocketId)) {
+      closePeerConnection(targetSocketId);
+    }
+
+    console.log(`[useVoiceRoom] Creating RTCPeerConnection for outgoing offer to peer: ${targetSocketId}`);
+    try {
+      const pc = new RTCPeerConnection(rtcConfig);
+      const audioObj = new Audio();
+      audioObj.autoplay = true;
+
+      const remoteStream = new MediaStream();
+      peerConnectionsRef.current.set(targetSocketId, {
+        peerConnection: pc,
+        audioElement: audioObj,
+        stream: remoteStream
+      });
+
+      // Attach our local stream tracks to feed this connection
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          pc.addTrack(track, localStreamRef.current!);
+        });
+      }
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socketService.emit('webrtc-ice-candidate', {
+            targetSocketId,
+            candidate: event.candidate
+          });
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log(`[useVoiceRoom] Received audio track from ${targetSocketId}`);
+        event.streams[0].getAudioTracks().forEach(track => {
+          remoteStream.addTrack(track);
+        });
+        audioObj.srcObject = remoteStream;
+        setWebrtcStatus('متصل P2P Mesh Connected ✅');
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[useVoiceRoom] Connection state with ${targetSocketId}: ${pc.iceConnectionState}`);
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          closePeerConnection(targetSocketId);
+        }
+      };
+
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      });
+      await pc.setLocalDescription(offer);
+      
+      socketService.emit('webrtc-offer', {
+        targetSocketId,
+        offer
+      });
+
+      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
+    } catch (err) {
+      console.error(`[useVoiceRoom] initiateOffer failed for ${targetSocketId}:`, err);
+    }
+  }, [closePeerConnection]);
+
+  const handleIncomingOffer = useCallback(async (fromSocketId: string, offer: RTCSessionDescriptionInit) => {
+    if (peerConnectionsRef.current.has(fromSocketId)) {
+      closePeerConnection(fromSocketId);
+    }
+
+    console.log(`[useVoiceRoom] Creating RTCPeerConnection for incoming offer from peer: ${fromSocketId}`);
+    try {
+      const pc = new RTCPeerConnection(rtcConfig);
+      const audioObj = new Audio();
+      audioObj.autoplay = true;
+
+      const remoteStream = new MediaStream();
+      peerConnectionsRef.current.set(fromSocketId, {
+        peerConnection: pc,
+        audioElement: audioObj,
+        stream: remoteStream
+      });
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          pc.addTrack(track, localStreamRef.current!);
+        });
+      }
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socketService.emit('webrtc-ice-candidate', {
+            targetSocketId: fromSocketId,
+            candidate: event.candidate
+          });
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log(`[useVoiceRoom] Received audio track in response track from ${fromSocketId}`);
+        event.streams[0].getAudioTracks().forEach(track => {
+          remoteStream.addTrack(track);
+        });
+        audioObj.srcObject = remoteStream;
+        setWebrtcStatus('متصل P2P Mesh Connected ✅');
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          closePeerConnection(fromSocketId);
+        }
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socketService.emit('webrtc-answer', {
+        targetSocketId: fromSocketId,
+        answer
+      });
+
+      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
+    } catch (err) {
+      console.error(`[useVoiceRoom] handleIncomingOffer error from ${fromSocketId}:`, err);
+    }
+  }, [closePeerConnection]);
+
+  const handleIncomingAnswer = useCallback(async (fromSocketId: string, answer: RTCSessionDescriptionInit) => {
+    const wrapper = peerConnectionsRef.current.get(fromSocketId);
+    if (wrapper) {
+      console.log(`[useVoiceRoom] Applying remote description answer for: ${fromSocketId}`);
+      try {
+        await wrapper.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      } catch (err) {
+        console.error(`[useVoiceRoom] Setting remote answer failed:`, err);
+      }
+    }
+  }, []);
+
+  const handleIncomingIceCandidate = useCallback(async (fromSocketId: string, candidate: RTCIceCandidateInit) => {
+    const wrapper = peerConnectionsRef.current.get(fromSocketId);
+    if (wrapper) {
+      try {
+        await wrapper.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error(`[useVoiceRoom] Adding ICE candidate failure:`, err);
+      }
+    }
+  }, []);
+
+  const resetAllVoiceEngine = useCallback(() => {
+    console.log('[useVoiceRoom] Tearing down inside useVoiceRoom, resetting WebRTC map...');
+    Array.from(peerConnectionsRef.current.keys()).forEach(socketId => {
+      closePeerConnection(socketId);
+    });
+    peerConnectionsRef.current.clear();
+    stopLocalMic();
+    setConnectedPeers([]);
+  }, [closePeerConnection]);
+
   // Sync peer connections changes to state members list
   const syncLocalMemberStates = useCallback((fields: Partial<VoiceMember>) => {
     setMembers(prev => prev.map(m => {
@@ -137,8 +382,8 @@ export function useVoiceRoom(roomId: string | null) {
     // Stop local analyzer
     stopSpeakingDetector();
 
-    // Reset voice mesh engines
-    voiceService.reset();
+    // Reset voice mesh engines directly local inside hook
+    resetAllVoiceEngine();
 
     // Disconnect sockets
     socketService.emit('leave-room', {});
@@ -183,7 +428,7 @@ export function useVoiceRoom(roomId: string | null) {
     setLoading(false);
     setMicrophoneStatus('غير متصل / Offline');
     setWebrtcStatus('تم إنهاء الاتصال / Disconnected');
-  }, [roomId, stopSpeakingDetector]);
+  }, [roomId, stopSpeakingDetector, resetAllVoiceEngine]);
 
   // Join Voice room setup operations
   const joinRoom = useCallback(async (room: VoiceRoom) => {
@@ -225,30 +470,14 @@ export function useVoiceRoom(roomId: string | null) {
         throw new Error(`أنت محظور من دخول هذه الغرفة. السبب: ${banData.reason || 'مخالفة القوانين'}`);
       }
 
-      // 1-3. Capture user microphone
-      const stream = await voiceService.startLocalMic();
+      // 1-3. Capture user microphone directly inside hook stream setup
+      const stream = await startLocalMic();
       localStreamRef.current = stream;
-      setMicrophoneStatus('متصل ونشط 🎙️');
 
       // 4. Open socket connections
       setSocketStatus('connecting');
       const token = await currentUser.getIdToken();
       const socket = socketService.connect(token);
-
-      // Register callbacks on Voice Service
-      voiceService.registerCallbacks(
-        (updatedStream) => {
-          localStreamRef.current = updatedStream;
-          setMicrophoneStatus(updatedStream ? 'نشط 🎙️' : 'مكتوم 🔇');
-        },
-        (remoteSocketId, remoteStream) => {
-          console.log(`[useVoiceRoom] Stream rendered for peer socket: ${remoteSocketId}`);
-          setWebrtcStatus('متصل P2P Mesh Connected ✅');
-        },
-        (peerSocketIds) => {
-          setConnectedPeers(peerSocketIds);
-        }
-      );
 
       // Setup Socket state tracking
       if (socket.connected) {
@@ -347,7 +576,7 @@ export function useVoiceRoom(roomId: string | null) {
 
         // Initiate WebRTC offers to all existing socket peers
         for (const peer of data.members) {
-          await voiceService.initiateOffer(peer.socketId);
+          await initiateOffer(peer.socketId);
         }
       });
 
@@ -372,31 +601,31 @@ export function useVoiceRoom(roomId: string | null) {
       // WebRTC SDP Relays:
       socket.off('webrtc-offer');
       socket.on('webrtc-offer', async (data: { fromSocketId: string; offer: any }) => {
-        await voiceService.handleIncomingOffer(data.fromSocketId, data.offer);
+        await handleIncomingOffer(data.fromSocketId, data.offer);
       });
 
       socket.off('webrtc-answer');
       socket.on('webrtc-answer', async (data: { fromSocketId: string; answer: any }) => {
-        await voiceService.handleIncomingAnswer(data.fromSocketId, data.answer);
+        await handleIncomingAnswer(data.fromSocketId, data.answer);
       });
 
       socket.off('webrtc-ice-candidate');
       socket.on('webrtc-ice-candidate', async (data: { fromSocketId: string; candidate: any }) => {
-        await voiceService.handleIncomingIceCandidate(data.fromSocketId, data.candidate);
+        await handleIncomingIceCandidate(data.fromSocketId, data.candidate);
       });
 
       // User Presence tracking:
       socket.off('peer-left');
       socket.on('peer-left', (data: { socketId: string; uid: string }) => {
         console.log(`[useVoiceRoom] Remote peer disconnected (peer-left): ${data.socketId}`);
-        voiceService.closePeerConnection(data.socketId);
+        closePeerConnection(data.socketId);
         setMembers(prev => prev.filter(m => m.socketId !== data.socketId));
       });
 
       socket.off('user-left');
       socket.on('user-left', (data: { socketId: string; uid: string }) => {
         console.log(`[useVoiceRoom] Remote peer left (user-left): ${data.socketId}`);
-        voiceService.closePeerConnection(data.socketId);
+        closePeerConnection(data.socketId);
         setMembers(prev => prev.filter(m => m.socketId !== data.socketId));
       });
 
@@ -437,13 +666,13 @@ export function useVoiceRoom(roomId: string | null) {
       setLoading(false);
       leaveRoom();
     }
-  }, [joined, loading, startSpeakingDetector, leaveRoom]);
+  }, [joined, loading, startSpeakingDetector, leaveRoom, handleIncomingOffer, handleIncomingAnswer, handleIncomingIceCandidate, initiateOffer, closePeerConnection]);
 
   // Sync state selectors actions toggles
   const toggleMute = useCallback(() => {
     const nextValue = !isMuted;
     setIsMuted(nextValue);
-    voiceService.setMuteState(nextValue);
+    setMuteState(nextValue);
     socketService.emit('state-change', { isMuted: nextValue });
     syncLocalMemberStates({ isMuted: nextValue });
   }, [isMuted, syncLocalMemberStates]);
@@ -451,12 +680,12 @@ export function useVoiceRoom(roomId: string | null) {
   const toggleDeafen = useCallback(() => {
     const nextValue = !isDeafened;
     setIsDeafened(nextValue);
-    voiceService.setDeafenState(nextValue);
+    setDeafenState(nextValue);
     
     // Deafen forces Mute in Discord-like systems
     const nextMute = nextValue ? true : isMuted;
     setIsMuted(nextMute);
-    voiceService.setMuteState(nextMute);
+    setMuteState(nextMute);
 
     socketService.emit('state-change', { 
       isDeafened: nextValue, 
