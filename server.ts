@@ -284,6 +284,24 @@ function handleSocketTeardown(socket: Socket) {
       console.log(`[Signaling] Flushed empty room from memory active store: ${roomId}`);
     }
   }
+
+  // Firebase Admin instant synchronized cleanup if enabled
+  if (firebaseAdminEnabled) {
+    try {
+      const dbAdmin = admin.firestore();
+      dbAdmin.doc(`voice_rooms/${roomId}/members/${uid}`).delete().catch(() => {});
+      dbAdmin.doc(`voice_presence/${uid}`).delete().catch(() => {});
+      
+      // Auto-log a resilient database exit audit trail event
+      dbAdmin.collection(`voice_rooms/${roomId}/events`).doc(`evt-server-${Date.now()}`).set({
+        type: 'leave',
+        uid: uid,
+        createdAt: new Date().toISOString()
+      }).catch(() => {});
+    } catch (dbErr) {
+      console.warn('[Firebase Admin] Robust background presence cleanup avoided:', dbErr);
+    }
+  }
 }
 
 // ---------------------- Vite Development/Production Config ----------------------

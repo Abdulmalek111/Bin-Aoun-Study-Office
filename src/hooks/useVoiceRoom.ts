@@ -3,7 +3,7 @@ import { socketService } from '../services/socket.service';
 import { voiceService } from '../services/voice.service';
 import { VoiceMember, VoiceRoom } from '../types/voice';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, setDoc, deleteDoc } from 'firebase/firestore';
 
 export function useVoiceRoom(roomId: string | null) {
   const [joined, setJoined] = useState(false);
@@ -22,6 +22,25 @@ export function useVoiceRoom(roomId: string | null) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  // Callback to synchronise state updates to Firestore (room subcollection + top-level presence)
+  const updateFirestorePresence = useCallback(async (fields: Partial<any>) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !roomId) return;
+    try {
+      const memberDocRef = doc(db, `voice_rooms/${roomId}/members`, currentUser.uid);
+      await updateDoc(memberDocRef, fields).catch(() => {});
+      const presenceDocRef = doc(db, 'voice_presence', currentUser.uid);
+      await updateDoc(presenceDocRef, fields).catch(() => {});
+    } catch (err) {
+      console.warn('[useVoiceRoom] Firestore presence state update bypassed:', err);
+    }
+  }, [roomId]);
+
+  const updateFirestorePresenceRef = useRef(updateFirestorePresence);
+  useEffect(() => {
+    updateFirestorePresenceRef.current = updateFirestorePresence;
+  }, [updateFirestorePresence]);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -76,6 +95,7 @@ export function useVoiceRoom(roomId: string | null) {
             lastSpeaking = true;
             setIsSpeaking(true);
             socketService.emit('state-change', { isSpeaking: true });
+            updateFirestorePresenceRef.current({ isSpeaking: true });
           }
         } else {
           silentTicks++;
@@ -84,6 +104,7 @@ export function useVoiceRoom(roomId: string | null) {
               lastSpeaking = false;
               setIsSpeaking(false);
               socketService.emit('state-change', { isSpeaking: false });
+              updateFirestorePresenceRef.current({ isSpeaking: false });
             }
           }
         }
@@ -139,13 +160,17 @@ export function useVoiceRoom(roomId: string | null) {
     if (roomId && auth.currentUser) {
       try {
         const memberDocRef = doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid);
+        await deleteDoc(memberDocRef).catch(() => {});
+        const presenceDocRef = doc(db, 'voice_presence', auth.currentUser.uid);
+        await deleteDoc(presenceDocRef).catch(() => {});
+        
         // Write audit trail log event to firestore
         const eventId = `evt-${Date.now()}`;
         await setDoc(doc(db, `voice_rooms/${roomId}/events`, eventId), {
           type: 'leave',
           uid: auth.currentUser.uid,
           createdAt: new Date().toISOString()
-        });
+        }).catch(() => {});
       } catch (err) {
         console.warn('[useVoiceRoom] Background leave sync bypassed:', err);
       }
@@ -243,6 +268,22 @@ export function useVoiceRoom(roomId: string | null) {
       };
 
       await setDoc(doc(db, `voice_rooms/${room.id}/members`, currentUser.uid), selfMemberRecord);
+
+      // Set top-level voice_presence record
+      const selfPresenceRecord = {
+        uid: currentUser.uid,
+        displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
+        photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || 'X')}`,
+        role: currentRole,
+        currentRoomId: room.id,
+        currentRoomName: room.name,
+        isSpeaking: false,
+        isMuted: false,
+        isDeafened: false,
+        lastSeen: new Date().toISOString(),
+        status: 'online'
+      };
+      await setDoc(doc(db, 'voice_presence', currentUser.uid), selfPresenceRecord);
 
       // Add audit log join event
       await setDoc(doc(db, `voice_rooms/${room.id}/events`, `evt-${Date.now()}`), {
@@ -357,7 +398,8 @@ export function useVoiceRoom(roomId: string | null) {
     voiceService.setMuteState(nextValue);
     socketService.emit('state-change', { isMuted: nextValue });
     syncLocalMemberStates({ isMuted: nextValue });
-  }, [isMuted, syncLocalMemberStates]);
+    updateFirestorePresence({ isMuted: nextValue });
+  }, [isMuted, syncLocalMemberStates, updateFirestorePresence]);
 
   const toggleDeafen = useCallback(() => {
     const nextValue = !isDeafened;
@@ -378,14 +420,20 @@ export function useVoiceRoom(roomId: string | null) {
       isDeafened: nextValue, 
       isMuted: nextMute 
     });
-  }, [isDeafened, isMuted, syncLocalMemberStates]);
+
+    updateFirestorePresence({
+      isMuted: nextMute,
+      isDeafened: nextValue
+    });
+  }, [isDeafened, isMuted, syncLocalMemberStates, updateFirestorePresence]);
 
   const toggleHandRaise = useCallback(() => {
     const nextValue = !handRaised;
     setHandRaised(nextValue);
     socketService.emit('state-change', { handRaised: nextValue });
     syncLocalMemberStates({ handRaised: nextValue });
-  }, [handRaised, syncLocalMemberStates]);
+    updateFirestorePresence({ handRaised: nextValue });
+  }, [handRaised, syncLocalMemberStates, updateFirestorePresence]);
 
   const kickMember = useCallback((targetSocketId: string, reason?: string) => {
     socketService.emit('kick-member', { targetSocketId, reason });

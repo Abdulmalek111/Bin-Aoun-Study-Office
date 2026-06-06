@@ -332,12 +332,35 @@
         "metadata": { "type": "object" }
       },
       "required": ["type", "uid", "createdAt"]
+    },
+    "VoicePresence": {
+      "title": "VoicePresence",
+      "description": "Active real-time online state and current voice room of a student or instructor.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "currentRoomId": { "type": ["string", "null"] },
+        "currentRoomName": { "type": ["string", "null"] },
+        "role": { "type": "string", "enum": ["admin", "moderator", "teacher", "student"] },
+        "isSpeaking": { "type": "boolean" },
+        "isMuted": { "type": "boolean" },
+        "isDeafened": { "type": "boolean" },
+        "lastSeen": { "type": "string" },
+        "status": { "type": "string", "enum": ["online", "offline"] }
+      },
+      "required": ["uid", "displayName", "photoURL", "role", "isSpeaking", "isMuted", "isDeafened", "lastSeen", "status"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "User profiles database."
+    },
+    "voice_presence/{userId}": {
+      "schema": "VoicePresence",
+      "description": "Real-time presence state across all voice channels."
     },
     "private_chats/{chatId}": {
       "schema": "PrivateChat",
