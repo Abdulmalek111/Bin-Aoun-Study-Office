@@ -148,6 +148,7 @@ io.on('connection', (socket: Socket) => {
 
     // Notify all other members in the room that a new peer has joined
     socket.to(roomId).emit('peer-joined', { peer: newPeer });
+    socket.to(roomId).emit('user-joined', { peer: newPeer, socketId: socket.id, uid });
     console.log(`[Signaling] Member joined room: ${roomId}, total member count: ${roomMembers.size}`);
   });
 
@@ -275,6 +276,10 @@ function handleSocketTeardown(socket: Socket) {
       socketId: socket.id,
       uid
     });
+    socket.to(roomId).emit('user-left', {
+      socketId: socket.id,
+      uid
+    });
 
     console.log(`[Signaling] User (${uid}) left room: ${roomId}. Current active member count: ${roomMembers.size}`);
 
@@ -283,6 +288,30 @@ function handleSocketTeardown(socket: Socket) {
       voiceRooms.delete(roomId);
       console.log(`[Signaling] Flushed empty room from memory active store: ${roomId}`);
     }
+  }
+
+  // Live Clean-Up: If Firebase Admin is available, automatically delete the member presence document
+  if (firebaseAdminEnabled && roomId && uid) {
+    const dbAdmin = admin.firestore();
+    dbAdmin.collection('voice_rooms').doc(roomId).collection('members').doc(uid).delete()
+      .then(() => {
+        console.log(`[Firebase Admin] Cleanup presence document for user ${uid} in room ${roomId}`);
+        // Read and update exact memberCount in parent document
+        return dbAdmin.collection('voice_rooms').doc(roomId).collection('members').get();
+      })
+      .then((snapshot) => {
+        const liveCount = snapshot.size;
+        return dbAdmin.collection('voice_rooms').doc(roomId).update({
+          memberCount: liveCount,
+          updatedAt: new Date().toISOString()
+        });
+      })
+      .then(() => {
+        console.log(`[Firebase Admin] Updated room ${roomId} memberCount successfully`);
+      })
+      .catch((err) => {
+        console.warn(`[Firebase Admin] Failed connection presence sweep:`, err);
+      });
   }
 }
 

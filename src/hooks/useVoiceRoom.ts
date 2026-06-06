@@ -3,7 +3,7 @@ import { socketService } from '../services/socket.service';
 import { voiceService } from '../services/voice.service';
 import { VoiceMember, VoiceRoom } from '../types/voice';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 
 export function useVoiceRoom(roomId: string | null) {
   const [joined, setJoined] = useState(false);
@@ -14,6 +14,14 @@ export function useVoiceRoom(roomId: string | null) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+
+  // Diagnostic states
+  const [socketStatus, setSocketStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [socketId, setSocketId] = useState<string>('');
+  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const [firestoreStatus, setFirestoreStatus] = useState<string>('مكتمل الأركان / Ready');
+  const [webrtcStatus, setWebrtcStatus] = useState<string>('בانتظار الإشارة / Waiting');
+  const [microphoneStatus, setMicrophoneStatus] = useState<string>('غير متصل / Offline');
 
   // Keep refs of values needed in async callbacks to prevent closures stale references
   const isMutedRef = useRef(isMuted);
@@ -39,7 +47,7 @@ export function useVoiceRoom(roomId: string | null) {
   const startSpeakingDetector = useCallback((stream: MediaStream) => {
     try {
       if (audioContextRef.current) {
-        audioContextRef.current.close();
+        audioContextRef.current.close().catch(() => {});
       }
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -124,6 +132,7 @@ export function useVoiceRoom(roomId: string | null) {
   const leaveRoom = useCallback(async () => {
     console.log('[useVoiceRoom] Initiating leave room cleanup sequence...');
     setLoading(true);
+    setFirestoreStatus('جاري تسجيل مغادرة الغرفة وتحديث الحضور...');
     
     // Stop local analyzer
     stopSpeakingDetector();
@@ -134,11 +143,15 @@ export function useVoiceRoom(roomId: string | null) {
     // Disconnect sockets
     socketService.emit('leave-room', {});
     socketService.disconnect();
+    setSocketStatus('disconnected');
+    setSocketId('');
 
     // If joined, delete self presence document in firestore (highly secure)
     if (roomId && auth.currentUser) {
       try {
         const memberDocRef = doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid);
+        await deleteDoc(memberDocRef);
+
         // Write audit trail log event to firestore
         const eventId = `evt-${Date.now()}`;
         await setDoc(doc(db, `voice_rooms/${roomId}/events`, eventId), {
@@ -146,8 +159,18 @@ export function useVoiceRoom(roomId: string | null) {
           uid: auth.currentUser.uid,
           createdAt: new Date().toISOString()
         });
+
+        // Set actual member count
+        const membersSnapshot = await getDocs(collection(db, `voice_rooms/${roomId}/members`));
+        await updateDoc(doc(db, 'voice_rooms', roomId), {
+          memberCount: Math.max(0, membersSnapshot.size),
+          updatedAt: new Date().toISOString()
+        });
+
+        setFirestoreStatus('تم تسجيل مغادرتك وتنظيف الحضور بنجاح ✅');
       } catch (err) {
         console.warn('[useVoiceRoom] Background leave sync bypassed:', err);
+        setFirestoreStatus('حدث خطأ رمزي أثناء تنظيف الحضور ⚠️');
       }
     }
 
@@ -158,6 +181,8 @@ export function useVoiceRoom(roomId: string | null) {
     setIsDeafened(false);
     setHandRaised(false);
     setLoading(false);
+    setMicrophoneStatus('غير متصل / Offline');
+    setWebrtcStatus('تم إنهاء الاتصال / Disconnected');
   }, [roomId, stopSpeakingDetector]);
 
   // Join Voice room setup operations
@@ -166,6 +191,10 @@ export function useVoiceRoom(roomId: string | null) {
     
     setLoading(true);
     setErrorCode(null);
+    setFirestoreStatus('التحقق من العضوية والصلاحيات والمحظورين...');
+    setMicrophoneStatus('جاري الحصول على صلاحية المايكروفون...');
+    setWebrtcStatus('بانتظار تهيئة شبكة P2P Mesh...');
+    
     console.log(`[useVoiceRoom] Attempting to connect user to Voice Room: "${room.name}" (${room.id})`);
 
     try {
@@ -196,11 +225,13 @@ export function useVoiceRoom(roomId: string | null) {
         throw new Error(`أنت محظور من دخول هذه الغرفة. السبب: ${banData.reason || 'مخالفة القوانين'}`);
       }
 
-      // 1. Capture user microphone
+      // 1-3. Capture user microphone
       const stream = await voiceService.startLocalMic();
       localStreamRef.current = stream;
+      setMicrophoneStatus('متصل ونشط 🎙️');
 
-      // 2. Open socket connections
+      // 4. Open socket connections
+      setSocketStatus('connecting');
       const token = await currentUser.getIdToken();
       const socket = socketService.connect(token);
 
@@ -208,26 +239,59 @@ export function useVoiceRoom(roomId: string | null) {
       voiceService.registerCallbacks(
         (updatedStream) => {
           localStreamRef.current = updatedStream;
+          setMicrophoneStatus(updatedStream ? 'نشط 🎙️' : 'مكتوم 🔇');
         },
         (remoteSocketId, remoteStream) => {
           console.log(`[useVoiceRoom] Stream rendered for peer socket: ${remoteSocketId}`);
+          setWebrtcStatus('متصل P2P Mesh Connected ✅');
         },
         (peerSocketIds) => {
-          // Sync existing components
+          setConnectedPeers(peerSocketIds);
         }
       );
 
-      // 3. Emit join-room event to notify signaling server
-      socket.emit('join-room', {
-        roomId: room.id,
-        uid: currentUser.uid,
-        displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
-        photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || 'X')}`,
-        role: currentRole,
-        token
+      // Setup Socket state tracking
+      if (socket.connected) {
+        setSocketStatus('connected');
+        setSocketId(socket.id || '');
+      }
+
+      socket.off('connect');
+      socket.on('connect', () => {
+        console.log('[useVoiceRoom] Socket connected/reconnected. Joining room channel...');
+        setSocketStatus('connected');
+        setSocketId(socket.id || '');
+        
+        socket.emit('join-room', {
+          roomId: room.id,
+          uid: currentUser.uid,
+          displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
+          photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || 'X')}`,
+          role: currentRole,
+          token
+        });
       });
 
-      // 4. Set local state presence in firestore so other users see us in room list
+      socket.off('disconnect');
+      socket.on('disconnect', () => {
+        console.warn('[useVoiceRoom] Socket signal disconnected.');
+        setSocketStatus('disconnected');
+      });
+
+      // Emit join-room event immediately if socket is connected
+      if (socket.connected) {
+        socket.emit('join-room', {
+          roomId: room.id,
+          uid: currentUser.uid,
+          displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
+          photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || 'X')}`,
+          role: currentRole,
+          token
+        });
+      }
+
+      // 5. Creating Presence in Firestore with isOnline=true
+      setFirestoreStatus('جاري رفع وثيقة الحضور الحي...');
       const selfMemberRecord: VoiceMember = {
         uid: currentUser.uid,
         displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
@@ -239,17 +303,26 @@ export function useVoiceRoom(roomId: string | null) {
         handRaised: false,
         joinedAt: new Date().toISOString(),
         lastSeen: new Date().toISOString(),
-        socketId: socket.id || ''
+        socketId: socket.id || '',
+        isOnline: true
       };
 
       await setDoc(doc(db, `voice_rooms/${room.id}/members`, currentUser.uid), selfMemberRecord);
 
-      // Add audit log join event
+      // Write join event log
       await setDoc(doc(db, `voice_rooms/${room.id}/events`, `evt-${Date.now()}`), {
         type: 'join',
         uid: currentUser.uid,
         createdAt: new Date().toISOString()
       });
+
+      // Update room memberCount in parent document
+      const membersSnapshot = await getDocs(collection(db, `voice_rooms/${room.id}/members`));
+      await updateDoc(doc(db, 'voice_rooms', room.id), {
+        memberCount: membersSnapshot.size,
+        updatedAt: new Date().toISOString()
+      });
+      setFirestoreStatus('الحضور نشط ومتصل 🟢');
 
       // Wire Socket Listeners
       socket.off('error-msg');
@@ -259,14 +332,14 @@ export function useVoiceRoom(roomId: string | null) {
         leaveRoom();
       });
 
-      // Peer connections updates:
+      // Peer connections and automatic discovery mesh setups
       socket.off('room-members-list');
       socket.on('room-members-list', async (data: { members: any[] }) => {
         console.log(`[useVoiceRoom] Populated other members list from signal:`, data.members);
+        setWebrtcStatus(`جاري البناء الشبكي P2P Mesh مع المجموع (${data.members.length})`);
         
-        // Setup existing user tracks
         const fullList: VoiceMember[] = [
-          { ...selfMemberRecord, socketId: socket.id || '' },
+          { ...selfMemberRecord, socketId: socket.id || '', isOnline: true },
           ...data.members
         ];
         
@@ -280,7 +353,16 @@ export function useVoiceRoom(roomId: string | null) {
 
       socket.off('peer-joined');
       socket.on('peer-joined', (data: { peer: any }) => {
-        console.log(`[useVoiceRoom] Remote peer connected: ${data.peer.displayName}`);
+        console.log(`[useVoiceRoom] Remote peer connected (peer-joined): ${data.peer.displayName}`);
+        setMembers(prev => {
+          if (prev.some(m => m.socketId === data.peer.socketId)) return prev;
+          return [...prev, data.peer];
+        });
+      });
+
+      socket.off('user-joined');
+      socket.on('user-joined', (data: { peer: any }) => {
+        console.log(`[useVoiceRoom] Remote user connected (user-joined): ${data.peer.displayName}`);
         setMembers(prev => {
           if (prev.some(m => m.socketId === data.peer.socketId)) return prev;
           return [...prev, data.peer];
@@ -306,7 +388,14 @@ export function useVoiceRoom(roomId: string | null) {
       // User Presence tracking:
       socket.off('peer-left');
       socket.on('peer-left', (data: { socketId: string; uid: string }) => {
-        console.log(`[useVoiceRoom] Remote peer disconnected: ${data.socketId}`);
+        console.log(`[useVoiceRoom] Remote peer disconnected (peer-left): ${data.socketId}`);
+        voiceService.closePeerConnection(data.socketId);
+        setMembers(prev => prev.filter(m => m.socketId !== data.socketId));
+      });
+
+      socket.off('user-left');
+      socket.on('user-left', (data: { socketId: string; uid: string }) => {
+        console.log(`[useVoiceRoom] Remote peer left (user-left): ${data.socketId}`);
         voiceService.closePeerConnection(data.socketId);
         setMembers(prev => prev.filter(m => m.socketId !== data.socketId));
       });
@@ -338,7 +427,7 @@ export function useVoiceRoom(roomId: string | null) {
       // Start local speaking detection analyzer engine
       startSpeakingDetector(stream);
 
-      // Successfully synced
+      // Successfully joined
       setJoined(true);
       setLoading(false);
 
@@ -417,6 +506,14 @@ export function useVoiceRoom(roomId: string | null) {
     toggleDeafen,
     toggleHandRaise,
     kickMember,
-    banMember
+    banMember,
+    
+    // Diagnostics Exports
+    socketStatus,
+    socketId,
+    connectedPeers,
+    firestoreStatus,
+    webrtcStatus,
+    microphoneStatus
   };
 }

@@ -9,6 +9,7 @@ export interface VoiceRoom {
   allowedRoles: string[]; // e.g. ['admin', 'moderator', 'teacher', 'student']
   createdAt: string;
   updatedAt: string;
+  memberCount?: number;
 }
 
 export interface VoiceMember {
@@ -23,6 +24,7 @@ export interface VoiceMember {
   joinedAt: string;
   lastSeen: string;
   socketId: string;
+  isOnline?: boolean;
 }
 
 export interface VoiceBan {

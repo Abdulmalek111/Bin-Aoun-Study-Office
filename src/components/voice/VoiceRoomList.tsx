@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { VoiceRoom } from '../../types/voice';
+import { VoiceRoom, VoiceMember } from '../../types/voice';
 import { collection, onSnapshot, doc, setDoc, query, orderBy, getDocs } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { Users, Plus, Ear, Lock, Globe, Search, X, Check, BookOpen } from 'lucide-react';
@@ -15,6 +15,7 @@ export default function VoiceRoomList({
 }: VoiceRoomListProps) {
   
   const [rooms, setRooms] = useState<VoiceRoom[]>([]);
+  const [roomMembersMap, setRoomMembersMap] = useState<Record<string, VoiceMember[]>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'public' | 'private'>('all');
@@ -47,7 +48,8 @@ export default function VoiceRoomList({
           isLocked: !!d.isLocked,
           allowedRoles: d.allowedRoles || [],
           createdAt: d.createdAt || '',
-          updatedAt: d.updatedAt || ''
+          updatedAt: d.updatedAt || '',
+          memberCount: typeof d.memberCount === 'number' ? d.memberCount : 0
         });
       });
 
@@ -82,6 +84,44 @@ export default function VoiceRoomList({
 
     return () => unsub();
   }, [isCurrentUserAdmin]);
+
+  // Real-time snapshot listening for active participants in each room
+  useEffect(() => {
+    if (rooms.length === 0) return;
+
+    const unsubscribers = rooms.map(room => {
+      const membersRef = collection(db, 'voice_rooms', room.id, 'members');
+      return onSnapshot(membersRef, (snap) => {
+        const mList: VoiceMember[] = [];
+        snap.forEach(mDoc => {
+          const md = mDoc.data();
+          if (md.isOnline !== false) {
+            mList.push({
+              uid: mDoc.id,
+              displayName: md.displayName || 'مستخدم',
+              photoURL: md.photoURL || '',
+              role: md.role || 'student',
+              isMuted: !!md.isMuted,
+              isDeafened: !!md.isDeafened,
+              isSpeaking: !!md.isSpeaking,
+              handRaised: !!md.handRaised,
+              joinedAt: md.joinedAt || '',
+              lastSeen: md.lastSeen || '',
+              socketId: md.socketId || ''
+            });
+          }
+        });
+        setRoomMembersMap(prev => ({
+          ...prev,
+          [room.id]: mList
+        }));
+      });
+    });
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [rooms]);
 
   // Handle creating room write
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -216,6 +256,68 @@ export default function VoiceRoomList({
 
       </div>
 
+      {/* 2.5 Active Voice Rooms Section */}
+      {rooms.filter(room => (roomMembersMap[room.id] || []).length > 0).length > 0 && (
+        <div className="flex flex-col gap-4 p-5 bg-gradient-to-r from-emerald-500/5 to-teal-500/5 border border-emerald-500/10 rounded-[28px] animate-fade-in">
+          <div className="flex justify-between items-center select-none">
+            <h3 className="font-extrabold text-xs text-brand-dark flex items-center gap-1.5 text-emerald-600">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              الغرف الصوتية المشغولة حالياً 🔥 Active Channels
+            </h3>
+            <span className="text-[10px] text-gray-500 font-extrabold">* تحديث مباشر وتلقائي</span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {rooms.filter(room => (roomMembersMap[room.id] || []).length > 0).map(room => {
+              const activeMembers = roomMembersMap[room.id] || [];
+              return (
+                <div key={`active-${room.id}`} className="bg-white border border-emerald-500/15 hover:border-emerald-500 rounded-2xl p-4 flex flex-col justify-between shadow-sm transition-all duration-300 hover:shadow-md">
+                  <div className="space-y-1">
+                    <h4 className="font-extrabold text-[12px] text-brand-dark truncate">{room.name}</h4>
+                    <p className="text-[10px] text-gray-400 font-bold line-clamp-1">{room.description}</p>
+                  </div>
+                  
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
+                    <div className="flex items-center gap-1">
+                      {/* Avatars Stack */}
+                      <div className="flex -space-x-2 overflow-hidden rtl:space-x-reverse pr-1">
+                        {activeMembers.slice(0, 4).map(member => (
+                          <img
+                            key={member.uid}
+                            className="inline-block h-6 w-6 rounded-full ring-2 ring-white object-cover"
+                            src={member.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(member.displayName)}`}
+                            alt={member.displayName}
+                            title={member.displayName}
+                          />
+                        ))}
+                        {activeMembers.length > 4 && (
+                          <div className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 ring-2 ring-white text-[8px] font-black text-gray-500">
+                            +{activeMembers.length - 4}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-black mr-1">
+                        {activeMembers.length} {activeMembers.length === 1 ? 'مستمع' : 'نشطين'}
+                      </span>
+                    </div>
+                    
+                    <button
+                      onClick={() => onJoinRoom(room)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black transition-all cursor-pointer shadow-sm active:scale-95 animate-pulse"
+                    >
+                      انضم للمحادثة 🎙️
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 3. Room cards lists */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3 select-none">
@@ -271,9 +373,30 @@ export default function VoiceRoomList({
 
               {/* Interaction join button layout footer */}
               <div className="flex items-center justify-between border-t border-gray-100/60 pt-3 mt-2">
-                <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-extrabold pr-1">
-                  <Users size={12} className="text-gray-400" />
-                  <span>انقر للمعاينة والشبكة</span>
+                <div className="flex items-center gap-2 pr-1">
+                  {(roomMembersMap[room.id] || []).length > 0 ? (
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex -space-x-1.5 overflow-hidden rtl:space-x-reverse">
+                        {(roomMembersMap[room.id] || []).slice(0, 3).map(m => (
+                          <img
+                            key={m.uid}
+                            className="inline-block h-5 w-5 rounded-full ring-2 ring-white object-cover"
+                            src={m.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.displayName)}`}
+                            alt={m.displayName}
+                            title={m.displayName}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[10px] font-black text-emerald-600 font-mono">
+                        {(roomMembersMap[room.id] || []).length} متصل
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400 font-extrabold">
+                      <Users size={12} className="text-gray-400" />
+                      <span>شاغرة حالياً</span>
+                    </div>
+                  )}
                 </div>
 
                 <button

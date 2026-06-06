@@ -261,7 +261,13 @@ service cloud.firestore {
     match /voice_rooms/{roomId} {
       allow read, get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isVoiceRoomOwner(roomId) || isRoomAdmin(roomId) || isAdmin();
+      allow update: if isSignedIn() && (
+        isVoiceRoomOwner(roomId) || 
+        isRoomAdmin(roomId) || 
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount', 'updatedAt'])
+      );
+      allow delete: if isVoiceRoomOwner(roomId) || isRoomAdmin(roomId) || isAdmin();
 
       match /members/{uid} {
         allow read, get, list: if isSignedIn();
