@@ -127,21 +127,6 @@ service cloud.firestore {
              data.createdAt is string;
     }
 
-    function isValidVoicePresence(data) {
-      return data.keys().hasAll(['uid', 'displayName', 'photoURL', 'currentRoomId', 'currentRoomName', 'role', 'isSpeaking', 'isMuted', 'isDeafened', 'lastSeen', 'status']) &&
-             data.uid is string &&
-             data.displayName is string &&
-             data.photoURL is string &&
-             (data.currentRoomId == null || data.currentRoomId is string) &&
-             (data.currentRoomName == null || data.currentRoomName is string) &&
-             data.role in ['admin', 'moderator', 'teacher', 'student'] &&
-             data.isSpeaking is bool &&
-             data.isMuted is bool &&
-             data.isDeafened is bool &&
-             data.lastSeen is string &&
-             data.status in ['online', 'offline'];
-    }
-
     // --- Path Match Blocks (Phase 1 Codebase Match Mapping) ---
 
     // User Profiles Match Block
@@ -294,13 +279,6 @@ service cloud.firestore {
         allow create: if isSignedIn();
         allow update, delete: if isVoiceRoomOwner(roomId) || isRoomAdmin(roomId) || isAdmin();
       }
-    }
-
-    // --- Voice Presence Match Rules ---
-    match /voice_presence/{uid} {
-      allow read, get, list: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == uid && isValidVoicePresence(request.resource.data);
-      allow delete: if isSignedIn() && (request.auth.uid == uid || isAdmin());
     }
 
   }
