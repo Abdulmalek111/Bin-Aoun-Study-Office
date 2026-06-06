@@ -246,39 +246,38 @@ service cloud.firestore {
     }
 
     // --- Voice Rooms Match Rules ---
-    match /voice_rooms/{roomId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(roomId) && isValidVoiceRoom(request.resource.data);
-      allow update: if isSignedIn() && (
-        request.resource.data.ownerId == request.auth.uid || isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])
-      );
-      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    function isVoiceRoomOwner(roomId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/voice_rooms/$(roomId))
+        && get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid;
+    }
 
-      match /members/{memberId} {
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn() && memberId == request.auth.uid && isValidVoiceMember(request.resource.data);
-        allow update: if isSignedIn() && (
-          memberId == request.auth.uid ||
-          get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin()
-        );
-        allow delete: if isSignedIn() && (
-          memberId == request.auth.uid || 
-          get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin()
-        );
+    function isRoomAdmin(roomId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/voice_rooms/$(roomId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/voice_rooms/$(roomId)/members/$(request.auth.uid)).data.role in ['Admin', 'Moderator', 'Teacher', 'admin', 'moderator', 'teacher'];
+    }
+
+    match /voice_rooms/{roomId} {
+      allow read, get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isVoiceRoomOwner(roomId) || isRoomAdmin(roomId) || isAdmin();
+
+      match /members/{uid} {
+        allow read, get, list: if isSignedIn();
+        allow create, update: if isSignedIn() && request.auth.uid == uid;
+        allow delete: if isSignedIn() && (request.auth.uid == uid || isVoiceRoomOwner(roomId) || isRoomAdmin(roomId) || isAdmin());
       }
 
-      match /bans/{banId} {
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn() && (get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin()) && isValidVoiceBan(request.resource.data);
-        allow update, delete: if isSignedIn() && (get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin());
+      match /bans/{uid} {
+        allow read, get, list: if isSignedIn();
+        allow create, update, delete: if isVoiceRoomOwner(roomId) || isRoomAdmin(roomId) || isAdmin();
       }
 
       match /events/{eventId} {
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn() && isValidVoiceEvent(request.resource.data);
-        allow update, delete: if false;
+        allow read, get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isVoiceRoomOwner(roomId) || isRoomAdmin(roomId) || isAdmin();
       }
     }
 

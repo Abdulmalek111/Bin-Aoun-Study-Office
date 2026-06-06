@@ -79,12 +79,22 @@ export default function VoiceRoom({
 
       {/* 2. Error Prompt Block */}
       {error && (
-        <div className="bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl p-4 flex gap-3 text-right text-xs items-center leading-relaxed">
-          <AlertCircle size={18} className="shrink-0" />
-          <div>
-            <p className="font-extrabold pb-0.5">خطأ في الاتصال الصوتي:</p>
-            <p className="font-medium">{error}</p>
+        <div className="bg-red-500/10 text-red-500 border border-red-500/10 rounded-2xl p-4 flex flex-col sm:flex-row gap-4 text-right text-xs items-start sm:items-center justify-between leading-relaxed">
+          <div className="flex gap-3 items-center">
+            <AlertCircle size={18} className="shrink-0 text-red-500" />
+            <div>
+              <p className="font-extrabold pb-0.5 text-red-700">خطأ في الاتصال الصوتي:</p>
+              <p className="font-medium text-red-650">{error}</p>
+            </div>
           </div>
+          {!joined && !loading && (
+            <button
+              onClick={() => joinRoom(room)}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center animate-pulse"
+            >
+              إعادة المحاولة 🔄
+            </button>
+          )}
         </div>
       )}
 
@@ -99,6 +109,23 @@ export default function VoiceRoom({
             <h4 className="font-black text-sm text-brand-dark text-center leading-tight">جاري تهيئة قناة الاتصال الصوتي...</h4>
             <p className="text-[10px] text-gray-400 font-bold font-mono">Connecting P2P WebRTC Signaling Sockets</p>
           </div>
+        </div>
+      )}
+
+      {/* 3.5 Handlers when Not Joined and Not Loading */}
+      {!joined && !loading && (
+        <div className="flex-1 flex flex-col items-center justify-center py-16 gap-4 border border-dashed border-gray-200 rounded-3xl bg-gray-50/30">
+          <AlertCircle size={32} className="text-red-500/80" />
+          <div className="text-center space-y-1">
+            <h4 className="font-black text-sm text-brand-dark">لم يتم الاتصال بقناة الصوت</h4>
+            <p className="text-[10px] text-gray-400 font-bold">يرجى السماح بصلاحية الميكروفون وتأكيد الاتصال للانضمام للمحادثة.</p>
+          </div>
+          <button
+            onClick={() => joinRoom(room)}
+            className="px-6 py-2.5 bg-brand-dark hover:bg-brand-gold hover:text-brand-dark text-white rounded-xl text-xs font-black transition-all duration-300 transform active:scale-95 cursor-pointer shadow-md"
+          >
+            الانضمام للاتصال الصوتي المباشر 🎙️
+          </button>
         </div>
       )}
 
