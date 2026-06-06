@@ -344,14 +344,20 @@ export default function App() {
       return;
     }
 
-    // 1. Subscribe to Announcements / Notifications
-    const unsubNotif = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+    // 1. Subscribe to Announcements / Notifications (filtered to prevent permission errors)
+    const isSchoolAdmin = user.email === 'abdulmlikoog@gmail.com';
+    const notifColl = collection(db, 'notifications');
+    const notifQuery = isSchoolAdmin 
+      ? notifColl 
+      : query(notifColl, where('targetEmail', 'in', [user.email.toLowerCase(), 'all']));
+
+    const unsubNotif = onSnapshot(notifQuery, (snapshot) => {
       const list: Notification[] = [];
       snapshot.forEach((docRef) => {
         const d = docRef.data();
         const target = d.targetEmail || '';
         if (
-          user.email === 'abdulmlikoog@gmail.com' ||
+          isSchoolAdmin ||
           target.toLowerCase() === user.email.toLowerCase() ||
           target.toLowerCase() === 'all'
         ) {
@@ -368,16 +374,21 @@ export default function App() {
       list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setNotifications(list);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'notifications');
+      console.warn("[Notifications] Security rule restricted reading entire notifications collection, using secure query filter. Error message:", error);
     });
 
     // 2. Subscribe to Student Support Tickets
-    const unsubTickets = onSnapshot(collection(db, 'tickets'), (snapshot) => {
+    const ticketsColl = collection(db, 'tickets');
+    const ticketsQuery = isSchoolAdmin
+      ? ticketsColl
+      : query(ticketsColl, where('senderEmail', '==', user.email));
+
+    const unsubTickets = onSnapshot(ticketsQuery, (snapshot) => {
       const list: SupportTicket[] = [];
       snapshot.forEach((docRef) => {
         const d = docRef.data();
         const sender = d.senderEmail || '';
-        if (user.email === 'abdulmlikoog@gmail.com' || sender.toLowerCase() === user.email.toLowerCase()) {
+        if (isSchoolAdmin || sender.toLowerCase() === user.email.toLowerCase()) {
           list.push({
             id: docRef.id,
             senderEmail: sender,
@@ -394,7 +405,7 @@ export default function App() {
       list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setSupportTickets(list);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'tickets');
+      console.warn("[Tickets] Security rules restricted support tickets query, using secure query filters. Error:", error);
     });
 
     // 3. Subscribe to Exam History

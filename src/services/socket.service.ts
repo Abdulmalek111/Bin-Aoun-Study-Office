@@ -38,8 +38,11 @@ class SocketService {
       }
     });
 
+    this.queue = [];
+
     this.socket.on('connect', () => {
       console.log(`[SocketService] Socket connection opened successfully: ${this.socket?.id}`);
+      this.flushQueue();
     });
 
     this.socket.on('connect_error', (error) => {
@@ -49,11 +52,14 @@ class SocketService {
     return this.socket;
   }
 
+  private queue: { event: string; data: any }[] = [];
+
   getSocket(): Socket | null {
     return this.socket;
   }
 
   disconnect() {
+    this.queue = [];
     if (this.socket) {
       console.log('[SocketService] Disconnecting socket...');
       this.socket.disconnect();
@@ -61,12 +67,31 @@ class SocketService {
     }
   }
 
-  emit(event: string, data: any) {
+  safeEmit(event: string, data: any) {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
     } else {
-      console.warn(`[SocketService] Cannot emit event "${event}". Socket is disconnected.`);
+      console.warn(`[SocketService] Socket is disconnected. Queuing event "${event}"`);
+      const nonSignalEvents = ['state-change', 'speaking', 'mute', 'unmute', 'deafen', 'undeafen', 'hand-raised'];
+      if (nonSignalEvents.includes(event)) {
+        this.queue = this.queue.filter(q => q.event !== event);
+        this.queue.push({ event, data });
+      }
     }
+  }
+
+  flushQueue() {
+    if (!this.socket || !this.socket.connected || this.queue.length === 0) return;
+    console.log(`[SocketService] Flushing ${this.queue.length} buffered events on reconnect...`);
+    const toFlush = [...this.queue];
+    this.queue = [];
+    toFlush.forEach(item => {
+      this.socket?.emit(item.event, item.data);
+    });
+  }
+
+  emit(event: string, data: any) {
+    this.safeEmit(event, data);
   }
 
   on(event: string, callback: (...args: any[]) => void) {

@@ -43,7 +43,9 @@ export default function VoiceRoom({
     connectedPeers,
     firestoreStatus,
     webrtcStatus,
-    microphoneStatus
+    microphoneStatus,
+    peerSignalingStates,
+    peerIceConnectionStates
   } = useVoiceRoom(room.id);
 
   // Auto-connect on mounting
@@ -52,6 +54,13 @@ export default function VoiceRoom({
       joinRoom(room);
     }
   }, [room, joined, joinRoom]);
+
+  const handleResetConnection = () => {
+    leaveRoom();
+    setTimeout(() => {
+      joinRoom(room);
+    }, 600);
+  };
 
   const handleDisconnect = () => {
     leaveRoom();
@@ -103,7 +112,8 @@ export default function VoiceRoom({
         </button>
 
         {showDiagnostics && (
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-2 border-t border-gray-150/60 animate-fade-in text-[10px] text-right">
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-2 border-t border-gray-150/60 animate-fade-in text-[10px] text-right">
             {/* Socket connection status with ping light */}
             <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm">
               <span className="text-gray-400 font-extrabold flex items-center gap-1 justify-end">
@@ -166,7 +176,47 @@ export default function VoiceRoom({
               </span>
             </div>
           </div>
-        )}
+
+          {connectedPeers.length > 0 && (
+            <div className="mt-3 bg-white border border-gray-150 rounded-2xl p-4 flex flex-col gap-2">
+              <span className="text-gray-400 font-extrabold text-[10px]">مسارات الربط المباشر النشطة (WebRTC Active P2P Links)</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[9px] font-mono">
+                {connectedPeers.map(peerId => {
+                  const m = members.find(mbr => mbr.socketId === peerId);
+                  const sigState = peerSignalingStates?.[peerId] || 'unknown';
+                  const iceState = peerIceConnectionStates?.[peerId] || 'unknown';
+                  return (
+                    <div key={peerId} className="flex justify-between items-center bg-gray-50/70 border border-gray-100 rounded-xl p-2.5">
+                      <span className="text-brand-dark font-black font-sans text-right">
+                        {m ? m.displayName : `مجهول (${peerId.slice(0, 5)})`}
+                      </span>
+                      <div className="flex gap-2 items-center">
+                        <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
+                          signaling: {sigState}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full font-bold ${
+                          iceState === 'connected' || iceState === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          ice: {iceState}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 mt-2">
+            <button
+              onClick={handleResetConnection}
+              className="px-4 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer font-bold"
+            >
+              إعادة تهيئة الاتصال وحل الأخطاء (Reset Connection) 🔄
+            </button>
+          </div>
+        </>
+      )}
       </div>
 
       {/* 2.5 Error Prompt Block */}

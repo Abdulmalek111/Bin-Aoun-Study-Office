@@ -85,6 +85,17 @@ service cloud.firestore {
       return data.keys().hasAll(['lectures']) && data.lectures is list;
     }
 
+    function isValidPrivateCall(data) {
+      return data.keys().hasAll(['id', 'callerUid', 'callerName', 'calleeUid', 'calleeName', 'status', 'createdAt']) &&
+             data.id is string &&
+             data.callerUid is string &&
+             data.callerName is string &&
+             data.calleeUid is string &&
+             data.calleeName is string &&
+             data.status in ['calling', 'ringing', 'accepted', 'declined', 'ended'] &&
+             data.createdAt is int;
+    }
+
     function isValidVoiceRoom(data) {
       return data.keys().hasAll(['id', 'name', 'type', 'ownerId', 'maxUsers', 'isLocked', 'allowedRoles', 'createdAt', 'updatedAt']) &&
              data.id is string && data.name is string && data.name.size() >= 1 && data.name.size() <= 128 &&
@@ -168,9 +179,34 @@ service cloud.firestore {
 
     // Private 1-on-1 Calls Match Block
     match /private_calls/{callId} {
-      allow get, list: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
-      allow create, update: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
-      allow delete: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      allow get: if isSignedIn() && (
+        resource.data.callerUid == request.auth.uid || 
+        resource.data.calleeUid == request.auth.uid ||
+        callId.split('_')[0] == request.auth.uid || 
+        callId.split('_')[1] == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        resource.data.callerUid == request.auth.uid || 
+        resource.data.calleeUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && 
+        request.resource.data.callerUid == request.auth.uid && 
+        isValidPrivateCall(request.resource.data);
+      allow update: if isSignedIn() && (
+        resource.data.callerUid == request.auth.uid || 
+        resource.data.calleeUid == request.auth.uid
+      ) && isValidPrivateCall(request.resource.data);
+      allow delete: if isSignedIn() && (
+        resource.data.callerUid == request.auth.uid || 
+        resource.data.calleeUid == request.auth.uid
+      );
+
+      // Subcollection for real-time 1-on-1 calling audio packets
+      match /audio_packets/{packetId} {
+        allow read, get, list: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+        allow create: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid) && request.resource.data.senderUid == request.auth.uid;
+        allow update, delete: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      }
     }
 
     // Technical Support Tickets Match Block
