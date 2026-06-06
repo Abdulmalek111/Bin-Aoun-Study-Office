@@ -85,6 +85,48 @@ service cloud.firestore {
       return data.keys().hasAll(['lectures']) && data.lectures is list;
     }
 
+    function isValidVoiceRoom(data) {
+      return data.keys().hasAll(['id', 'name', 'type', 'ownerId', 'maxUsers', 'isLocked', 'allowedRoles', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.name is string && data.name.size() >= 1 && data.name.size() <= 128 &&
+             data.type in ['public', 'private'] &&
+             data.ownerId is string &&
+             data.maxUsers is int && data.maxUsers >= 1 &&
+             data.isLocked is bool &&
+             data.allowedRoles is list &&
+             data.createdAt is string &&
+             data.updatedAt is string;
+    }
+
+    function isValidVoiceMember(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'photoURL', 'role', 'isMuted', 'isDeafened', 'isSpeaking', 'handRaised', 'joinedAt', 'lastSeen', 'socketId']) &&
+             data.uid is string &&
+             data.displayName is string &&
+             data.photoURL is string &&
+             data.role in ['admin', 'moderator', 'teacher', 'student'] &&
+             data.isMuted is bool &&
+             data.isDeafened is bool &&
+             data.isSpeaking is bool &&
+             data.handRaised is bool &&
+             data.joinedAt is string &&
+             data.lastSeen is string &&
+             data.socketId is string;
+    }
+
+    function isValidVoiceBan(data) {
+      return data.keys().hasAll(['uid', 'bannedBy', 'reason', 'createdAt']) &&
+             data.uid is string &&
+             data.bannedBy is string &&
+             data.reason is string &&
+             data.createdAt is string;
+    }
+
+    function isValidVoiceEvent(data) {
+      return data.keys().hasAll(['type', 'uid', 'createdAt']) &&
+             data.type is string &&
+             data.uid is string &&
+             data.createdAt is string;
+    }
+
     // --- Path Match Blocks (Phase 1 Codebase Match Mapping) ---
 
     // User Profiles Match Block
@@ -98,8 +140,7 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'username', 'avatarUrl', 'telegram', 'isLoggedIn',
             'academicStage', 'academicYear', 'academicSemester', 'academicTrack',
-            'scorePct', 'completedCount', 'signUpDate', 'studentId',
-            'isOnline', 'lastActive'
+            'scorePct', 'completedCount', 'signUpDate', 'studentId'
           ])
         )
       ) || isAdmin();
@@ -127,17 +168,9 @@ service cloud.firestore {
 
     // Private 1-on-1 Calls Match Block
     match /private_calls/{callId} {
-      allow get: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
-      allow list: if isSignedIn() && (resource.data.callerUid == request.auth.uid || resource.data.calleeUid == request.auth.uid);
-      allow create: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
-      allow update: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      allow get, list: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
+      allow create, update: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
       allow delete: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
-
-      // Audio packets subcollection
-      match /audio_packets/{packetId} {
-        allow get, list, create: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
-        allow update, delete: if isSignedIn() && (callId.split('_')[0] == request.auth.uid || callId.split('_')[1] == request.auth.uid);
-      }
     }
 
     // Technical Support Tickets Match Block
@@ -212,24 +245,42 @@ service cloud.firestore {
       allow write: if false; // Only manageable through Cloud Console
     }
 
-    // Voice Chat Rooms Match Block
+    // --- Voice Rooms Match Rules ---
     match /voice_rooms/{roomId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(roomId) && isValidVoiceRoom(request.resource.data);
+      allow update: if isSignedIn() && (
+        request.resource.data.ownerId == request.auth.uid || isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])
+      );
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
 
-      // Audio packets subcollection
-      match /audio_packets/{packetId} {
-        allow get, list, create: if isSignedIn();
-        allow update, delete: if isSignedIn();
+      match /members/{memberId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && memberId == request.auth.uid && isValidVoiceMember(request.resource.data);
+        allow update: if isSignedIn() && (
+          memberId == request.auth.uid ||
+          get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin()
+        );
+        allow delete: if isSignedIn() && (
+          memberId == request.auth.uid || 
+          get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin()
+        );
       }
 
-      // Signaling subcollection
-      match /signaling/{signalId} {
-        allow get, list, create, update: if isSignedIn();
-        allow delete: if isSignedIn();
+      match /bans/{banId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && (get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin()) && isValidVoiceBan(request.resource.data);
+        allow update, delete: if isSignedIn() && (get(/databases/$(database)/documents/voice_rooms/$(roomId)).data.ownerId == request.auth.uid || isAdmin());
+      }
+
+      match /events/{eventId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && isValidVoiceEvent(request.resource.data);
+        allow update, delete: if false;
       }
     }
+
   }
 }

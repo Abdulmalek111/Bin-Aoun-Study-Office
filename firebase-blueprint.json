@@ -227,52 +227,6 @@
       },
       "required": ["lectures"]
     },
-    "VoiceRoom": {
-      "title": "VoiceRoom",
-      "description": "Real-time interactive voice chat rooms for classes.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "creatorName": { "type": "string" },
-        "createdAt": { "type": "string" },
-        "activeParticipants": {
-          "type": "array",
-          "description": "List of currently connected participants inside this room."
-        }
-      },
-      "required": ["id", "title", "activeParticipants", "createdAt"]
-    },
-    "AudioPacket": {
-      "title": "AudioPacket",
-      "description": "A slice of fallback audio recorded by a participant.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "senderUid": { "type": "string" },
-        "senderName": { "type": "string" },
-        "audioBase64": { "type": "string" },
-        "timestamp": { "type": "integer" }
-      },
-      "required": ["id", "senderUid", "senderName", "audioBase64", "timestamp"]
-    },
-    "WebRtcSignaling": {
-      "title": "WebRtcSignaling",
-      "description": "WebRTC multi-directional mesh negotiation channel.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "callerUid": { "type": "string" },
-        "calleeUid": { "type": "string" },
-        "status": { "type": "string", "enum": ["offered", "answered"] },
-        "offer": { "type": "object" },
-        "answer": { "type": "object" },
-        "candidates_caller": { "type": "array" },
-        "candidates_callee": { "type": "array" },
-        "createdAt": { "type": "integer" }
-      },
-      "required": ["id", "callerUid", "calleeUid", "status", "createdAt"]
-    },
     "PrivateChat": {
       "title": "PrivateChat",
       "description": "Private direct chat channel between two students.",
@@ -316,6 +270,68 @@
         "calleeCandidates": { "type": "array" }
       },
       "required": ["id", "callerUid", "callerName", "calleeUid", "calleeName", "status", "createdAt"]
+    },
+    "VoiceRoom": {
+      "title": "VoiceRoom",
+      "description": "Real-time Discord-like voice chat rooms for classes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["public", "private"] },
+        "ownerId": { "type": "string" },
+        "maxUsers": { "type": "integer" },
+        "isLocked": { "type": "boolean" },
+        "allowedRoles": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "ownerId", "maxUsers", "isLocked", "allowedRoles", "createdAt", "updatedAt"]
+    },
+    "VoiceMember": {
+      "title": "VoiceMember",
+      "description": "Active participant connected to a voice room.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "moderator", "teacher", "student"] },
+        "isMuted": { "type": "boolean" },
+        "isDeafened": { "type": "boolean" },
+        "isSpeaking": { "type": "boolean" },
+        "handRaised": { "type": "boolean" },
+        "joinedAt": { "type": "string" },
+        "lastSeen": { "type": "string" },
+        "socketId": { "type": "string" }
+      },
+      "required": ["uid", "displayName", "photoURL", "role", "isMuted", "isDeafened", "isSpeaking", "handRaised", "joinedAt", "lastSeen", "socketId"]
+    },
+    "VoiceBan": {
+      "title": "VoiceBan",
+      "description": "Banned user from a specific voice room.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "bannedBy": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "bannedBy", "reason", "createdAt"]
+    },
+    "VoiceEvent": {
+      "title": "VoiceEvent",
+      "description": "Historical events logged for audit trail within a voice room.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "uid": { "type": "string" },
+        "targetUid": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["type", "uid", "createdAt"]
     }
   },
   "firestore": {
@@ -334,18 +350,6 @@
     "private_calls/{callId}": {
       "schema": "PrivateCall",
       "description": "Private 1-on-1 voice calling sessions between students."
-    },
-    "voice_rooms/{roomId}": {
-      "schema": "VoiceRoom",
-      "description": "Real-time educational voice chat discussions rooms."
-    },
-    "voice_rooms/{roomId}/audio_packets/{packetId}": {
-      "schema": "AudioPacket",
-      "description": "Real-time voice recordings subcollection."
-    },
-    "voice_rooms/{roomId}/signaling/{signalId}": {
-      "schema": "WebRtcSignaling",
-      "description": "WebRTC mesh connection handshakes subcollection."
     },
     "subject_lectures/{subjectId}": {
       "schema": "SubjectLectures",
@@ -370,6 +374,22 @@
     "users/{userId}/exams/{examId}": {
       "schema": "ExamHistoryItem",
       "description": "Completed student exam history logs."
+    },
+    "voice_rooms/{roomId}": {
+      "schema": "VoiceRoom",
+      "description": "Discord-like voice rooms metadata document."
+    },
+    "voice_rooms/{roomId}/members/{memberId}": {
+      "schema": "VoiceMember",
+      "description": "Connected active voice members inside the room."
+    },
+    "voice_rooms/{roomId}/bans/{banId}": {
+      "schema": "VoiceBan",
+      "description": "Banned users record within the voice room."
+    },
+    "voice_rooms/{roomId}/events/{eventId}": {
+      "schema": "VoiceEvent",
+      "description": "Audit trails and moderation log events."
     }
   }
 }

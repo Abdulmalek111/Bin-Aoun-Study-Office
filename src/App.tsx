@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield, Users, PhoneIncoming, X, Check } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from './lib/firebase';
@@ -20,7 +20,6 @@ import ProfileView from './components/ProfileView';
 import DiscussionsView from './components/DiscussionsView';
 import AdminDashboard from './components/AdminDashboard';
 import StudentsView, { getBinStudentId } from './components/StudentsView';
-import AudioService from './lib/audioService';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -62,11 +61,8 @@ export default function App() {
     ];
   });
 
-  const supportTicketsRef = useRef<SupportTicket[]>([]);
-
   useEffect(() => {
     localStorage.setItem('school_support_tickets', JSON.stringify(supportTickets));
-    supportTicketsRef.current = supportTickets;
   }, [supportTickets]);
 
   // Dynamic Notifications State
@@ -102,13 +98,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('school_notifications', JSON.stringify(notifications));
   }, [notifications]);
-
-  // Handle playing custom sound alert when an exam starts
-  useEffect(() => {
-    if (activeExamId) {
-      AudioService.playExamStartSound();
-    }
-  }, [activeExamId]);
 
   const handleAddNotification = async (targetEmail: string, senderName: string, message: string) => {
     const today = new Date();
@@ -323,57 +312,6 @@ export default function App() {
     }
   }, [user]);
 
-  // Real-time Presence Engine for active users
-  useEffect(() => {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
-    const uRef = doc(db, 'users', uid);
-
-    // 1. Declare online immediately
-    const goOnline = async () => {
-      try {
-        await setDoc(uRef, {
-          isOnline: true,
-          lastActive: Date.now()
-        }, { merge: true });
-      } catch (err) {
-        console.warn("[Presence Engine] Error setting online status:", err);
-      }
-    };
-
-    // 2. Declare offline function using the captured uid
-    const goOffline = async (targetUid: string) => {
-      try {
-        await setDoc(doc(db, 'users', targetUid), {
-          isOnline: false,
-          lastActive: Date.now()
-        }, { merge: true });
-      } catch (err) {
-        console.warn("[Presence Engine] Error setting offline status:", err);
-      }
-    };
-
-    goOnline();
-
-    // 3. Heartbeat keeping-alive every 45 seconds
-    const interval = setInterval(() => {
-      goOnline();
-    }, 45000);
-
-    // 4. Handle browser closing / tab unloading
-    const handleUnload = () => {
-      goOffline(uid);
-    };
-    window.addEventListener('beforeunload', handleUnload);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('beforeunload', handleUnload);
-      // Clean up when unmounting or user logging out
-      goOffline(uid);
-    };
-  }, [user]);
-
   // Monitor incoming calls globally across other tabs
   useEffect(() => {
     if (!user || !auth.currentUser || activeTab === 'students') {
@@ -407,7 +345,6 @@ export default function App() {
     }
 
     // 1. Subscribe to Announcements / Notifications
-    let isFirstLoadNotif = true;
     const unsubNotif = onSnapshot(collection(db, 'notifications'), (snapshot) => {
       const list: Notification[] = [];
       snapshot.forEach((docRef) => {
@@ -428,40 +365,13 @@ export default function App() {
           });
         }
       });
-
-      let playNotifSound = false;
-      if (!isFirstLoadNotif) {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const d = change.doc.data();
-            const target = d.targetEmail || '';
-            const sender = d.senderName || '';
-            if (sender !== user.username) {
-              if (
-                user.email === 'abdulmlikoog@gmail.com' ||
-                target.toLowerCase() === user.email.toLowerCase() ||
-                target.toLowerCase() === 'all'
-              ) {
-                playNotifSound = true;
-              }
-            }
-          }
-        });
-      }
-      isFirstLoadNotif = false;
-
       list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setNotifications(list);
-
-      if (playNotifSound) {
-        AudioService.playMessageSound();
-      }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'notifications');
     });
 
     // 2. Subscribe to Student Support Tickets
-    let isFirstLoadTickets = true;
     const unsubTickets = onSnapshot(collection(db, 'tickets'), (snapshot) => {
       const list: SupportTicket[] = [];
       snapshot.forEach((docRef) => {
@@ -481,37 +391,8 @@ export default function App() {
           });
         }
       });
-
-      let playTicketSound = false;
-      if (!isFirstLoadTickets) {
-        snapshot.docChanges().forEach((change) => {
-          const d = change.doc.data();
-          const sender = d.senderEmail || '';
-          if (change.type === 'added') {
-            if (sender !== user.email) {
-              playTicketSound = true;
-            }
-          } else if (change.type === 'modified') {
-            // Check if messages array holds a new message from someone else
-            const before = supportTicketsRef.current?.find(t => t.id === change.doc.id);
-            const afterMessages = d.messages || [];
-            if (afterMessages.length > (before?.messages?.length || 0)) {
-              const lastMsg = afterMessages[afterMessages.length - 1];
-              if (lastMsg && lastMsg.senderName !== user.username) {
-                playTicketSound = true;
-              }
-            }
-          }
-        });
-      }
-      isFirstLoadTickets = false;
-
       list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setSupportTickets(list);
-
-      if (playTicketSound) {
-        AudioService.playMessageSound();
-      }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'tickets');
     });

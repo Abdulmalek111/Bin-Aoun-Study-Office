@@ -16,7 +16,6 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { User } from '../types';
-import AudioService from '../lib/audioService';
 import { 
   MessageSquare, 
   Phone, 
@@ -117,7 +116,6 @@ export default function StudentsView({
   // Audio packet capture & play refs/states
   const [localAudioStream, setLocalAudioStream] = useState<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const privateCallIntervalRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const [peerSpeaking, setPeerSpeaking] = useState(false);
   
@@ -133,40 +131,6 @@ export default function StudentsView({
   useEffect(() => {
     isMutedRef.current = callMuted;
   }, [callMuted]);
-
-  useEffect(() => {
-    activeCallIdRef.current = activeCall?.id || null;
-  }, [activeCall?.id]);
-
-  // Cleanup audio recorder and microphone tracks on unmount gracefully to prevent background recording and device freezes
-  useEffect(() => {
-    return () => {
-      // Direct stop call packet stream
-      if (mediaRecorderRef.current) {
-        try {
-          if (mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-          }
-        } catch (e) {}
-        mediaRecorderRef.current = null;
-      }
-      if (localStreamRef.current) {
-        try {
-          localStreamRef.current.getTracks().forEach(track => track.stop());
-        } catch (e) {}
-        localStreamRef.current = null;
-      }
-      
-      const callId = activeCallIdRef.current;
-      if (callId) {
-        // Safe fast termination of call in db
-        updateDoc(doc(db, 'private_calls', callId), { status: 'ended' }).catch(() => {});
-        setTimeout(async () => {
-          await deleteDoc(doc(db, 'private_calls', callId)).catch(() => {});
-        }, 1500);
-      }
-    };
-  }, []);
 
   // Sync prop setters/getters if parent holds state
   const setGlobalChatUser = (u: any) => {
@@ -205,10 +169,6 @@ export default function StudentsView({
 
   // 1. Fetch Students/Users in Real-time from Firestore
   useEffect(() => {
-    if (!auth.currentUser || currentUid === 'anonymous') {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
       const list: (User & { uid: string; binId: string })[] = [];
@@ -224,6 +184,13 @@ export default function StudentsView({
             uid,
             binId
           });
+
+          // Check if this student in Firestore doesn't have studentId saved yet, and write it
+          if (!dat.studentId && currentUid !== 'anonymous') {
+            updateDoc(doc(db, 'users', uid), {
+              studentId: binId
+            }).catch(() => {});
+          }
         }
       });
       setStudents(list);
@@ -250,31 +217,12 @@ export default function StudentsView({
     // Sort messages by timestamp ascending
     const q = query(messagesColl, orderBy('timestamp', 'asc'), limit(150));
 
-    let isFirstLoadDirect = true;
     const unsub = onSnapshot(q, (snapshot) => {
       const msgs: PrivateMessage[] = [];
       snapshot.forEach((docSnap) => {
         msgs.push(docSnap.data() as PrivateMessage);
       });
-      
-      let incomingMsg = false;
-      if (!isFirstLoadDirect) {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const m = change.doc.data();
-            if (m.senderUid !== currentUid) {
-              incomingMsg = true;
-            }
-          }
-        });
-      }
-      isFirstLoadDirect = false;
-
       setChatMessages(msgs);
-
-      if (incomingMsg) {
-        AudioService.playMessageSound();
-      }
     }, (err) => {
       console.warn("Permission restricted or failed fetching private messages:", err);
     });
@@ -331,7 +279,10 @@ export default function StudentsView({
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        resolve(reader.result as string);
+        const base64data = reader.result as string;
+        // Strip out metadata head
+        const base = base64data.substring(base64data.indexOf(',') + 1);
+        resolve(base);
       };
       reader.onerror = reject;
       reader.readAsDataURL(blob);
@@ -469,83 +420,40 @@ export default function StudentsView({
   // Fallback voice packets uploader loops
   const startRecordingVoicePackets = (stream: MediaStream, callId: string) => {
     try {
-      stopRecordingVoicePackets();
-
       let mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/ogg';
       if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
 
       const options = mimeType ? { mimeType } : undefined;
+      const r = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = r;
 
-      const recordSlice = async () => {
-        if (activeCallIdRef.current !== callId) return; // call ended
-        try {
-          if (isMutedRef.current) return; // active mute
-
-          const r = new MediaRecorder(stream, options);
-          mediaRecorderRef.current = r;
-
-          const chunks: Blob[] = [];
-          r.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              chunks.push(e.data);
+      r.ondataavailable = async (e) => {
+        if (e.data && e.data.size > 0 && !isMutedRef.current) {
+          try {
+            const base64 = await blobToBase64(e.data);
+            if (base64 && base64.length > 200) {
+              const pColl = collection(db, 'private_calls', callId, 'audio_packets');
+              const packetId = `p_${currentUid}_${Date.now()}`;
+              await setDoc(doc(pColl, packetId), {
+                id: packetId,
+                senderUid: currentUid,
+                senderName: currentUserName,
+                audioBase64: base64,
+                timestamp: Date.now()
+              });
             }
-          };
-
-          r.onstop = async () => {
-            if (chunks.length > 0) {
-              try {
-                const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
-                const base64 = await blobToBase64(blob);
-                if (base64 && base64.length > 200) {
-                  const pColl = collection(db, 'private_calls', callId, 'audio_packets');
-                  const packetId = `p_${currentUid}_${Date.now()}`;
-                  await setDoc(doc(pColl, packetId), {
-                    id: packetId,
-                    senderUid: currentUid,
-                    senderName: currentUserName,
-                    audioBase64: base64,
-                    timestamp: Date.now()
-                  });
-                }
-              } catch (err) {}
-            }
-          };
-
-          r.start();
-
-          // Stop recording after 1000ms to produce a fully self-contained valid audio file chunk
-          setTimeout(() => {
-            if (r.state !== 'inactive') {
-              try {
-                r.stop();
-              } catch (ev) {}
-            }
-          }, 1000);
-
-        } catch (err) {
-          console.warn("Error in private call slice recorder:", err);
+          } catch (err) {}
         }
       };
 
-      // Run immediately
-      recordSlice();
-
-      // Repeated loop every 1.05s (slightly more than the 1s timeout to allow clean buffer transition)
-      privateCallIntervalRef.current = setInterval(() => {
-        recordSlice();
-      }, 1050);
-
+      r.start(1000); // 1-second chunks for instant real-time conversation response
     } catch (e) {
       console.warn("Failed private call recorder initialization:", e);
     }
   };
 
   const stopRecordingVoicePackets = () => {
-    if (privateCallIntervalRef.current) {
-      clearInterval(privateCallIntervalRef.current);
-      privateCallIntervalRef.current = null;
-    }
     if (mediaRecorderRef.current) {
       try {
         if (mediaRecorderRef.current.state !== 'inactive') {
@@ -572,50 +480,22 @@ export default function StudentsView({
 
       const nextBase64 = audioQueueRef.current.shift();
       if (nextBase64) {
-        let played = false;
-        let timeoutId: any = null;
-        let aud: HTMLAudioElement | null = null;
-        
-        const cleanupAndRunNext = () => {
-          if (played) return;
-          played = true;
-          if (timeoutId) clearTimeout(timeoutId);
-          if (aud) {
-            aud.onended = null;
-            aud.onerror = null;
-            try {
-              aud.pause();
-            } catch (e) {}
-            aud = null;
-          }
-          run();
-        };
-
         try {
-          const audioSrc = nextBase64.startsWith('data:') 
-            ? nextBase64 
-            : `data:audio/webm;base64,${nextBase64}`;
-          
-          aud = new Audio(audioSrc);
+          const audioSrc = `data:audio/webm;base64,${nextBase64}`;
+          const aud = new Audio(audioSrc);
           aud.volume = 1.0;
-          
-          timeoutId = setTimeout(() => {
-            console.warn("[Voice Engine] Playback timeout safety trigger in private chat.");
-            cleanupAndRunNext();
-          }, 2500); // Private chunks are 1s, 2.5s is safe
-
-          aud.onended = () => {
-            cleanupAndRunNext();
-          };
-
-          aud.onerror = () => {
-            console.warn("[Voice Engine] Audio track error in private chat.");
-            cleanupAndRunNext();
-          };
-
           await aud.play();
+          
+          aud.onended = () => {
+            run();
+          };
+          aud.onerror = () => {
+            // Fallback try next right away
+            run();
+          };
         } catch (err) {
-          cleanupAndRunNext();
+          // Playback blocked or decode error, proceed
+          run();
         }
       } else {
         run();
@@ -696,7 +576,6 @@ export default function StudentsView({
 
   // Incoming Call passive monitoring scanner
   useEffect(() => {
-    if (!auth.currentUser || currentUid === 'anonymous') return;
     if (activeCall?.id) return; // already in active dialog
 
     // Listen to private_calls collection to capture if someone calls us in real-time
@@ -716,16 +595,6 @@ export default function StudentsView({
 
     return () => unsub();
   }, [currentUid, activeCall?.id]);
-
-  // Helper to determine presence
-  const isOnlineNow = (st: User) => {
-    return !!(st.isOnline && st.lastActive && (Date.now() - st.lastActive < 120000));
-  };
-
-  // Resolve live state for selected chat user
-  const liveSelectedUser = selectedChatUser 
-    ? (students.find(s => s.uid === selectedChatUser.uid) || selectedChatUser) 
-    : null;
 
   // Search filtering
   const filteredStudents = students.filter(student => {
@@ -816,11 +685,7 @@ export default function StudentsView({
                         className="w-11 h-11 rounded-2xl border border-white shrink-0 object-cover"
                         referrerPolicy="no-referrer"
                       />
-                      {isOnlineNow(st) ? (
-                        <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm animate-pulse" title="متصل الآن"></span>
-                      ) : (
-                        <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 bg-gray-300 border-2 border-white rounded-full shadow-sm" title="غير متصل"></span>
-                      )}
+                      <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" title="نشط الآن"></span>
                     </div>
 
                     <div className="min-w-0 text-right">
@@ -888,7 +753,7 @@ export default function StudentsView({
       </div>
 
       {/* 2. LEFT PANEL: Active Chat & Ongoing Voice Call Pane */}
-      {selectedChatUser && liveSelectedUser && (
+      {selectedChatUser && (
         <div className="lg:col-span-7 bg-slate-50 rounded-3xl border border-gray-150 shadow-sm flex flex-col justify-between overflow-hidden relative">
           
           {/* Active Chat Header */}
@@ -905,27 +770,23 @@ export default function StudentsView({
 
               <div className="relative">
                 <img 
-                  src={liveSelectedUser.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(liveSelectedUser.username)}`} 
-                  alt={liveSelectedUser.username}
-                  className="w-10 h-10 rounded-2xl border border-slate-100 shrink-0 object-cover"
+                  src={selectedChatUser.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(selectedChatUser.username)}`} 
+                  alt={selectedChatUser.username}
+                  className="w-10 h-10 rounded-2xl border border-slate-100 shrink-0"
                   referrerPolicy="no-referrer"
                 />
-                {isOnlineNow(liveSelectedUser) ? (
-                  <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse" title="متصل الآن"></span>
-                ) : (
-                  <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-gray-300 border-2 border-white rounded-full" title="غير متصل"></span>
-                )}
+                <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
               </div>
 
               <div className="text-right">
                 <h3 className="font-black text-xs text-slate-800 leading-tight flex items-center gap-1">
-                  <span>{liveSelectedUser.username}</span>
+                  <span>{selectedChatUser.username}</span>
                   <span className="text-[9px] bg-brand-gold/15 text-brand-dark font-black px-1.5 py-0.5 rounded-full">
-                    {liveSelectedUser.binId}
+                    {selectedChatUser.binId}
                   </span>
                 </h3>
                 <p className="text-[9px] text-gray-400 mt-1">
-                  {liveSelectedUser.academicStage} ({liveSelectedUser.academicYear})
+                  {selectedChatUser.academicStage} ({selectedChatUser.academicYear})
                 </p>
               </div>
             </div>
@@ -978,7 +839,7 @@ export default function StudentsView({
                       {/* Sender handle */}
                       {!isMe && (
                         <p className="text-[10px] font-black text-brand-dark/80 mb-1">
-                          {liveSelectedUser.username}
+                          {selectedChatUser.username}
                         </p>
                       )}
                       
