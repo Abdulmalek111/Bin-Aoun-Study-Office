@@ -304,9 +304,36 @@
         "handRaised": { "type": "boolean" },
         "joinedAt": { "type": "string" },
         "lastSeen": { "type": "string" },
-        "socketId": { "type": "string" }
+        "socketId": { "type": "string" },
+        "isOnline": { "type": "boolean" }
       },
-      "required": ["uid", "displayName", "photoURL", "role", "isMuted", "isDeafened", "isSpeaking", "handRaised", "joinedAt", "lastSeen", "socketId"]
+      "required": ["uid", "displayName", "photoURL", "role", "isMuted", "isDeafened", "isSpeaking", "handRaised", "joinedAt", "lastSeen", "socketId", "isOnline"]
+    },
+    "VoiceCall": {
+      "title": "VoiceCall",
+      "description": "A WebRTC peer-to-peer audio call connection between room members.",
+      "type": "object",
+      "properties": {
+        "callerId": { "type": "string" },
+        "calleeId": { "type": "string" },
+        "status": { "type": "string", "enum": ["calling", "accepted", "ended"] },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" },
+        "offer": { "type": "object" },
+        "answer": { "type": "object" }
+      },
+      "required": ["callerId", "calleeId", "status", "createdAt", "updatedAt"]
+    },
+    "IceCandidate": {
+      "title": "IceCandidate",
+      "description": "A single WebRTC ICE candidate packet exchanged during handshake.",
+      "type": "object",
+      "properties": {
+        "candidate": { "type": "string" },
+        "sdpMid": { "type": "string" },
+        "sdpMLineIndex": { "type": "integer" }
+      },
+      "required": ["candidate", "sdpMid", "sdpMLineIndex"]
     },
     "VoiceBan": {
       "title": "VoiceBan",
@@ -390,6 +417,18 @@
     "voice_rooms/{roomId}/events/{eventId}": {
       "schema": "VoiceEvent",
       "description": "Audit trails and moderation log events."
+    },
+    "voice_rooms/{roomId}/calls/{callId}": {
+      "schema": "VoiceCall",
+      "description": "WebRTC peer connection calls between room members."
+    },
+    "voice_rooms/{roomId}/calls/{callId}/callerCandidates/{candidateId}": {
+      "schema": "IceCandidate",
+      "description": "ICE candidate packets from caller."
+    },
+    "voice_rooms/{roomId}/calls/{callId}/calleeCandidates/{candidateId}": {
+      "schema": "IceCandidate",
+      "description": "ICE candidate packets from callee."
     }
   }
 }

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { socketService } from '../services/socket.service';
 import { VoiceMember, VoiceRoom } from '../types/voice';
 
 const rtcConfig: RTCConfiguration = {
@@ -32,7 +31,7 @@ export function useVoiceRoom(roomId: string | undefined) {
   const [loading, setLoading] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
 
-  // Connection diagnostics states
+  // Connection diagnostics states (mocked/mapped cleanly mapping Firebase status)
   const [socketStatus, setSocketStatus] = useState<'idle' | 'connecting' | 'connected' | 'authenticated' | 'joined_room' | 'disconnected' | 'reconnecting' | 'failed'>('idle');
   const [socketId, setSocketId] = useState('');
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
@@ -47,6 +46,9 @@ export function useVoiceRoom(roomId: string | undefined) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const diagnosticUpdateTrigger = useRef<number>(0);
+
+  // Active unsubscibers list to clear listeners on leaveRoom
+  const activeUnsubscribesRef = useRef<(() => void)[]>([]);
 
   // Keep references to state values to prevent dependency triggers inside closures
   const isMutedRef = useRef(false);
@@ -132,13 +134,16 @@ export function useVoiceRoom(roomId: string | undefined) {
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       let isLocalSpeaking = false;
 
-      speakingIntervalRef.current = setInterval(() => {
+      speakingIntervalRef.current = setInterval(async () => {
         if (!analyserRef.current || isMutedRef.current || isDeafenedRef.current) {
           if (isLocalSpeaking) {
             isLocalSpeaking = false;
             setIsSpeaking(false);
-            socketService.emit('state-change', { isSpeaking: false });
-            syncLocalMemberStates({ isSpeaking: false });
+            if (roomId && auth.currentUser) {
+              try {
+                await updateDoc(doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid), { isSpeaking: false });
+              } catch (e) {}
+            }
           }
           return;
         }
@@ -155,15 +160,18 @@ export function useVoiceRoom(roomId: string | undefined) {
         if (isCurrentlySpeaking !== isLocalSpeaking) {
           isLocalSpeaking = isCurrentlySpeaking;
           setIsSpeaking(isCurrentlySpeaking);
-          socketService.emit('state-change', { isSpeaking: isCurrentlySpeaking });
-          syncLocalMemberStates({ isSpeaking: isCurrentlySpeaking });
+          if (roomId && auth.currentUser) {
+            try {
+              await updateDoc(doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid), { isSpeaking: isCurrentlySpeaking });
+            } catch (e) {}
+          }
         }
       }, 250);
 
     } catch (err) {
       console.warn('[useVoiceRoom] Speaking detector failed initialization:', err);
     }
-  }, []);
+  }, [roomId]);
 
   // Stop analyser
   const stopSpeakingDetector = useCallback(() => {
@@ -182,10 +190,10 @@ export function useVoiceRoom(roomId: string | undefined) {
   }, []);
 
   // Close specific peer connection
-  const closePeerConnection = useCallback((socketIdToClose: string) => {
-    const wrapper = peerConnectionsRef.current.get(socketIdToClose);
+  const closePeerConnection = useCallback((peerUid: string) => {
+    const wrapper = peerConnectionsRef.current.get(peerUid);
     if (wrapper) {
-      console.log(`[useVoiceRoom] Closing RTCPeerConnection for peer: ${socketIdToClose}`);
+      console.log(`[useVoiceRoom] Closing RTCPeerConnection for peer UID: ${peerUid}`);
       try {
         wrapper.peerConnection.close();
       } catch (err) {}
@@ -197,269 +205,24 @@ export function useVoiceRoom(roomId: string | undefined) {
         wrapper.stream.getTracks().forEach(track => track.stop());
       } catch (err) {}
       
-      peerConnectionsRef.current.delete(socketIdToClose);
+      peerConnectionsRef.current.delete(peerUid);
       setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
       triggerDiagnosticUpdate();
     }
   }, [triggerDiagnosticUpdate]);
 
-  // Sync peer connections changes to state members list
-  const syncLocalMemberStates = useCallback((fields: Partial<VoiceMember>) => {
-    setMembers(prev => prev.map(m => {
-      const isSelf = m.uid === auth.currentUser?.uid;
-      if (isSelf) {
-        return { ...m, ...fields };
-      }
-      return m;
-    }));
-  }, []);
-
-  // WebRTC Signaling: Initiate New Offer following Perfect Negotiation
-  const initiateOffer = useCallback(async (targetSocketId: string) => {
-    if (peerConnectionsRef.current.has(targetSocketId)) {
-      console.warn(`[PerfectNegotiation] RTCPeerConnection already exists for ${targetSocketId}. Skipping duplicate.`);
-      return;
-    }
-
-    console.log(`[PerfectNegotiation] Constructing RTCPeerConnection for outgoing offer setup to: ${targetSocketId}`);
-    try {
-      const pc = new RTCPeerConnection(rtcConfig);
-      const audioObj = new Audio();
-      audioObj.autoplay = true;
-      audioObj.muted = isDeafenedRef.current;
-      const remoteStream = new MediaStream();
-
-      // Choice of polite/impolite using lexicographical comparison of socket IDs
-      const socketIdSelf = socketService.getSocket()?.id || '';
-      const polite = socketIdSelf > targetSocketId;
-
-      const wrapper: PeerWrapper = {
-        peerConnection: pc,
-        audioElement: audioObj,
-        stream: remoteStream,
-        makingOffer: false,
-        ignoreOffer: false,
-        isSettingRemoteAnswerPending: false,
-        polite
-      };
-      peerConnectionsRef.current.set(targetSocketId, wrapper);
-
-      // Attach our local stream tracks
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => {
-          pc.addTrack(track, localStreamRef.current!);
-        });
-      }
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && socketService.getSocket()?.connected) {
-          socketService.emit('webrtc-ice-candidate', {
-            targetSocketId,
-            candidate: event.candidate
-          });
-        }
-      };
-
-      pc.ontrack = (event) => {
-        console.log(`[useVoiceRoom] Received audio track on link from ${targetSocketId}`);
-        event.streams[0].getAudioTracks().forEach(track => {
-          remoteStream.addTrack(track);
-        });
-        audioObj.srcObject = remoteStream;
-        setWebrtcStatus('متصل P2P Mesh Connected ✅');
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        console.log(`[useVoiceRoom] ICE connection state with ${targetSocketId}: ${pc.iceConnectionState}`);
-        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-          closePeerConnection(targetSocketId);
-        }
-        triggerDiagnosticUpdate();
-      };
-
-      pc.onsignalingstatechange = () => {
-        triggerDiagnosticUpdate();
-      };
-
-      wrapper.makingOffer = true;
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: false
-      });
-      await pc.setLocalDescription(offer);
-      wrapper.makingOffer = false;
-
-      if (socketService.getSocket()?.connected) {
-        socketService.emit('webrtc-offer', {
-          targetSocketId,
-          offer
-        });
-      }
-
-      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
-      triggerDiagnosticUpdate();
-    } catch (err) {
-      console.error(`[useVoiceRoom] initiateOffer failed for ${targetSocketId}:`, err);
-    }
-  }, [closePeerConnection, triggerDiagnosticUpdate]);
-
-  // WebRTC Signaling: Handle Incoming Offer with Collision Resolution
-  const handleIncomingOffer = useCallback(async (fromSocketId: string, offer: RTCSessionDescriptionInit) => {
-    let wrapper = peerConnectionsRef.current.get(fromSocketId);
-    
-    if (!wrapper) {
-      const pc = new RTCPeerConnection(rtcConfig);
-      const audioObj = new Audio();
-      audioObj.autoplay = true;
-      audioObj.muted = isDeafenedRef.current;
-      const remoteStream = new MediaStream();
-
-      const socketIdSelf = socketService.getSocket()?.id || '';
-      const polite = socketIdSelf > fromSocketId;
-
-      wrapper = {
-        peerConnection: pc,
-        audioElement: audioObj,
-        stream: remoteStream,
-        makingOffer: false,
-        ignoreOffer: false,
-        isSettingRemoteAnswerPending: false,
-        polite
-      };
-      peerConnectionsRef.current.set(fromSocketId, wrapper);
-
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => {
-          pc.addTrack(track, localStreamRef.current!);
-        });
-      }
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && socketService.getSocket()?.connected) {
-          socketService.emit('webrtc-ice-candidate', {
-            targetSocketId: fromSocketId,
-            candidate: event.candidate
-          });
-        }
-      };
-
-      pc.ontrack = (event) => {
-        console.log(`[useVoiceRoom] Received audio track in response of from ${fromSocketId}`);
-        event.streams[0].getAudioTracks().forEach(track => {
-          remoteStream.addTrack(track);
-        });
-        audioObj.srcObject = remoteStream;
-        setWebrtcStatus('متصل P2P Mesh Connected ✅');
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-          closePeerConnection(fromSocketId);
-        }
-        triggerDiagnosticUpdate();
-      };
-
-      pc.onsignalingstatechange = () => {
-        triggerDiagnosticUpdate();
-      };
-    }
-
-    const pc = wrapper.peerConnection;
-    const offerCollision = (offer.type === 'offer') && 
-      (wrapper.makingOffer || pc.signalingState !== 'stable');
-
-    wrapper.ignoreOffer = false;
-    if (offerCollision) {
-      if (!wrapper.polite) {
-        wrapper.ignoreOffer = true;
-        console.warn(`[PerfectNegotiation] Collision! Impolite peer ignoring offer from ${fromSocketId}`);
-        return;
-      }
-      console.log(`[PerfectNegotiation] Collision! Polite peer rolling back existing offer for incoming offer from ${fromSocketId}`);
-      try {
-        await pc.setLocalDescription({ type: 'rollback' });
-      } catch (err) {
-        console.warn(`[PerfectNegotiation] Rollback minor warning:`, err);
-      }
-    }
-
-    try {
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      if (socketService.getSocket()?.connected) {
-        socketService.emit('webrtc-answer', {
-          targetSocketId: fromSocketId,
-          answer
-        });
-      }
-
-      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
-      triggerDiagnosticUpdate();
-    } catch (err) {
-      console.error(`[useVoiceRoom] handleIncomingOffer error from ${fromSocketId}:`, err);
-    }
-  }, [closePeerConnection, triggerDiagnosticUpdate]);
-
-  // WebRTC Signaling: Handle Incoming Answer
-  const handleIncomingAnswer = useCallback(async (fromSocketId: string, answer: RTCSessionDescriptionInit) => {
-    const wrapper = peerConnectionsRef.current.get(fromSocketId);
-    if (!wrapper) return;
-    
-    const pc = wrapper.peerConnection;
-    console.log(`[PerfectNegotiation] Applying remote answer for: ${fromSocketId}. State: ${pc.signalingState}`);
-
-    if (pc.signalingState === 'stable') {
-      console.warn(`[PerfectNegotiation] Answer received in stable state. Ignoring duplicate answer from ${fromSocketId}.`);
-      return;
-    }
-
-    if (pc.signalingState !== 'have-local-offer') {
-      console.warn(`[PerfectNegotiation] Warning: Cannot apply answer inside state: ${pc.signalingState}`);
-      return;
-    }
-
-    try {
-      wrapper.isSettingRemoteAnswerPending = true;
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      wrapper.isSettingRemoteAnswerPending = false;
-      triggerDiagnosticUpdate();
-    } catch (err) {
-      console.error(`[useVoiceRoom] Setting remote answer failed:`, err);
-      wrapper.isSettingRemoteAnswerPending = false;
-    }
-  }, [triggerDiagnosticUpdate]);
-
-  // WebRTC Signaling: Handle Incoming ICE Candidate
-  const handleIncomingIceCandidate = useCallback(async (fromSocketId: string, candidate: RTCIceCandidateInit) => {
-    const wrapper = peerConnectionsRef.current.get(fromSocketId);
-    if (wrapper) {
-      const pc = wrapper.peerConnection;
-      if (!pc.remoteDescription) {
-        console.warn(`[PerfectNegotiation] Remote description not apply yet for ${fromSocketId}. Skipping ice till applied.`);
-        return;
-      }
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (err) {
-        console.error(`[useVoiceRoom] Adding ICE candidate failure:`, err);
-      }
-    }
-  }, []);
-
-  // Tear down all components
+  // Clean connection reset
   const resetAllVoiceEngine = useCallback(() => {
     console.log('[useVoiceRoom] Resetting audio context and peer connections...');
-    Array.from(peerConnectionsRef.current.keys()).forEach(socketId => {
-      closePeerConnection(socketId);
+    Array.from(peerConnectionsRef.current.keys()).forEach(peerUid => {
+      closePeerConnection(peerUid);
     });
     peerConnectionsRef.current.clear();
     stopLocalMic();
     setConnectedPeers([]);
   }, [closePeerConnection, stopLocalMic]);
 
-  // Leave Room Flow
+  // Leave Room Flow (complete teardown + clean presence & calls)
   const leaveRoom = useCallback(async () => {
     console.log('[useVoiceRoom] Executing exit room protocol...');
     setLoading(true);
@@ -468,23 +231,41 @@ export function useVoiceRoom(roomId: string | undefined) {
     stopSpeakingDetector();
     resetAllVoiceEngine();
 
-    // Silently handle socket emits
-    socketService.emit('leave-room', {});
-    socketService.disconnect();
+    // Fire all unsubscribers from real-time collections
+    activeUnsubscribesRef.current.forEach(unsub => {
+      try {
+        unsub();
+      } catch (e) {}
+    });
+    activeUnsubscribesRef.current = [];
+
+    // Reset diagnostics
     setSocketStatus('disconnected');
     setSocketId('');
 
     if (roomId && auth.currentUser) {
+      const myUid = auth.currentUser.uid;
       try {
-        const memberRef = doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid);
+        // Remove or mark offline inside members subcollection
+        const memberRef = doc(db, `voice_rooms/${roomId}/members`, myUid);
         await deleteDoc(memberRef);
 
         await setDoc(doc(db, `voice_rooms/${roomId}/events`, `evt-${Date.now()}`), {
           type: 'leave',
-          uid: auth.currentUser.uid,
+          uid: myUid,
           createdAt: new Date().toISOString()
         });
 
+        // Delete any active call links where we are involved
+        const p1 = `${myUid}_`;
+        peerConnectionsRef.current.forEach(async (_, peerUid) => {
+          const callIdSmallFirst = myUid < peerUid ? `${myUid}_${peerUid}` : `${peerUid}_${myUid}`;
+          try {
+            await deleteDoc(doc(db, `voice_rooms/${roomId}/calls`, callIdSmallFirst));
+          } catch (e) {}
+        });
+
+        // Trigger safe room counters re-evaluation
         const membersSnapshot = await getDocs(collection(db, `voice_rooms/${roomId}/members`));
         await updateDoc(doc(db, 'voice_rooms', roomId), {
           memberCount: Math.max(0, membersSnapshot.size),
@@ -511,7 +292,262 @@ export function useVoiceRoom(roomId: string | undefined) {
     triggerDiagnosticUpdate();
   }, [roomId, stopSpeakingDetector, resetAllVoiceEngine, triggerDiagnosticUpdate]);
 
-  // Reconnection & Secure Join Room Flow incorporating Step 6 Order Requirement
+  // Call Initiation Loop Helper following perfect negotiation
+  const initiateOutgoingCall = useCallback(async (peerUid: string) => {
+    if (!roomId || !auth.currentUser) return;
+    const myUid = auth.currentUser.uid;
+    const callId = `${myUid}_${peerUid}`;
+
+    if (peerConnectionsRef.current.has(peerUid)) {
+      console.warn(`[PerfectNegotiation] PeerConnection already active for ${peerUid}. Skipping.`);
+      return;
+    }
+
+    console.log(`[PerfectNegotiation] [Caller] Creating connection for outgoing call: ${callId}`);
+    try {
+      const pc = new RTCPeerConnection(rtcConfig);
+      const audioObj = new Audio();
+      audioObj.autoplay = true;
+      audioObj.muted = isDeafenedRef.current;
+      const remoteStream = new MediaStream();
+
+      const wrapper: PeerWrapper = {
+        peerConnection: pc,
+        audioElement: audioObj,
+        stream: remoteStream,
+        makingOffer: false,
+        ignoreOffer: false,
+        isSettingRemoteAnswerPending: false,
+        polite: false // Caller is impolite
+      };
+      peerConnectionsRef.current.set(peerUid, wrapper);
+
+      // Add local stream tracks
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          pc.addTrack(track, localStreamRef.current!);
+        });
+      }
+
+      // Handler for gather candidates
+      pc.onicecandidate = async (event) => {
+        if (event.candidate) {
+          try {
+            const candRef = doc(collection(db, 'voice_rooms', roomId, 'calls', callId, 'callerCandidates'));
+            await setDoc(candRef, {
+              candidate: event.candidate.candidate || '',
+              sdpMid: event.candidate.sdpMid || '',
+              sdpMLineIndex: event.candidate.sdpMLineIndex || 0
+            });
+          } catch (err) {
+            console.error('Failed writing caller candidate:', err);
+          }
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log(`[PerfectNegotiation] Caller received WebRTC track from user: ${peerUid}`);
+        event.streams[0].getAudioTracks().forEach(track => {
+          remoteStream.addTrack(track);
+        });
+        audioObj.srcObject = remoteStream;
+        setWebrtcStatus('متصل P2P Mesh Connected ✅');
+        triggerDiagnosticUpdate();
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[PerfectNegotiation] Caller ICE state with ${peerUid}: ${pc.iceConnectionState}`);
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          closePeerConnection(peerUid);
+        }
+        triggerDiagnosticUpdate();
+      };
+
+      pc.onsignalingstatechange = () => {
+        triggerDiagnosticUpdate();
+      };
+
+      // 1. Write structured calling record BEFORE SDP setups
+      const callRef = doc(db, 'voice_rooms', roomId, 'calls', callId);
+      await setDoc(callRef, {
+        callerId: myUid,
+        calleeId: peerUid,
+        status: 'calling',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+
+      // 2. Negotiate SDP
+      wrapper.makingOffer = true;
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      });
+      await pc.setLocalDescription(offer);
+      wrapper.makingOffer = false;
+
+      // 3. Write SDP to call document
+      await updateDoc(callRef, {
+        offer: {
+          type: offer.type,
+          sdp: offer.sdp
+        },
+        updatedAt: Date.now()
+      });
+
+      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
+      triggerDiagnosticUpdate();
+
+    } catch (err) {
+      console.error(`[PerfectNegotiation] Outgoing call flow failed to ${peerUid}:`, err);
+    }
+  }, [roomId, closePeerConnection, triggerDiagnosticUpdate]);
+
+  // Answer Incoming Call Helper
+  const handleIncomingCall = useCallback(async (callId: string, callData: any) => {
+    if (!roomId || !auth.currentUser) return;
+    const myUid = auth.currentUser.uid;
+    const callerId = callData.callerId;
+
+    let wrapper = peerConnectionsRef.current.get(callerId);
+
+    if (!wrapper) {
+      console.log(`[PerfectNegotiation] [Callee] New call from ${callerId} detected.`);
+      const pc = new RTCPeerConnection(rtcConfig);
+      const audioObj = new Audio();
+      audioObj.autoplay = true;
+      audioObj.muted = isDeafenedRef.current;
+      const remoteStream = new MediaStream();
+
+      wrapper = {
+        peerConnection: pc,
+        audioElement: audioObj,
+        stream: remoteStream,
+        makingOffer: false,
+        ignoreOffer: false,
+        isSettingRemoteAnswerPending: false,
+        polite: true // Callee is polite
+      };
+      peerConnectionsRef.current.set(callerId, wrapper);
+
+      // Attach our tracks
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => {
+          pc.addTrack(track, localStreamRef.current!);
+        });
+      }
+
+      // Record candidate
+      pc.onicecandidate = async (event) => {
+        if (event.candidate) {
+          try {
+            const candRef = doc(collection(db, 'voice_rooms', roomId, 'calls', callId, 'calleeCandidates'));
+            await setDoc(candRef, {
+              candidate: event.candidate.candidate || '',
+              sdpMid: event.candidate.sdpMid || '',
+              sdpMLineIndex: event.candidate.sdpMLineIndex || 0
+            });
+          } catch (err) {
+            console.error('Failed writing callee candidate:', err);
+          }
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log(`[PerfectNegotiation] Callee received WebRTC track from user: ${callerId}`);
+        event.streams[0].getAudioTracks().forEach(track => {
+          remoteStream.addTrack(track);
+        });
+        audioObj.srcObject = remoteStream;
+        setWebrtcStatus('متصل P2P Mesh Connected ✅');
+        triggerDiagnosticUpdate();
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[PerfectNegotiation] Callee ICE state with ${callerId}: ${pc.iceConnectionState}`);
+        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          closePeerConnection(callerId);
+        }
+        triggerDiagnosticUpdate();
+      };
+
+      pc.onsignalingstatechange = () => {
+        triggerDiagnosticUpdate();
+      };
+
+      // Subscribe to caller candidates
+      const callerCandUnsub = onSnapshot(
+        collection(db, 'voice_rooms', roomId, 'calls', callId, 'callerCandidates'),
+        (snapshot) => {
+          snapshot.docChanges().forEach(async (change) => {
+            if (change.type === 'added') {
+              const data = change.doc.data();
+              try {
+                const candidate = new RTCIceCandidate({
+                  candidate: data.candidate,
+                  sdpMid: data.sdpMid,
+                  sdpMLineIndex: data.sdpMLineIndex
+                });
+                await pc.addIceCandidate(candidate);
+                console.log(`[PerfectNegotiation] Callee applied caller candidate from: ${callerId}`);
+              } catch (e) {
+                console.warn('Callee failed applying caller ICE candidate direct link:', e);
+              }
+            }
+          });
+        }
+      );
+      activeUnsubscribesRef.current.push(callerCandUnsub);
+
+      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
+      triggerDiagnosticUpdate();
+    }
+
+    const pc = wrapper.peerConnection;
+    const offerCollision = (callData.offer && callData.offer.type === 'offer') && 
+      (wrapper.makingOffer || pc.signalingState !== 'stable');
+
+    wrapper.ignoreOffer = false;
+    if (offerCollision) {
+      if (!wrapper.polite) {
+        wrapper.ignoreOffer = true;
+        console.warn(`[PerfectNegotiation] Collision! Impolite peer ignoring incoming offer from ${callerId}`);
+        return;
+      }
+      console.log(`[PerfectNegotiation] Collision! Polite peer rolling back for incoming offer from ${callerId}`);
+      try {
+        await pc.setLocalDescription({ type: 'rollback' });
+      } catch (err) {
+        console.warn(`[PerfectNegotiation] Rollback minor warning:`, err);
+      }
+    }
+
+    if (callData.offer && pc.signalingState !== 'stable' && !wrapper.ignoreOffer) {
+      try {
+        wrapper.isSettingRemoteAnswerPending = true;
+        await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+        wrapper.isSettingRemoteAnswerPending = false;
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        await updateDoc(doc(db, 'voice_rooms', roomId, 'calls', callId), {
+          status: 'accepted',
+          answer: {
+            type: answer.type,
+            sdp: answer.sdp
+          },
+          updatedAt: Date.now()
+        });
+        console.log(`[PerfectNegotiation] Answer sent back successfully to: ${callerId}`);
+      } catch (err) {
+        console.error(`[PerfectNegotiation] Failed responding answer to ${callerId}:`, err);
+        wrapper.isSettingRemoteAnswerPending = false;
+      }
+    }
+  }, [roomId, closePeerConnection, triggerDiagnosticUpdate]);
+
+  // Main Secure Join Room Flow
   const joinRoom = useCallback(async (room: VoiceRoom) => {
     if (!room || joined || loading) return;
 
@@ -530,8 +566,10 @@ export function useVoiceRoom(roomId: string | undefined) {
         throw new Error('يجب تسجيل الدخول للانضمام للغرفة الصوتية.');
       }
 
+      const myUid = currentUser.uid;
+
       // 3. Check access permissions from Firestore
-      const userDocSnap = await getDoc(doc(db, 'users', currentUser.uid));
+      const userDocSnap = await getDoc(doc(db, 'users', myUid));
       let currentRole: 'admin' | 'moderator' | 'teacher' | 'student' = 'student';
       if (currentUser.email === 'abdulmlikoog@gmail.com') {
         currentRole = 'admin';
@@ -544,7 +582,7 @@ export function useVoiceRoom(roomId: string | undefined) {
         throw new Error('ليس لديك الصلاحيات والأدوار المطلوبة لدخول هذه الغرفة الصوتية المخصصة.');
       }
 
-      const banDocSnap = await getDoc(doc(db, `voice_rooms/${room.id}/bans`, currentUser.uid));
+      const banDocSnap = await getDoc(doc(db, `voice_rooms/${room.id}/bans`, myUid));
       if (banDocSnap.exists()) {
         const banData = banDocSnap.data();
         throw new Error(`أنت محظور من دخول هذه الغرفة. السبب: ${banData.reason || 'مخالفة القوانين'}`);
@@ -554,56 +592,14 @@ export function useVoiceRoom(roomId: string | undefined) {
       const stream = await startLocalMic();
       localStreamRef.current = stream;
 
-      // 6-7. Open Socket.IO Client signaling with refreshed Firebase ID Token
-      setSocketStatus('connecting');
-      const token = await currentUser.getIdToken(true);
-      const socket = socketService.connect(token);
-
-      if (socket.connected) {
-        setSocketStatus('connected');
-        setSocketId(socket.id || '');
-      }
-
-      // Event-based Connection Monitoring & Automatic Re-Join Room on reconnect
-      socket.off('connect');
-      socket.on('connect', () => {
-        console.log('[useVoiceRoom] Socket connected/reconnected. Sending auth authentication credentials...');
-        setSocketStatus('connected');
-        setSocketId(socket.id || '');
-        
-        socket.emit('join-room', {
-          roomId: room.id,
-          uid: currentUser.uid,
-          displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
-          photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || 'X')}`,
-          role: currentRole,
-          token
-        });
-      });
-
-      socket.off('disconnect');
-      socket.on('disconnect', () => {
-        console.warn('[useVoiceRoom] Signaling Link Offline. Reconnecting...');
-        setSocketStatus('reconnecting');
-        setWebrtcStatus('الاتصال منقطع / Reconnecting signal...');
-      });
-
-      // Join room directly if already connected
-      if (socket.connected) {
-        socket.emit('join-room', {
-          roomId: room.id,
-          uid: currentUser.uid,
-          displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
-          photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || 'X')}`,
-          role: currentRole,
-          token
-        });
-      }
+      // Mock setup of Socket variables to allow GUI compiling without erroring
+      setSocketStatus('authenticated');
+      setSocketId(myUid);
 
       // 11. Creating Presence documents in Firestore voice_rooms/{roomId}/members/{uid}
       setFirestoreStatus('جاري تفعيل الحضور الرقمي...');
       const selfMemberRecord: VoiceMember = {
-        uid: currentUser.uid,
+        uid: myUid,
         displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'طالب',
         photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || 'X')}`,
         role: currentRole,
@@ -613,126 +609,135 @@ export function useVoiceRoom(roomId: string | undefined) {
         handRaised: false,
         joinedAt: new Date().toISOString(),
         lastSeen: new Date().toISOString(),
-        socketId: socket.id || '',
+        socketId: myUid, // Backward-compatible mapping of peer identifiers
         isOnline: true
       };
 
-      await setDoc(doc(db, `voice_rooms/${room.id}/members`, currentUser.uid), selfMemberRecord);
+      await setDoc(doc(db, `voice_rooms/${room.id}/members`, myUid), selfMemberRecord);
 
       await setDoc(doc(db, `voice_rooms/${room.id}/events`, `evt-${Date.now()}`), {
         type: 'join',
-        uid: currentUser.uid,
+        uid: myUid,
         createdAt: new Date().toISOString()
       });
 
-      // Update room count
-      const membersSnapshot = await getDocs(collection(db, `voice_rooms/${room.id}/members`));
+      // Update room metadata count
+      const initialSnapshot = await getDocs(collection(db, `voice_rooms/${room.id}/members`));
       await updateDoc(doc(db, 'voice_rooms', room.id), {
-        memberCount: membersSnapshot.size,
+        memberCount: initialSnapshot.size,
         updatedAt: new Date().toISOString()
       });
       setFirestoreStatus('الحضور نشط ومتصل 🟢');
 
-      // Setup Socket Listeners
-      socket.off('error-msg');
-      socket.on('error-msg', (data: { message: string }) => {
-        console.error('[useVoiceRoom] Socket error response:', data);
-        setErrorCode(data.message);
-        leaveRoom();
-      });
+      // --- FIRESTORE signaling listeners ---
 
-      // 12. Retrieve list of active members & 13. Build RTC Connections
-      socket.off('room-members-list');
-      socket.on('room-members-list', async (data: { members: any[] }) => {
-        console.log(`[useVoiceRoom] Populated peer connections list:`, data.members);
-        setWebrtcStatus(`جاري بناء الاتصال P2P Mesh مع (${data.members.length}) مستخدمين`);
-        setSocketStatus('joined_room');
+      // Listen for all room members changes
+      const membersUnsub = onSnapshot(collection(db, `voice_rooms/${room.id}/members`), (snapshot) => {
+        const nowMs = Date.now();
+        const activeList: VoiceMember[] = [];
+        let hasSelfRecord = false;
 
-        const fullList: VoiceMember[] = [
-          { ...selfMemberRecord, socketId: socket.id || '', isOnline: true },
-          ...data.members
-        ];
-        setMembers(fullList);
+        snapshot.docs.forEach((d) => {
+          const data = d.data() as VoiceMember;
+          const lastSeenMs = data.lastSeen ? new Date(data.lastSeen).getTime() : 0;
+          const diffSeconds = (nowMs - lastSeenMs) / 1000;
 
-        // Establish 1-to-1 P2P RTCPeerConnection Offer loops
-        for (const peer of data.members) {
-          await initiateOffer(peer.socketId);
-        }
-      });
-
-      // Passive notification of other members
-      socket.off('peer-joined');
-      socket.on('peer-joined', (data: { peer: any }) => {
-        console.log(`[useVoiceRoom] Remote peer connected: ${data.peer.displayName}`);
-        setMembers(prev => {
-          if (prev.some(m => m.socketId === data.peer.socketId)) return prev;
-          return [...prev, data.peer];
-        });
-      });
-
-      socket.off('user-joined');
-      socket.on('user-joined', (data: { peer: any }) => {
-        console.log(`[useVoiceRoom] Remote user tracking connected: ${data.peer.displayName}`);
-        setMembers(prev => {
-          if (prev.some(m => m.socketId === data.peer.socketId)) return prev;
-          return [...prev, data.peer];
-        });
-      });
-
-      // WebRTC relays
-      socket.off('webrtc-offer');
-      socket.on('webrtc-offer', async (data: { fromSocketId: string; offer: any }) => {
-        await handleIncomingOffer(data.fromSocketId, data.offer);
-      });
-
-      socket.off('webrtc-answer');
-      socket.on('webrtc-answer', async (data: { fromSocketId: string; answer: any }) => {
-        await handleIncomingAnswer(data.fromSocketId, data.answer);
-      });
-
-      socket.off('webrtc-ice-candidate');
-      socket.on('webrtc-ice-candidate', async (data: { fromSocketId: string; candidate: any }) => {
-        await handleIncomingIceCandidate(data.fromSocketId, data.candidate);
-      });
-
-      // Removal of peers
-      socket.off('peer-left');
-      socket.on('peer-left', (data: { socketId: string; uid: string }) => {
-        console.log(`[useVoiceRoom] Remote peer departed: ${data.socketId}`);
-        closePeerConnection(data.socketId);
-        setMembers(prev => prev.filter(m => m.socketId !== data.socketId));
-      });
-
-      socket.off('user-left');
-      socket.on('user-left', (data: { socketId: string; uid: string }) => {
-        console.log(`[useVoiceRoom] Remote user track departed: ${data.socketId}`);
-        closePeerConnection(data.socketId);
-        setMembers(prev => prev.filter(m => m.socketId !== data.socketId));
-      });
-
-      // Remote State modifications
-      socket.off('peer-state-changed');
-      socket.on('peer-state-changed', (data: { socketId: string; uid: string; fields: any }) => {
-        setMembers(prev => prev.map(m => {
-          if (m.socketId === data.socketId) {
-            return { ...m, ...data.fields };
+          // Only keep members reporting active heartbeat <= 45s (preventing ghost players)
+          if (data.isOnline && diffSeconds < 45) {
+            activeList.push(data);
           }
-          return m;
-        }));
-      });
+          if (data.uid === myUid) {
+            hasSelfRecord = true;
+          }
+        });
 
-      // Moderation response
-      socket.off('kicked-from-room');
-      socket.on('kicked-from-room', (data: { kickedBy: string; reason: string }) => {
-        alert(`تم طردك من القناة الصوتية بواسطة: ${data.kickedBy}\nالسبب: ${data.reason}`);
-        leaveRoom();
-      });
+        // Kicked / Banned detection check
+        if (!hasSelfRecord && joined) {
+          console.warn('[useVoiceRoom] Self record missing! Executing kicked exit routine.');
+          alert('تم طردك أو حظرك من الغرفة الصوتية بواسطة المشرف!');
+          leaveRoom();
+          return;
+        }
 
-      socket.off('banned-from-room');
-      socket.on('banned-from-room', (data: { bannedBy: string; reason: string }) => {
-        alert(`تم حظرك من هذه القناة بواسطة: ${data.bannedBy}\nالسبب: ${data.reason}`);
-        leaveRoom();
+        setMembers(activeList);
+
+        // Initiate P2P mesh links if I am the Caller (lexicographically smaller UID)
+        activeList.forEach((peer) => {
+          if (peer.uid !== myUid) {
+            if (myUid < peer.uid) {
+              // Initiate outgoing offer
+              initiateOutgoingCall(peer.uid);
+            }
+          }
+        });
       });
+      activeUnsubscribesRef.current.push(membersUnsub);
+
+      // Listen to INCALLS (where callerId == myUid) -> to receive and apply peer answers
+      const callerQuery = query(collection(db, `voice_rooms/${room.id}/calls`), where('callerId', '==', myUid));
+      const callerCallsUnsub = onSnapshot(callerQuery, (snapshot) => {
+        snapshot.docs.forEach(async (docSnap) => {
+          const callData = docSnap.data();
+          const puid = callData.calleeId;
+          const wrapper = peerConnectionsRef.current.get(puid);
+
+          if (wrapper && callData.status === 'accepted' && callData.answer) {
+            const pc = wrapper.peerConnection;
+            if (pc.signalingState === 'have-local-offer') {
+              try {
+                wrapper.isSettingRemoteAnswerPending = true;
+                await pc.setRemoteDescription(new RTCSessionDescription(callData.answer));
+                wrapper.isSettingRemoteAnswerPending = false;
+                console.log(`[PerfectNegotiation] Caller applied remote answer from user: ${puid}`);
+
+                // Subscribe to callee candidates now that remote description is set
+                const calleeCandQueryRef = collection(db, 'voice_rooms', room.id, 'calls', docSnap.id, 'calleeCandidates');
+                const calleeCandUnsub = onSnapshot(calleeCandQueryRef, (snapCand) => {
+                  snapCand.docChanges().forEach(async (change) => {
+                    if (change.type === 'added') {
+                      const data = change.doc.data();
+                      try {
+                        const candidate = new RTCIceCandidate({
+                          candidate: data.candidate,
+                          sdpMid: data.sdpMid,
+                          sdpMLineIndex: data.sdpMLineIndex
+                        });
+                        await pc.addIceCandidate(candidate);
+                        console.log(`[PerfectNegotiation] Caller applied ICE candidate from callee: ${puid}`);
+                      } catch (e) {
+                        console.warn('Caller failed applying candidate:', e);
+                      }
+                    }
+                  });
+                });
+                activeUnsubscribesRef.current.push(calleeCandUnsub);
+
+              } catch (err) {
+                console.error('[PerfectNegotiation] Caller remote answer failed:', err);
+                wrapper.isSettingRemoteAnswerPending = false;
+              }
+            }
+          } else if (wrapper && callData.status === 'ended') {
+            closePeerConnection(puid);
+          }
+        });
+      });
+      activeUnsubscribesRef.current.push(callerCallsUnsub);
+
+      // Listen to INCOMING CALLS (where calleeId == myUid) -> to receive offers and send back answers
+      const calleeQuery = query(collection(db, `voice_rooms/${room.id}/calls`), where('calleeId', '==', myUid));
+      const calleeCallsUnsub = onSnapshot(calleeQuery, (snapshot) => {
+        snapshot.docs.forEach((docSnap) => {
+          const callId = docSnap.id;
+          const callData = docSnap.data();
+          if (callData.status === 'calling') {
+            handleIncomingCall(callId, callData);
+          } else if (callData.status === 'ended') {
+            closePeerConnection(callData.callerId);
+          }
+        });
+      });
+      activeUnsubscribesRef.current.push(calleeCallsUnsub);
 
       // Start input levels speaking analysis
       startSpeakingDetector(stream);
@@ -740,6 +745,7 @@ export function useVoiceRoom(roomId: string | undefined) {
       // Finished
       setJoined(true);
       setLoading(false);
+      setSocketStatus('joined_room');
       triggerDiagnosticUpdate();
 
     } catch (err: any) {
@@ -748,7 +754,7 @@ export function useVoiceRoom(roomId: string | undefined) {
       setLoading(false);
       leaveRoom();
     }
-  }, [joined, loading, startSpeakingDetector, leaveRoom, handleIncomingOffer, handleIncomingAnswer, handleIncomingIceCandidate, initiateOffer, closePeerConnection, startLocalMic, triggerDiagnosticUpdate]);
+  }, [joined, loading, startSpeakingDetector, leaveRoom, handleIncomingCall, initiateOutgoingCall, closePeerConnection, startLocalMic, triggerDiagnosticUpdate]);
 
   // Presence Heartbeat Loop (Step 7 requirement)
   useEffect(() => {
@@ -775,15 +781,18 @@ export function useVoiceRoom(roomId: string | undefined) {
   }, [joined, roomId]);
 
   // Sync state actions
-  const toggleMute = useCallback(() => {
+  const toggleMute = useCallback(async () => {
+    if (!roomId || !auth.currentUser) return;
     const nextValue = !isMuted;
     setIsMuted(nextValue);
     setMuteState(nextValue);
-    socketService.emit('state-change', { isMuted: nextValue });
-    syncLocalMemberStates({ isMuted: nextValue });
-  }, [isMuted, setMuteState, syncLocalMemberStates]);
+    try {
+      await updateDoc(doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid), { isMuted: nextValue });
+    } catch (e) {}
+  }, [isMuted, roomId, setMuteState]);
 
-  const toggleDeafen = useCallback(() => {
+  const toggleDeafen = useCallback(async () => {
+    if (!roomId || !auth.currentUser) return;
     const nextValue = !isDeafened;
     setIsDeafened(nextValue);
     setDeafenState(nextValue);
@@ -793,31 +802,71 @@ export function useVoiceRoom(roomId: string | undefined) {
     setIsMuted(nextMute);
     setMuteState(nextMute);
 
-    socketService.emit('state-change', { 
-      isDeafened: nextValue, 
-      isMuted: nextMute 
-    });
+    try {
+      await updateDoc(doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid), { 
+        isDeafened: nextValue, 
+        isMuted: nextMute 
+      });
+    } catch (e) {}
+  }, [isDeafened, isMuted, roomId, setDeafenState, setMuteState]);
 
-    syncLocalMemberStates({ 
-      isDeafened: nextValue, 
-      isMuted: nextMute 
-    });
-  }, [isDeafened, isMuted, setDeafenState, setMuteState, syncLocalMemberStates]);
-
-  const toggleHandRaise = useCallback(() => {
+  const toggleHandRaise = useCallback(async () => {
+    if (!roomId || !auth.currentUser) return;
     const nextValue = !handRaised;
     setHandRaised(nextValue);
-    socketService.emit('state-change', { handRaised: nextValue });
-    syncLocalMemberStates({ handRaised: nextValue });
-  }, [handRaised, syncLocalMemberStates]);
+    try {
+      await updateDoc(doc(db, `voice_rooms/${roomId}/members`, auth.currentUser.uid), { handRaised: nextValue });
+    } catch (e) {}
+  }, [handRaised, roomId]);
 
-  const kickMember = useCallback((targetSocketId: string, reason?: string) => {
-    socketService.emit('kick-member', { targetSocketId, reason });
-  }, []);
+  // Moderation Controls using serverless deletes that trigger listener responses instantly
+  const kickMember = useCallback(async (targetSocketId: string, reason?: string) => {
+    if (!roomId) return;
+    console.log(`[Moderation] Requesting kick for user UID/SocketID: ${targetSocketId}`);
+    try {
+      // In our design, targetSocketId is mapped to the user's UID
+      const targetUid = targetSocketId;
+      await deleteDoc(doc(db, `voice_rooms/${roomId}/members`, targetUid));
+      await setDoc(doc(collection(db, `voice_rooms/${roomId}/events`)), {
+        type: 'kick',
+        uid: targetUid,
+        createdAt: new Date().toISOString(),
+        metadata: { reason: reason || 'طرد من الغرفة من المشرف.' }
+      });
+      // Delete any calls between caller/callee involving kicked user
+      peerConnectionsRef.current.delete(targetUid);
+      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
+      console.log(`Member kicked cleanly via Firestore remove.`);
+    } catch (err) {
+      console.error('Kick member failed:', err);
+    }
+  }, [roomId]);
 
-  const banMember = useCallback((targetUid: string, targetSocketId: string, reason?: string) => {
-    socketService.emit('ban-member', { targetUid, targetSocketId, reason });
-  }, []);
+  const banMember = useCallback(async (targetUid: string, targetSocketId: string, reason?: string) => {
+    if (!roomId) return;
+    console.log(`[Moderation] Requesting ban for user UID: ${targetUid}`);
+    try {
+      await setDoc(doc(db, `voice_rooms/${roomId}/bans`, targetUid), {
+        uid: targetUid,
+        bannedBy: auth.currentUser?.uid || 'admin',
+        reason: reason || 'مخالفة القوانين العامة.',
+        createdAt: new Date().toISOString()
+      });
+      await deleteDoc(doc(db, `voice_rooms/${roomId}/members`, targetUid));
+      await setDoc(doc(collection(db, `voice_rooms/${roomId}/events`)), {
+        type: 'ban',
+        uid: targetUid,
+        targetUid,
+        createdAt: new Date().toISOString(),
+        metadata: { reason: reason || 'مخالفة القوانين العامة.' }
+      });
+      peerConnectionsRef.current.delete(targetUid);
+      setConnectedPeers(Array.from(peerConnectionsRef.current.keys()));
+      console.log(`Member banned cleanly via Firestore bans collection.`);
+    } catch (err) {
+      console.error('Ban member failed:', err);
+    }
+  }, [roomId]);
 
   // Cleanup on unmount
   useEffect(() => {
