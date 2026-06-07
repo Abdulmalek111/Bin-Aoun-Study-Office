@@ -11,7 +11,7 @@ import {
 
 // Discord Quality Voice Chat additions
 import VoiceRoomList from './voice/VoiceRoomList';
-import VoiceRoom from './voice/VoiceRoom';
+import VoiceRoom from './voice/LiveKitVoiceRoom';
 import { VoiceRoom as VoiceRoomType } from '../types/voice';
 
 interface DiscussionsViewProps {

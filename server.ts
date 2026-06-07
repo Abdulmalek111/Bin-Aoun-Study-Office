@@ -2,10 +2,8 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Server as SocketIOServer, Socket } from 'socket.io';
-import * as admin from 'firebase-admin';
-import pkg from 'agora-access-token';
-const { RtcTokenBuilder, RtcRole } = pkg;
+import { admin, firebaseAdminEnabled } from './src/lib/firebase-admin.ts';
+import { AccessToken } from 'livekit-server-sdk';
 
 // Recreate CJS variables in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -13,94 +11,51 @@ const __dirname = path.dirname(__filename);
 
 // Initialize Express app & HTTP Server
 const app = express();
+app.use(express.json()); // Support POST application/json payloads
 const server = http.createServer(app);
 const PORT = 3000;
 
-// Initialize Socket.IO Server with dynamic CORS (allow all in development/sandbox)
-const io = new SocketIOServer(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  }
-});
-
-// Configure Firebase Admin if credentials exist (Lazy Initialization)
-let firebaseAdminEnabled = false;
-try {
-  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-  if (serviceAccountPath) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountPath)
-    });
-    firebaseAdminEnabled = true;
-    console.log('[Firebase Admin] Successfully initialized with service account.');
-  } else {
-    console.log('[Firebase Admin] No service account provided. Running in secure token-passthrough mode.');
-  }
-} catch (err) {
-  console.warn('[Firebase Admin] Lazy initialization skipped/bypassed:', err);
-}
 
 // Memory stores for live voice members (Single Source of Truth)
-interface VoicePeer {
-  socketId: string;
-  uid: string;
-  displayName: string;
-  photoURL: string;
-  role: 'admin' | 'moderator' | 'teacher' | 'student';
-  isMuted: boolean;
-  isDeafened: boolean;
-  isSpeaking: boolean;
-  handRaised: boolean;
-  joinedAt: string;
-}
-
-// roomId -> Map of socketId to VoicePeer
-const voiceRooms = new Map<string, Map<string, VoicePeer>>();
-
-// socketId -> { roomId, uid } for fast teardowns
-const socketToRoom = new Map<string, { roomId: string; uid: string }>();
-
 // Simple health API route
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     firebaseAdmin: firebaseAdminEnabled,
-    activeVoiceRooms: voiceRooms.size,
     timestamp: new Date().toISOString()
   });
 });
 
-// Agora Token Generator API Route
-app.get('/api/agora/token', async (req, res) => {
-  const channelName = req.query.channelName as string;
-  const uid = req.query.uid as string;
+// LiveKit Token Generator API Route - POST Only with Security Requirements
+app.post('/api/livekit/token', async (req, res) => {
+  const roomName = req.body.roomName || req.body.roomId;
 
-  if (!channelName || !uid) {
-    return res.status(400).json({ error: 'channelName and uid parameters are required' });
+  if (!roomName) {
+    return res.status(400).json({ error: 'roomName or roomId parameter is required in request body.' });
   }
 
   // 1. Secure ID Token Verification flow
-  let verifiedUid = uid;
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.warn('[Agora Token] Request rejected: Missing or invalid Authorization header format.');
+    console.warn('[LiveKit Token] Request rejected: Missing or invalid Authorization header format.');
     return res.status(401).json({ error: 'Authentication required: Missing Firebase ID token.' });
   }
   
   const idToken = authHeader.split('Bearer ')[1];
+  let verifiedUid: string;
+  let verifiedName = 'Anonymous User';
+  let verifiedPhoto = '';
 
   if (firebaseAdminEnabled) {
     try {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       verifiedUid = decodedToken.uid;
-      
-      if (verifiedUid !== uid) {
-        console.warn(`[Agora Token] Claims mismatched: Clamed UID "${uid}", verified UID "${verifiedUid}".`);
-      }
+      verifiedName = decodedToken.name || decodedToken.email?.split('@')[0] || 'Anonymous';
+      verifiedPhoto = decodedToken.picture || '';
+      console.log(`[LiveKit Token] Successfully verified token with Admin SDK for user: ${verifiedUid}`);
     } catch (err: any) {
-      console.error('[Agora Token] IdToken verification failed:', err);
+      console.error('[LiveKit Token] IdToken verification failed:', err);
       return res.status(401).json({ error: 'Session expired or token is invalid: ' + err.message });
     }
   } else {
@@ -119,291 +74,54 @@ app.get('/api/agora/token', async (req, res) => {
       }
       
       verifiedUid = payload.sub;
-      console.log(`[Agora Token] Decoded verified UID securely from ID Token payload: ${verifiedUid}`);
+      verifiedName = payload.name || payload.email?.split('@')[0] || 'Anonymous';
+      verifiedPhoto = payload.picture || '';
+      console.log(`[LiveKit Token] Decoded verified UID securely from ID Token payload fallback: ${verifiedUid}`);
     } catch (err: any) {
-      console.error('[Agora Token] Local JWT decode failed:', err);
+      console.error('[LiveKit Token] Local JWT decode failed:', err);
       return res.status(401).json({ error: 'Invalid authentication token: ' + err.message });
     }
   }
 
-  // Support both system NEXT_PUBLIC_AGORA_APP_ID and local VITE_AGORA_APP_ID
-  const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || process.env.VITE_AGORA_APP_ID || "3d2a454a-4f2b-4763-accc-d2db1d7929f6";
-  const appCertificate = process.env.AGORA_APP_CERTIFICATE;
+  const apiKey = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+  const liveKitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.VITE_LIVEKIT_URL || '';
+
+  if (!apiKey || !apiSecret) {
+    console.error('[LiveKit Token] LIVEKIT_API_KEY or LIVEKIT_API_SECRET is not set.');
+    return res.status(500).json({ error: 'LiveKit server credentials are not configured on the server.' });
+  }
 
   try {
-    let token: string | null = null;
-    
-    // Generate secure token only if appCertificate is available
-    if (appCertificate && appCertificate.trim().length > 0) {
-      const expirationTimeInSeconds = 3600; // Token valid for 1 hour
-      const currentTimestamp = Math.floor(Date.now() / 1000);
-      const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+    const at = new AccessToken(apiKey, apiSecret, {
+      identity: verifiedUid,
+      name: verifiedName,
+      metadata: JSON.stringify({ displayName: verifiedName, photoURL: verifiedPhoto }),
+    });
 
-      token = RtcTokenBuilder.buildTokenWithAccount(
-        appId,
-        appCertificate,
-        channelName,
-        verifiedUid,
-        RtcRole.PUBLISHER,
-        privilegeExpiredTs
-      );
-      console.log(`[Agora Token] Built publisher token for channel "${channelName}" (user account: "${verifiedUid}")`);
-    } else {
-      console.log(`[Agora Token] No App Certificate provided on server. Joining channel "${channelName}" with direct App ID bypass.`);
-    }
+    at.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
 
-    return res.json({ appId, token, agoraUid: verifiedUid, channelName });
+    const token = await at.toJwt();
+
+    return res.json({
+      token,
+      url: liveKitUrl,
+      roomName,
+      identity: verifiedUid,
+      name: verifiedName,
+    });
   } catch (err: any) {
-    console.error('[Agora Token] Token builder error:', err);
-    return res.status(500).json({ error: 'Failed to build Agora token: ' + err.message });
+    console.error('[LiveKit Token] AccessToken builder error:', err);
+    return res.status(500).json({ error: 'Failed to build LiveKit token: ' + err.message });
   }
 });
 
-// WebRTC Socket.IO Signaling logic
-io.on('connection', (socket: Socket) => {
-  console.log(`[Signaling] Socket connected: ${socket.id}`);
-
-  // 1. Join Room Event
-  socket.on('join-room', async (payload: {
-    roomId: string;
-    uid: string;
-    displayName: string;
-    photoURL: string;
-    role: 'admin' | 'moderator' | 'teacher' | 'student';
-    token?: string;
-  }) => {
-    const { roomId, uid, displayName, photoURL, role, token } = payload;
-    
-    if (!roomId || !uid) {
-      socket.emit('error-msg', { message: 'معرف الغرفة أو معرف المستخدم غير صالح.' });
-      return;
-    }
-
-    console.log(`[Signaling] User "${displayName}" (${uid}) joining room details: ${roomId}`);
-
-    // Optional Token Verification: verify signature if admin is active
-    if (firebaseAdminEnabled && token) {
-      try {
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        if (decodedToken.uid !== uid) {
-          socket.emit('error-msg', { message: 'فشل التحقق من هوية المستخدم (UID mismatch).' });
-          return;
-        }
-      } catch (authErr) {
-        console.error('[Signaling] Firebase authentication failed:', authErr);
-        socket.emit('error-msg', { message: 'انتهت صلاحية جلسة تسجيل الدخول. يرجى إعادة تسجيل الدخول.' });
-        return;
-      }
-    }
-
-    // Check if room has been created in memory
-    if (!voiceRooms.has(roomId)) {
-      voiceRooms.set(roomId, new Map());
-    }
-
-    const roomMembers = voiceRooms.get(roomId)!;
-
-    // Check ban or limit checks could go here (will be reinforced in frontend/rules)
-    const newPeer: VoicePeer = {
-      socketId: socket.id,
-      uid,
-      displayName: displayName || 'طالب مجهول',
-      photoURL: photoURL || '',
-      role: role || 'student',
-      isMuted: false,
-      isDeafened: false,
-      isSpeaking: false,
-      handRaised: false,
-      joinedAt: new Date().toISOString(),
-    };
-
-    // Store in memory
-    roomMembers.set(socket.id, newPeer);
-    socketToRoom.set(socket.id, { roomId, uid });
-
-    // Multi-peer dynamic joining sequence:
-    // Join Socket.IO channel
-    socket.join(roomId);
-
-    // Get list of existing peers in this room, excluding current socket
-    const existingPeers: VoicePeer[] = [];
-    roomMembers.forEach((peer, sId) => {
-      if (sId !== socket.id) {
-        existingPeers.push(peer);
-      }
-    });
-
-    // Send back of all other peer profiles directly to the joining peer
-    socket.emit('room-members-list', { members: existingPeers });
-
-    // Notify all other members in the room that a new peer has joined
-    socket.to(roomId).emit('peer-joined', { peer: newPeer });
-    socket.to(roomId).emit('user-joined', { peer: newPeer, socketId: socket.id, uid });
-    console.log(`[Signaling] Member joined room: ${roomId}, total member count: ${roomMembers.size}`);
-  });
-
-  // 2. WebRTC Relays (Offer, Answer, Candidate mapping)
-  socket.on('webrtc-offer', (payload: { targetSocketId: string; offer: any }) => {
-    const tracking = socketToRoom.get(socket.id);
-    if (tracking) {
-      io.to(payload.targetSocketId).emit('webrtc-offer', {
-        fromSocketId: socket.id,
-        offer: payload.offer,
-        fromUid: tracking.uid
-      });
-    }
-  });
-
-  socket.on('webrtc-answer', (payload: { targetSocketId: string; answer: any }) => {
-    const tracking = socketToRoom.get(socket.id);
-    if (tracking) {
-      io.to(payload.targetSocketId).emit('webrtc-answer', {
-        fromSocketId: socket.id,
-        answer: payload.answer,
-        fromUid: tracking.uid
-      });
-    }
-  });
-
-  socket.on('webrtc-ice-candidate', (payload: { targetSocketId: string; candidate: any }) => {
-    io.to(payload.targetSocketId).emit('webrtc-ice-candidate', {
-      fromSocketId: socket.id,
-      candidate: payload.candidate
-    });
-  });
-
-  // 3. Live State Synchronizer (Mute, Deafen, Speak state changes)
-  socket.on('state-change', (payload: {
-    isMuted?: boolean;
-    isDeafened?: boolean;
-    isSpeaking?: boolean;
-    handRaised?: boolean;
-  }) => {
-    const tracking = socketToRoom.get(socket.id);
-    if (!tracking) return;
-
-    const roomMembers = voiceRooms.get(tracking.roomId);
-    if (roomMembers && roomMembers.has(socket.id)) {
-      const peer = roomMembers.get(socket.id)!;
-      
-      // Merge updates
-      if (payload.isMuted !== undefined) peer.isMuted = payload.isMuted;
-      if (payload.isDeafened !== undefined) peer.isDeafened = payload.isDeafened;
-      if (payload.isSpeaking !== undefined) peer.isSpeaking = payload.isSpeaking;
-      if (payload.handRaised !== undefined) peer.handRaised = payload.handRaised;
-
-      // Broadcast changes immediately to all people in the room
-      io.to(tracking.roomId).emit('peer-state-changed', {
-        socketId: socket.id,
-        uid: tracking.uid,
-        fields: payload
-      });
-    }
-  });
-
-  // 4. Moderation Action: Kick Event Trigger
-  socket.on('kick-member', (payload: { targetSocketId: string; reason?: string }) => {
-    const tracking = socketToRoom.get(socket.id);
-    if (!tracking) return;
-
-    const roomMembers = voiceRooms.get(tracking.roomId);
-    if (roomMembers) {
-      const senderPeer = roomMembers.get(socket.id);
-      if (senderPeer && (senderPeer.role === 'admin' || senderPeer.role === 'moderator' || senderPeer.role === 'teacher')) {
-        console.log(`[Signaling] Moderation Kick event by ${senderPeer.displayName} targeting ${payload.targetSocketId}`);
-        io.to(payload.targetSocketId).emit('kicked-from-room', {
-          kickedBy: senderPeer.displayName,
-          reason: payload.reason || 'تم إخراجك بواسطة المشرف المباشر.'
-        });
-      }
-    }
-  });
-
-  // 5. Moderation Action: Ban Event Trigger
-  socket.on('ban-member', (payload: { targetUid: string; targetSocketId: string; reason?: string }) => {
-    const tracking = socketToRoom.get(socket.id);
-    if (!tracking) return;
-
-    const roomMembers = voiceRooms.get(tracking.roomId);
-    if (roomMembers) {
-      const senderPeer = roomMembers.get(socket.id);
-      if (senderPeer && (senderPeer.role === 'admin' || senderPeer.role === 'moderator' || senderPeer.role === 'teacher')) {
-        console.log(`[Signaling] Moderation Ban event by ${senderPeer.displayName} targeting UID ${payload.targetUid}`);
-        io.to(payload.targetSocketId).emit('banned-from-room', {
-          bannedBy: senderPeer.displayName,
-          reason: payload.reason || 'تم حظرك نهائياً من دخول هذه الغرفة الصوتية.'
-        });
-      }
-    }
-  });
-
-  // 6. Graceful Leave / Exit Room Handler
-  socket.on('leave-room', () => {
-    handleSocketTeardown(socket);
-  });
-
-  // 7. Automatic socket closing/destruction
-  socket.on('disconnect', () => {
-    console.log(`[Signaling] Socket disconnected: ${socket.id}`);
-    handleSocketTeardown(socket);
-  });
-});
-
-// Resilient room teardown service
-function handleSocketTeardown(socket: Socket) {
-  const tracking = socketToRoom.get(socket.id);
-  if (!tracking) return;
-
-  const { roomId, uid } = tracking;
-  socketToRoom.delete(socket.id);
-
-  const roomMembers = voiceRooms.get(roomId);
-  if (roomMembers) {
-    roomMembers.delete(socket.id);
-    
-    // Announce peer departure immediately
-    socket.to(roomId).emit('peer-left', {
-      socketId: socket.id,
-      uid
-    });
-    socket.to(roomId).emit('user-left', {
-      socketId: socket.id,
-      uid
-    });
-
-    console.log(`[Signaling] User (${uid}) left room: ${roomId}. Current active member count: ${roomMembers.size}`);
-
-    // If room is completely vacant, flush it from memory to preserve server resources
-    if (roomMembers.size === 0) {
-      voiceRooms.delete(roomId);
-      console.log(`[Signaling] Flushed empty room from memory active store: ${roomId}`);
-    }
-  }
-
-  // Live Clean-Up: If Firebase Admin is available, automatically delete the member presence document
-  if (firebaseAdminEnabled && roomId && uid) {
-    const dbAdmin = admin.firestore();
-    dbAdmin.collection('voice_rooms').doc(roomId).collection('members').doc(uid).delete()
-      .then(() => {
-        console.log(`[Firebase Admin] Cleanup presence document for user ${uid} in room ${roomId}`);
-        // Read and update exact memberCount in parent document
-        return dbAdmin.collection('voice_rooms').doc(roomId).collection('members').get();
-      })
-      .then((snapshot) => {
-        const liveCount = snapshot.size;
-        return dbAdmin.collection('voice_rooms').doc(roomId).update({
-          memberCount: liveCount,
-          updatedAt: new Date().toISOString()
-        });
-      })
-      .then(() => {
-        console.log(`[Firebase Admin] Updated room ${roomId} memberCount successfully`);
-      })
-      .catch((err) => {
-        console.warn(`[Firebase Admin] Failed connection presence sweep:`, err);
-      });
-  }
-}
 
 // ---------------------- Vite Development/Production Config ----------------------
 async function startAppServer() {
