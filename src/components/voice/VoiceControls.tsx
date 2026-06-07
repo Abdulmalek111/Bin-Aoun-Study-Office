@@ -51,10 +51,10 @@ export default function VoiceControls({
             {connectionState === 'connected' ? (
               <span className="text-emerald-400 font-extrabold flex items-center gap-1 text-[11px]">
                 <CheckCircle size={10} />
-                Agora Voice Connected (متصل صوتياً)
+                LiveKit Voice Connected (متصل صوتياً)
               </span>
             ) : connectionState === 'connecting' ? (
-              <span className="text-amber-400 font-bold animate-pulse">جاري الاتصال بـ Agora...</span>
+              <span className="text-amber-400 font-bold animate-pulse">جاري الاتصال بـ LiveKit...</span>
             ) : (
               <span className="text-slate-500 font-medium font-mono text-[10px]">غير متصل / Offline</span>
             )}
