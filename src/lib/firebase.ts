@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize core Firebase App
@@ -11,6 +12,9 @@ export const auth = getAuth(app);
 
 // Initialize Firestore targeting the specific applet database instance
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Initialize Storage
+export const storage = getStorage(app);
 
 // Initialize standard Google auth provider with forcing Select Account selection
 export const googleProvider = new GoogleAuthProvider();

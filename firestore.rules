@@ -152,7 +152,8 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'username', 'avatarUrl', 'telegram', 'isLoggedIn',
             'academicStage', 'academicYear', 'academicSemester', 'academicTrack',
-            'scorePct', 'completedCount', 'signUpDate', 'studentId'
+            'scorePct', 'completedCount', 'signUpDate', 'studentId',
+            'fullName', 'phone', 'university', 'college', 'department', 'level', 'photoURL', 'updatedAt'
           ])
         )
       ) || isAdmin();

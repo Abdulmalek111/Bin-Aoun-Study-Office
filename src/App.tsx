@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield, Users, PhoneIncoming, X, Check } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { collection, onSnapshot, doc, setDoc, getDoc, query, where, limit, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, getDoc, query, where, limit, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
@@ -276,6 +276,111 @@ export default function App() {
         // Fallback to default
       }
     }
+  }, []);
+
+  // Synchronize Firebase auth state and merge Firestore properties to React state in real-time
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
+      if (fbUser) {
+        try {
+          const userDocRef = doc(db, 'users', fbUser.uid);
+          let docSnap = await getDoc(userDocRef);
+
+          if (!docSnap.exists()) {
+            const displayName = fbUser.displayName || fbUser.email?.split('@')[0] || 'طالب';
+            const signUpDateFormatted = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+            
+            await setDoc(userDocRef, {
+              uid: fbUser.uid,
+              fullName: displayName,
+              username: displayName,
+              email: fbUser.email || '',
+              phone: '',
+              university: '',
+              college: '',
+              department: '',
+              level: 'بكالوريوس',
+              photoURL: fbUser.photoURL || '',
+              avatarUrl: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=1b365d,c9a24a`,
+              role: 'student',
+              isActive: true,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              telegram: '@no_telegram',
+              isLoggedIn: true,
+              signUpDate: signUpDateFormatted,
+              scorePct: 100,
+              completedCount: 0,
+              academicStage: 'بكالوريوس',
+              academicYear: 'سنة أولى',
+              academicSemester: 'فصل أول',
+              academicTrack: 'علمي'
+            });
+          } else {
+            const d = docSnap.data();
+            const updates: any = {};
+            if (d.uid === undefined) updates.uid = fbUser.uid;
+            if (d.fullName === undefined) updates.fullName = d.username || d.fullName || fbUser.displayName || '';
+            if (d.email === undefined) updates.email = fbUser.email || d.email || '';
+            if (d.phone === undefined) updates.phone = '';
+            if (d.university === undefined) updates.university = '';
+            if (d.college === undefined) updates.college = '';
+            if (d.department === undefined) updates.department = '';
+            if (d.level === undefined) updates.level = d.academicStage || 'بكالوريوس';
+            if (d.photoURL === undefined) updates.photoURL = d.photoURL || d.avatarUrl || fbUser.photoURL || '';
+            if (d.role === undefined) updates.role = 'student';
+            if (d.isActive === undefined) updates.isActive = true;
+            if (d.createdAt === undefined) updates.createdAt = serverTimestamp();
+            if (d.updatedAt === undefined) updates.updatedAt = serverTimestamp();
+
+            if (Object.keys(updates).length > 0) {
+              await updateDoc(userDocRef, updates);
+            }
+          }
+
+          const unsubSnapshot = onSnapshot(userDocRef, (snapshot) => {
+            if (snapshot.exists()) {
+              const data = snapshot.data();
+              const mergedUser: User = {
+                username: data.username || data.fullName || 'طالب',
+                email: data.email || '',
+                avatarUrl: data.photoURL || data.avatarUrl || '',
+                isLoggedIn: true,
+                telegram: data.telegram || '@no_telegram',
+                academicStage: data.academicStage || data.level || 'بكالوريوس',
+                academicYear: data.academicYear || 'سنة أولى',
+                academicSemester: data.academicSemester || 'فصل أول',
+                academicTrack: data.academicTrack || 'علمي',
+                balance: data.balance,
+                studentId: data.studentId,
+                uid: data.uid,
+                fullName: data.fullName,
+                phone: data.phone,
+                university: data.university,
+                college: data.college,
+                department: data.department,
+                level: data.level,
+                photoURL: data.photoURL,
+                role: data.role,
+                isActive: data.isActive,
+                createdAt: data.createdAt,
+                updatedAt: data.updatedAt
+              };
+              setUser(mergedUser);
+              localStorage.setItem('school_user', JSON.stringify(mergedUser));
+            }
+          }, (error) => {
+            console.error("Error listening to user snapshot:", error);
+          });
+
+          return () => unsubSnapshot();
+        } catch (err) {
+          console.error("Error syncing authenticated user: ", err);
+        }
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Auto-detect and route ticketId if present

@@ -3,7 +3,7 @@ import { User as UserIcon, Lock, Eye, EyeOff, Globe, Info, Check, ChevronRight, 
 import Logo from './Logo';
 import { auth, db } from '../lib/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 interface LoginViewProps {
   onLoginSuccess: (
@@ -230,11 +230,24 @@ export default function LoginView({ onLoginSuccess, initialMode = 'login', onNav
       const signUpDate = new Date().toISOString().split('T')[0].replace(/-/g, '/');
 
       // Create Firestore user profile document
+      const initialsAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(regUser.trim())}&backgroundColor=1b365d,c9a24a`;
       await setDoc(doc(db, 'users', fbUser.uid), {
+        uid: fbUser.uid,
+        fullName: regUser.trim(),
         username: regUser.trim(),
         email: regEmail.trim(),
+        phone: '',
+        university: '',
+        college: '',
+        department: '',
+        level: regStage,
+        photoURL: initialsAvatar,
+        avatarUrl: initialsAvatar,
+        role: 'student',
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         telegram: telegramHandle,
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(regUser.trim())}&backgroundColor=1b365d,c9a24a`,
         isLoggedIn: true,
         signUpDate: signUpDate,
         scorePct: 0,
