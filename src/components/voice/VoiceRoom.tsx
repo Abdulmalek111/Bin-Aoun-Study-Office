@@ -45,7 +45,11 @@ export default function VoiceRoom({
     webrtcStatus,
     microphoneStatus,
     peerSignalingStates,
-    peerIceConnectionStates
+    peerIceConnectionStates,
+
+    // Autoplay states
+    autoplayBlocked,
+    resumeAudioPlayback
   } = useVoiceRoom(room.id);
 
   // Auto-connect on mounting
@@ -96,7 +100,7 @@ export default function VoiceRoom({
         </button>
       </div>
 
-      {/* 2. Diagnostics Dashboard */}
+      {/* 2. Diagnostics Dashboard && Agora Debug Panel */}
       <div className="bg-gray-50/55 border border-gray-100 rounded-[24px] p-4 flex flex-col gap-3 select-none text-right">
         <button
           onClick={() => setShowDiagnostics(!showDiagnostics)}
@@ -104,120 +108,110 @@ export default function VoiceRoom({
         >
           <div className="flex items-center gap-2 text-brand-dark">
             <Terminal size={14} className="text-emerald-600" />
-            <h4 className="font-extrabold text-xs">لوحة تشخيص وتكامل الأنظمة الحية (System Status Panel)</h4>
+            <h4 className="font-extrabold text-xs">لوحة تتبع وتشخيص Agora الصوتية (Agora Live Trace Panel)</h4>
           </div>
           <span className="text-[10px] text-emerald-700 font-black bg-emerald-500/5 border border-emerald-500/10 px-2.5 py-1 rounded-full hover:bg-emerald-500/10 transition-all font-mono">
-            {showDiagnostics ? 'إخفاء اللوحة ▴' : 'عرض اللوحة ▾'}
+            {showDiagnostics ? 'إخفاء لوحة التتبع ▴' : 'عرض لوحة التتبع ▾'}
           </span>
         </button>
 
         {showDiagnostics && (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 pt-2 border-t border-gray-150/60 animate-fade-in text-[10px] text-right">
-            {/* Socket connection status with ping light */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm">
-              <span className="text-gray-400 font-extrabold flex items-center gap-1 justify-end">
-                Socket.IO
-                <Wifi size={11} className="text-blue-500" />
-              </span>
-              <div className="flex items-center gap-2 justify-end">
-                <span className="font-black text-brand-dark">
-                  {socketStatus === 'connected' ? 'متصل' : socketStatus === 'connecting' ? 'جاري الاتصال' : 'غير متصل'}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-gray-150/60 animate-fade-in text-[10px] text-right">
+              {/* 1. Channel Joined */}
+              <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
+                <span className="text-gray-400 font-extrabold">القناة الانضمام (Channel)</span>
+                <span className="font-black text-brand-dark truncate leading-none">
+                  {joined ? room.id : 'غير متصل'}
                 </span>
-                <span className={`inline-block w-2.5 h-2.5 rounded-full ${
-                  socketStatus === 'connected' ? 'bg-emerald-500 animate-ping' : socketStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-red-400'
-                }`}></span>
+              </div>
+
+              {/* 2. Connected User String UID */}
+              <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
+                <span className="text-gray-400 font-extrabold">معرف UID المتصل</span>
+                <span className="font-black text-brand-dark truncate leading-none font-mono text-[9px] text-left" dir="ltr">
+                  {socketId || 'لا يوجد / N/A'}
+                </span>
+              </div>
+
+              {/* 3. Muted State */}
+              <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
+                <span className="text-gray-400 font-extrabold">الكتم المحلي (isMuted)</span>
+                <span className={`font-black leading-none ${isMuted ? 'text-amber-500' : 'text-emerald-500'}`}>
+                  {isMuted ? 'نعم (مكتوم)' : 'لا (نشط)'}
+                </span>
+              </div>
+
+              {/* 4. Local Audio Track (Microphone) */}
+              <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
+                <span className="text-gray-400 font-extrabold">ميكروفون محلي (Local Track)</span>
+                <span className="font-black text-brand-dark leading-none truncate">
+                  {microphoneStatus}
+                </span>
+              </div>
+
+              {/* 5. Remote Audio Tracks Count */}
+              <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
+                <span className="text-gray-400 font-extrabold">مسارات المستمعين (Remote Count)</span>
+                <span className="font-black text-brand-dark leading-none font-mono">
+                  {connectedPeers.length} مسار نشط
+                </span>
               </div>
             </div>
 
-            {/* Socket Identifier ID */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm">
-              <span className="text-gray-400 font-extrabold">مُعرّف السوكيت ID</span>
-              <span className="font-black text-brand-dark font-mono truncate text-[9px] text-left leading-none" dir="ltr">
-                {socketId || 'لا يوجد / N/A'}
-              </span>
-            </div>
-
-            {/* Firestore synchronization status */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
-              <span className="text-gray-405 font-extrabold flex items-center gap-1 justify-end">
-                قاعدة البيانات
-                <HardDrive size={11} className="text-emerald-500" />
-              </span>
-              <span className="font-black text-brand-dark truncate leading-none">
-                {firestoreStatus}
-              </span>
-            </div>
-
-            {/* WebRTC audio mesh connection */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm">
-              <span className="text-gray-400 font-extrabold flex items-center gap-1 justify-end">
-                صوت WebRTC P2P
-                <Radio size={11} className="text-indigo-500" />
-              </span>
-              <span className={`font-black truncate ${connectedPeers.length > 0 ? 'text-emerald-600' : 'text-amber-500'} leading-none`}>
-                {webrtcStatus}
-              </span>
-            </div>
-
-            {/* Peer Connections Count */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm">
-              <span className="text-gray-400 font-extrabold">عدد القرناء (Peers)</span>
-              <span className="font-black font-mono text-brand-dark text-[11px]">
-                {connectedPeers.length} متصلين
-              </span>
-            </div>
-
-            {/* Audio microphone capture status */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
-              <span className="text-gray-400 font-extrabold">صلاحية الميكروفون</span>
-              <span className="font-black text-brand-dark leading-none">
-                {microphoneStatus}
-              </span>
-            </div>
-          </div>
-
-          {connectedPeers.length > 0 && (
-            <div className="mt-3 bg-white border border-gray-150 rounded-2xl p-4 flex flex-col gap-2">
-              <span className="text-gray-400 font-extrabold text-[10px]">مسارات الربط المباشر النشطة (WebRTC Active P2P Links)</span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[9px] font-mono">
-                {connectedPeers.map(peerId => {
-                  const m = members.find(mbr => mbr.socketId === peerId);
-                  const sigState = peerSignalingStates?.[peerId] || 'unknown';
-                  const iceState = peerIceConnectionStates?.[peerId] || 'unknown';
-                  return (
-                    <div key={peerId} className="flex justify-between items-center bg-gray-50/70 border border-gray-100 rounded-xl p-2.5">
-                      <span className="text-brand-dark font-black font-sans text-right">
-                        {m ? m.displayName : `مجهول (${peerId.slice(0, 5)})`}
-                      </span>
-                      <div className="flex gap-2 items-center">
-                        <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
-                          signaling: {sigState}
+            {connectedPeers.length > 0 && (
+              <div className="mt-3 bg-white border border-gray-150 rounded-2xl p-4 flex flex-col gap-2">
+                <span className="text-gray-400 font-extrabold text-[10px]">مسارات الاتصال الصوتي النشطة (Agora Active audio streams)</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[9px] font-mono">
+                  {connectedPeers.map(peerId => {
+                    const m = members.find(mbr => mbr.uid === peerId);
+                    return (
+                      <div key={peerId} className="flex justify-between items-center bg-gray-50/70 border border-gray-100 rounded-xl p-2.5">
+                        <span className="text-brand-dark font-black font-sans text-right">
+                          {m ? m.displayName : `مستمع Agora (${peerId.slice(0, 8)}...)`}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full font-bold ${
-                          iceState === 'connected' || iceState === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                        }`}>
-                          ice: {iceState}
-                        </span>
+                        <div className="flex gap-2 items-center">
+                          <span className="bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full font-bold">
+                            صوت متصل / Active
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="flex justify-end gap-2 mt-2">
-            <button
-              onClick={handleResetConnection}
-              className="px-4 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer font-bold"
-            >
-              إعادة تهيئة الاتصال وحل الأخطاء (Reset Connection) 🔄
-            </button>
-          </div>
-        </>
-      )}
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={handleResetConnection}
+                className="px-4 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-[10px] font-extrabold transition-all cursor-pointer font-bold"
+              >
+                إعادة تهيئة الاتصال وحل الأخطاء (Reset Connection) 🔄
+              </button>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* 2.4 Browser Autoplay Warning Banner */}
+      {autoplayBlocked && (
+        <div className="bg-amber-500/10 text-amber-700 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-4 text-right text-xs items-start sm:items-center justify-between leading-relaxed animate-fade-in shadow-sm">
+          <div className="flex gap-3 items-center">
+            <Radio className="shrink-0 text-amber-500 animate-pulse" size={18} />
+            <div>
+              <p className="font-extrabold pb-0.5 text-amber-800">صوت الغرفة محجوب من المتصفح (Autoplay Blocked):</p>
+              <p className="font-medium text-[11px] leading-relaxed">المتصفح يمنع تشغيل الصوت تلفائياً بدون تفاعل منك. يرجى الضغط على زر تفعيل تشغيل الصوت بوعي لسماع جميع المتحدثين في الغرفة.</p>
+            </div>
+          </div>
+          <button
+            onClick={resumeAudioPlayback}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white border border-amber-500/10 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap text-center font-bold"
+          >
+            تسمع الغرفة (تشغيل الصوت) 🔊
+          </button>
+        </div>
+      )}
 
       {/* 2.5 Error Prompt Block */}
       {error && (

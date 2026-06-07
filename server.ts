@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import * as admin from 'firebase-admin';
+import pkg from 'agora-access-token';
+const { RtcTokenBuilder, RtcRole } = pkg;
 
 // Recreate CJS variables in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -67,6 +69,48 @@ app.get('/api/health', (req, res) => {
     activeVoiceRooms: voiceRooms.size,
     timestamp: new Date().toISOString()
   });
+});
+
+// Agora Token Generator API Route
+app.get('/api/agora/token', async (req, res) => {
+  const channelName = req.query.channelName as string;
+  const uid = req.query.uid as string;
+
+  if (!channelName || !uid) {
+    return res.status(400).json({ error: 'channelName and uid parameters are required' });
+  }
+
+  // Support both system NEXT_PUBLIC_AGORA_APP_ID and local VITE_AGORA_APP_ID
+  const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || process.env.VITE_AGORA_APP_ID || "3d2a454a-4f2b-4763-accc-d2db1d7929f6";
+  const appCertificate = process.env.AGORA_APP_CERTIFICATE;
+
+  try {
+    let token: string | null = null;
+    
+    // Generate secure token only if appCertificate is available
+    if (appCertificate && appCertificate.trim().length > 0) {
+      const expirationTimeInSeconds = 3600; // Token valid for 1 hour
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+      token = RtcTokenBuilder.buildTokenWithAccount(
+        appId,
+        appCertificate,
+        channelName,
+        uid,
+        RtcRole.PUBLISHER,
+        privilegeExpiredTs
+      );
+      console.log(`[Agora Token] Built publisher token for channel "${channelName}" (user account: "${uid}")`);
+    } else {
+      console.log(`[Agora Token] No App Certificate provided on server. Joining channel "${channelName}" with direct App ID bypass.`);
+    }
+
+    return res.json({ appId, token });
+  } catch (err: any) {
+    console.error('[Agora Token] Token builder error:', err);
+    return res.status(500).json({ error: 'Failed to build Agora token: ' + err.message });
+  }
 });
 
 // WebRTC Socket.IO Signaling logic
