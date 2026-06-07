@@ -117,44 +117,44 @@ export default function VoiceRoom({
 
         {showDiagnostics && (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-gray-150/60 animate-fade-in text-[10px] text-right">
-              {/* 1. Channel Joined */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-gray-150/60 animate-fade-in text-[10px] text-right">
+              {/* 1. Channel Name (channelName) */}
               <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
-                <span className="text-gray-400 font-extrabold">القناة الانضمام (Channel)</span>
+                <span className="text-gray-400 font-extrabold">اسم القناة (Channel Name)</span>
                 <span className="font-black text-brand-dark truncate leading-none">
-                  {joined ? room.id : 'غير متصل'}
+                  {room.id}
                 </span>
               </div>
 
-              {/* 2. Connected User String UID */}
+              {/* 2. Agora UID (agoraUid) */}
               <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
-                <span className="text-gray-400 font-extrabold">معرف UID المتصل</span>
+                <span className="text-gray-400 font-extrabold">معرف الأغورا (Agora UID)</span>
                 <span className="font-black text-brand-dark truncate leading-none font-mono text-[9px] text-left" dir="ltr">
-                  {socketId || 'لا يوجد / N/A'}
+                  {socketId || 'غير متصل'}
                 </span>
               </div>
 
-              {/* 3. Muted State */}
+              {/* 3. Token API Status */}
               <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
-                <span className="text-gray-400 font-extrabold">الكتم المحلي (isMuted)</span>
-                <span className={`font-black leading-none ${isMuted ? 'text-amber-500' : 'text-emerald-500'}`}>
-                  {isMuted ? 'نعم (مكتوم)' : 'لا (نشط)'}
+                <span className="text-gray-400 font-extrabold">حالة الـ Token API</span>
+                <span className={`font-black leading-none ${error ? 'text-red-500' : joined ? 'text-emerald-500' : 'text-slate-500'}`}>
+                  {error ? 'فشل متوقع ✖' : joined ? 'POST 200 OK ✔' : loading ? 'جاري الطلب...' : 'بانتظار الطلب'}
                 </span>
               </div>
 
-              {/* 4. Local Audio Track (Microphone) */}
+              {/* 4. Token received true/false */}
               <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
-                <span className="text-gray-400 font-extrabold">ميكروفون محلي (Local Track)</span>
-                <span className="font-black text-brand-dark leading-none truncate">
-                  {microphoneStatus}
+                <span className="text-gray-400 font-extrabold">تم استلام التوكن؟ (Token Received)</span>
+                <span className={`font-black leading-none ${joined ? 'text-emerald-500' : 'text-slate-500'}`}>
+                  {joined ? 'نعم / True ✔' : 'لا / False ✖'}
                 </span>
               </div>
 
-              {/* 5. Remote Audio Tracks Count */}
-              <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold">
-                <span className="text-gray-400 font-extrabold">مسارات المستمعين (Remote Count)</span>
-                <span className="font-black text-brand-dark leading-none font-mono">
-                  {connectedPeers.length} مسار نشط
+              {/* 5. Join Status */}
+              <div className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col justify-between gap-1.5 shadow-sm font-bold col-span-2 md:col-span-1">
+                <span className="text-gray-400 font-extrabold">حالة الدخول (Join Status)</span>
+                <span className={`font-black leading-none ${joined ? 'text-emerald-500 animate-pulse' : loading ? 'text-amber-500 animate-spin' : 'text-slate-500'}`}>
+                  {joined ? 'قناة نشطة / Joined' : loading ? 'جاري الدخول...' : 'غير متصل / Idle'}
                 </span>
               </div>
             </div>

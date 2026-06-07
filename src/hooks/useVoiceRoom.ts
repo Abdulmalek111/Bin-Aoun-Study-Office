@@ -194,17 +194,24 @@ export function useVoiceRoom(roomId: string | undefined) {
 
       setFirestoreStatus('جاري جلب مفتاح الاتصال الصوتي (Agora Token)...');
 
-      // Fetch dynamic token and appId securely from back-end server with Firebase ID Token
+      // Fetch dynamic token and appId securely from back-end server via POST with Firebase ID Token
       const idToken = await currentUser.getIdToken(true);
-      const tokenResponse = await fetch(`/api/agora/token?channelName=${room.id}&uid=${myUid}`, {
+      const tokenResponse = await fetch('/api/agora/token', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          channelName: room.id
+        })
       });
+
       if (!tokenResponse.ok) {
-        throw new Error('فشل الحصول على رمز الدخول الصوتي من الخادم. يرجى مراجعة قيم ENV.');
+        throw new Error('فشل توليد رمز الدخول الصوتي. تحقق من متغيرات البيئة وإعدادات Agora.');
       }
-      const { appId, token } = await tokenResponse.json();
+
+      const { appId, token, agoraUid } = await tokenResponse.json();
 
       setFirestoreStatus('جاري الانضمام إلى قناة الصوت...');
       setSocketStatus('authenticated');
@@ -289,7 +296,7 @@ export function useVoiceRoom(roomId: string | undefined) {
       });
 
       // Join the Channel
-      await client.join(appId, room.id, token, myUid);
+      await client.join(appId, room.id, token, agoraUid || myUid);
 
       // Create Microphone track with Noise cancellation, Echo suppression, and AGC
       const micTrack = await AgoraRTC.createMicrophoneAudioTrack({
