@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import * as admin from 'firebase-admin';
 import pkg from 'agora-access-token';
-import { initFirebaseAdmin } from './src/lib/firebase-admin.js';
 const { RtcTokenBuilder, RtcRole } = pkg;
 
 // Recreate CJS variables in ESM
@@ -17,9 +16,6 @@ const app = express();
 const server = http.createServer(app);
 const PORT = 3000;
 
-// Set up body parser middleware for JSON payloads to support POST API requests
-app.use(express.json());
-
 // Initialize Socket.IO Server with dynamic CORS (allow all in development/sandbox)
 const io = new SocketIOServer(server, {
   cors: {
@@ -28,8 +24,22 @@ const io = new SocketIOServer(server, {
   }
 });
 
-// Configure Firebase Admin dynamically if credentials or env keys exist
-const { app: adminApp, enabled: firebaseAdminEnabled } = initFirebaseAdmin();
+// Configure Firebase Admin if credentials exist (Lazy Initialization)
+let firebaseAdminEnabled = false;
+try {
+  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  if (serviceAccountPath) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccountPath)
+    });
+    firebaseAdminEnabled = true;
+    console.log('[Firebase Admin] Successfully initialized with service account.');
+  } else {
+    console.log('[Firebase Admin] No service account provided. Running in secure token-passthrough mode.');
+  }
+} catch (err) {
+  console.warn('[Firebase Admin] Lazy initialization skipped/bypassed:', err);
+}
 
 // Memory stores for live voice members (Single Source of Truth)
 interface VoicePeer {
@@ -61,32 +71,36 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Agora Token Generator API Route (POST only, verified via Firebase ID Token)
-app.post('/api/agora/token', async (req, res) => {
-  const { channelName, roomId } = req.body;
-  const targetChannelName = channelName || roomId;
+// Agora Token Generator API Route
+app.get('/api/agora/token', async (req, res) => {
+  const channelName = req.query.channelName as string;
+  const uid = req.query.uid as string;
 
-  if (!targetChannelName) {
-    return res.status(400).json({ error: 'channelName (or roomId) parameter is required in request body.' });
+  if (!channelName || !uid) {
+    return res.status(400).json({ error: 'channelName and uid parameters are required' });
   }
 
   // 1. Secure ID Token Verification flow
+  let verifiedUid = uid;
   const authHeader = req.headers.authorization;
+  
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     console.warn('[Agora Token] Request rejected: Missing or invalid Authorization header format.');
     return res.status(401).json({ error: 'Authentication required: Missing Firebase ID token.' });
   }
   
   const idToken = authHeader.split('Bearer ')[1];
-  let verifiedUid: string | null = null;
 
   if (firebaseAdminEnabled) {
     try {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       verifiedUid = decodedToken.uid;
-      console.log(`[Agora Token] Verified UID "${verifiedUid}" via Firebase Admin SDK.`);
+      
+      if (verifiedUid !== uid) {
+        console.warn(`[Agora Token] Claims mismatched: Clamed UID "${uid}", verified UID "${verifiedUid}".`);
+      }
     } catch (err: any) {
-      console.error('[Agora Token] Firebase IdToken verification failed:', err);
+      console.error('[Agora Token] IdToken verification failed:', err);
       return res.status(401).json({ error: 'Session expired or token is invalid: ' + err.message });
     }
   } else {
@@ -112,42 +126,33 @@ app.post('/api/agora/token', async (req, res) => {
     }
   }
 
-  if (!verifiedUid) {
-    return res.status(401).json({ error: 'Could not resolve a valid registered user profile.' });
-  }
-
   // Support both system NEXT_PUBLIC_AGORA_APP_ID and local VITE_AGORA_APP_ID
   const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || process.env.VITE_AGORA_APP_ID || "3d2a454a-4f2b-4763-accc-d2db1d7929f6";
   const appCertificate = process.env.AGORA_APP_CERTIFICATE;
 
   try {
     let token: string | null = null;
-    const expirationTimeInSeconds = 3600; // Token valid for 1 hour
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
     
     // Generate secure token only if appCertificate is available
     if (appCertificate && appCertificate.trim().length > 0) {
+      const expirationTimeInSeconds = 3600; // Token valid for 1 hour
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
       token = RtcTokenBuilder.buildTokenWithAccount(
         appId,
         appCertificate,
-        targetChannelName,
+        channelName,
         verifiedUid,
         RtcRole.PUBLISHER,
         privilegeExpiredTs
       );
-      console.log(`[Agora Token] Built publisher token for channel "${targetChannelName}" (user account: "${verifiedUid}")`);
+      console.log(`[Agora Token] Built publisher token for channel "${channelName}" (user account: "${verifiedUid}")`);
     } else {
-      console.log(`[Agora Token] Warning: No App Certificate provided in ENV. Joining channel "${targetChannelName}" with direct App ID bypass.`);
+      console.log(`[Agora Token] No App Certificate provided on server. Joining channel "${channelName}" with direct App ID bypass.`);
     }
 
-    return res.json({
-      token,
-      appId,
-      channelName: targetChannelName,
-      agoraUid: verifiedUid,
-      expiresAt: privilegeExpiredTs
-    });
+    return res.json({ appId, token, agoraUid: verifiedUid, channelName });
   } catch (err: any) {
     console.error('[Agora Token] Token builder error:', err);
     return res.status(500).json({ error: 'Failed to build Agora token: ' + err.message });
