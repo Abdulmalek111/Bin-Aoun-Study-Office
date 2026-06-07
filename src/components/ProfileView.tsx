@@ -778,93 +778,6 @@ export default function ProfileView({
           ) : (
             <div className="space-y-4 shadow-sm animate-fade-in" id="profile-detailed-cards">
               
-              {/* Card 1: Personal info card */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 space-y-3 shadow-xs">
-                <div className="flex items-center gap-2 border-b border-gray-50 pb-2">
-                  <div className="bg-blue-50 text-brand-blue p-1.5 rounded-lg">
-                    <User size={15} />
-                  </div>
-                  <h4 className="text-xs font-extrabold text-brand-dark">المعلومات الشخصية للتواصل</h4>
-                </div>
-                
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">الاسم الكامل</span>
-                    <span className="text-brand-dark font-black">{user.fullName || user.username || 'غير متوفر'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">رقم الهاتف</span>
-                    <span className="text-brand-dark font-black font-mono">{user.phone || 'يرجى إكمال الملف الشخصي'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-gray-400 font-bold">البريد الإلكتروني المعتمد</span>
-                    <span className="text-brand-dark font-black font-mono">{user.email}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Academic stats info card */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 space-y-3 shadow-xs">
-                <div className="flex items-center gap-2 border-b border-gray-50 pb-2">
-                  <div className="bg-indigo-50 text-indigo-700 p-1.5 rounded-lg">
-                    <GraduationCap size={15} />
-                  </div>
-                  <h4 className="text-xs font-extrabold text-brand-dark">المعلومات الأكاديمية والمسار</h4>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">الجامعة المانحة</span>
-                    <span className="text-brand-dark font-black">{user.university || 'يرجى إكمال الملف الشخصي'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">الكلية</span>
-                    <span className="text-brand-dark font-black">{user.college || 'يرجى إكمال الملف الشخصي'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">القسم / التخصص الدقيق</span>
-                    <span className="text-brand-dark font-black">{user.department || 'يرجى إكمال الملف الشخصي'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">المستوى الدراسي الحالي</span>
-                    <span className="text-brand-dark font-black">{user.level || user.academicStage || 'بكالوريوس'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50 sm:border-0">
-                    <span className="text-gray-400 font-bold">السنة الدراسية</span>
-                    <span className="text-brand-dark font-black">{user.academicYear || 'غير متوفر'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-gray-400 font-bold">المسار الدراسي</span>
-                    <span className="text-brand-dark font-black">{user.academicTrack || 'علمي'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 3: System details card */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 space-y-3 shadow-xs">
-                <div className="flex items-center gap-2 border-b border-gray-50 pb-2">
-                  <div className="bg-amber-50 text-brand-gold p-1.5 rounded-lg">
-                    <Shield size={15} />
-                  </div>
-                  <h4 className="text-xs font-extrabold text-brand-dark">تفاصيل الحساب والأمان</h4>
-                </div>
-                
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">رتبة المستخدم بالمنصة</span>
-                    <span className="text-brand-dark font-black">{user.role === 'admin' ? 'مسؤول المنصة العام' : 'طالب منتسب'}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-gray-50/50">
-                    <span className="text-gray-400 font-bold">تاريخ الانضمام للدراسة</span>
-                    <span className="text-brand-dark font-black font-mono">{formatDate(user.createdAt)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-gray-400 font-bold">آخر تحديث للملف</span>
-                    <span className="text-brand-dark font-black font-mono">{formatDate(user.updatedAt)}</span>
-                  </div>
-                </div>
-              </div>
-
               {/* Primary Profile edit buttons inside profile list */}
               <div className="flex gap-3 pt-1">
                 <button
@@ -900,20 +813,134 @@ export default function ProfileView({
                 </button>
               </div>
 
-              {/* Account Subview (legacy adapter trigger redirect to profile editor) */}
+              {/* Account Subview (detailed view with Personal, Academic, and Account information) */}
               {activeSubSection === 'account' && (
-                <div className="text-center p-3 space-y-2 text-xs">
-                  <p className="font-semibold text-gray-600">يمكنك تعديل كافة إعدادات حسابك الدراسي وحساب تلجرام دقيقاً من خلال الضغط على زر تعديل وإكمال الملف الشخصي مباشرة بالأسفل!</p>
-                  <button 
-                    onClick={() => {
-                      setActiveSubSection('none');
-                      setIsEditing(true);
-                    }}
-                    className="px-4 py-1.5 bg-brand-dark text-white rounded-lg font-bold"
-                    id="btn-redirect-edit"
-                  >
-                    فتح محرر الملف الشخصي الآن
-                  </button>
+                <div className="space-y-4 animate-fade-in text-brand-dark" id="academic-account-detailed-view">
+                  
+                  {/* 1. Personal Information */}
+                  <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-2.5">
+                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-100 mb-0.5">
+                      <User size={14} className="text-brand-blue" />
+                      <span className="font-extrabold text-[12px] text-brand-blue">👩‍🎓 المعلومات الشخصية والتواصل</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs">
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">الاسم بالكامل:</span>
+                        <span className="font-bold text-gray-700">{user.fullName || user.username || 'لم يحدد'}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">البريد الإلكتروني:</span>
+                        <span className="font-bold text-gray-750 font-mono text-[10px] truncate max-w-[150px] sm:max-w-none" dir="ltr">{user.email || '—'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">رقم الهاتف:</span>
+                        <span className="font-bold text-gray-700 font-mono">{user.phone || '—'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold font-sans">Telegram Username:</span>
+                        <span className="font-extrabold text-brand-gold bg-amber-500/5 px-1.5 py-0.5 rounded font-mono text-[10px]">{user.telegram || 'مطلوب @'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Academic Information */}
+                  <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-2.5">
+                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-100 mb-0.5">
+                      <GraduationCap size={14} className="text-emerald-700" />
+                      <span className="font-extrabold text-[12px] text-emerald-700">🎓 معلومات المسار الدراسي والأكاديمي</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs">
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">الجامعة:</span>
+                        <span className="font-bold text-gray-800">{user.university || '—'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">الكلية:</span>
+                        <span className="font-bold text-gray-800">{user.college || '—'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">القسم / التخصص:</span>
+                        <span className="font-bold text-gray-800">{user.department || '—'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">المرحلة الدراسية:</span>
+                        <span className="font-extrabold text-brand-dark bg-blue-50 text-brand-blue px-2 py-0.5 rounded text-[10px]">{user.level || user.academicStage || 'بكالوريوس'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">السنة الدراسية:</span>
+                        <span className="font-bold text-gray-750">{user.academicYear || 'سنة أولى'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">الفصل الدراسي:</span>
+                        <span className="font-bold text-gray-750">{user.academicSemester || 'فصل أول'}</span>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2 flex justify-between items-center p-2 bg-brand-gold/5 rounded-lg border border-brand-gold/10">
+                        <span className="text-gray-500 font-extrabold">المسار والمذاكرة الجاري:</span>
+                        <span className="font-black text-brand-gold text-xs">{user.academicTrack || 'علمي'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Account Details */}
+                  <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-2.5">
+                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-100 mb-0.5">
+                      <Lock size={14} className="text-purple-700" />
+                      <span className="font-extrabold text-[12px] text-purple-700">⚙️ رتبة الحساب وخيارات الأمان</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs">
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">صلاحية الحساب:</span>
+                        <span className="font-extrabold text-purple-750 bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">{user.role === 'admin' ? 'مدير المنصة (Admin)' : 'طالب دراسات (Student)'}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold">حالة الحساب الجاري:</span>
+                        <span className="font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-0.5 text-[10px]">
+                          ✓ حساب موثق ومفعّل
+                        </span>
+                      </div>
+
+                      <div className="col-span-1 sm:col-span-2 flex justify-between items-center p-2 bg-gray-55 bg-gray-50/50 rounded-lg">
+                        <span className="text-gray-400 font-semibold shrink-0">معرف الحساب الموقت:</span>
+                        <span className="font-mono text-[9px] text-gray-550 select-all truncate max-w-[180px] sm:max-w-none" dir="ltr">{user.uid}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Area */}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2 justify-end">
+                    <button 
+                      onClick={() => {
+                        setActiveSubSection('none');
+                        setIsEditing(true);
+                      }}
+                      className="px-4 py-2.5 bg-brand-dark text-white rounded-xl text-xs font-bold hover:bg-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                      id="btn-inline-redirect-edit"
+                    >
+                      <Settings size={13} className="animate-spin-slow text-brand-gold" />
+                      <span>تعديل وحفظ المسار الدراسي</span>
+                    </button>
+                    
+                    <button 
+                      onClick={() => setActiveSubSection('none')}
+                      className="px-4 py-2.5 bg-gray-100 hover:bg-gray-150 text-gray-600 border border-gray-200 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
+                      id="btn-inline-close-account"
+                    >
+                      إغلاق التفاصيل الدراسيَّة
+                    </button>
+                  </div>
                 </div>
               )}
 
