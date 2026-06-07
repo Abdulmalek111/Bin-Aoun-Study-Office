@@ -194,8 +194,13 @@ export function useVoiceRoom(roomId: string | undefined) {
 
       setFirestoreStatus('جاري جلب مفتاح الاتصال الصوتي (Agora Token)...');
 
-      // Fetch dynamic token and appId from back-end server
-      const tokenResponse = await fetch(`/api/agora/token?channelName=${room.id}&uid=${myUid}`);
+      // Fetch dynamic token and appId securely from back-end server with Firebase ID Token
+      const idToken = await currentUser.getIdToken(true);
+      const tokenResponse = await fetch(`/api/agora/token?channelName=${room.id}&uid=${myUid}`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
       if (!tokenResponse.ok) {
         throw new Error('فشل الحصول على رمز الدخول الصوتي من الخادم. يرجى مراجعة قيم ENV.');
       }

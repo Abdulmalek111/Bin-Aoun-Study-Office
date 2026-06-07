@@ -49,14 +49,14 @@ export default function VoiceControls({
           <p className="text-[10px] text-slate-400 font-bold leading-none">مستوى الاتصال الصوتي</p>
           <div className="flex items-center gap-1.5 mt-1 text-xs select-none">
             {connectionState === 'connected' ? (
-              <span className="text-emerald-400 font-extrabold flex items-center gap-1">
+              <span className="text-emerald-400 font-extrabold flex items-center gap-1 text-[11px]">
                 <CheckCircle size={10} />
-                متصل (P2P Mesh - ممتاز)
+                Agora Voice Connected (متصل صوتياً)
               </span>
             ) : connectionState === 'connecting' ? (
-              <span className="text-amber-400 font-bold animate-pulse">جاري تأمين المسار...</span>
+              <span className="text-amber-400 font-bold animate-pulse">جاري الاتصال بـ Agora...</span>
             ) : (
-              <span className="text-slate-500 font-medium font-mono text-[10px]">غير نشط</span>
+              <span className="text-slate-500 font-medium font-mono text-[10px]">غير متصل / Offline</span>
             )}
           </div>
         </div>

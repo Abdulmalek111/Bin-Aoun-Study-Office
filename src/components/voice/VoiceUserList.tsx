@@ -55,7 +55,7 @@ export default function VoiceUserList({
     <div className="w-full flex flex-col gap-3">
       <div className="flex items-center justify-between border-b border-gray-100 pb-2 select-none">
         <h4 className="font-extrabold text-xs text-brand-dark leading-none">مستمعين متواجدين حالياً ({members.length})</h4>
-        <span className="text-[10px] text-gray-400 font-bold font-mono">Live Mesh Queue</span>
+        <span className="text-[10px] text-gray-400 font-bold font-mono">Agora Audio Channel</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

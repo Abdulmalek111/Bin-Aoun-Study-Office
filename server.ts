@@ -80,6 +80,30 @@ app.get('/api/agora/token', async (req, res) => {
     return res.status(400).json({ error: 'channelName and uid parameters are required' });
   }
 
+  // 1. Secure ID Token Verification flow
+  let verifiedUid = uid;
+  if (firebaseAdminEnabled) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.warn('[Agora Token] Request rejected: Missing or invalid Authorization header format.');
+      return res.status(401).json({ error: 'Authentication required: Missing ID token.' });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      verifiedUid = decodedToken.uid;
+      
+      if (verifiedUid !== uid) {
+        console.warn(`[Agora Token] Security Warning: Claimed UID "${uid}" does not match verified token UID "${verifiedUid}". Utilizing verified UID.`);
+      }
+    } catch (err: any) {
+      console.error('[Agora Token] IdToken verification failed:', err);
+      return res.status(401).json({ error: 'Session expired or token is invalid: ' + err.message });
+    }
+  } else {
+    console.log('[Agora Token] Running in local bypass mode. Trusted UID:', uid);
+  }
+
   // Support both system NEXT_PUBLIC_AGORA_APP_ID and local VITE_AGORA_APP_ID
   const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || process.env.VITE_AGORA_APP_ID || "3d2a454a-4f2b-4763-accc-d2db1d7929f6";
   const appCertificate = process.env.AGORA_APP_CERTIFICATE;
@@ -97,11 +121,11 @@ app.get('/api/agora/token', async (req, res) => {
         appId,
         appCertificate,
         channelName,
-        uid,
+        verifiedUid,
         RtcRole.PUBLISHER,
         privilegeExpiredTs
       );
-      console.log(`[Agora Token] Built publisher token for channel "${channelName}" (user account: "${uid}")`);
+      console.log(`[Agora Token] Built publisher token for channel "${channelName}" (user account: "${verifiedUid}")`);
     } else {
       console.log(`[Agora Token] No App Certificate provided on server. Joining channel "${channelName}" with direct App ID bypass.`);
     }
