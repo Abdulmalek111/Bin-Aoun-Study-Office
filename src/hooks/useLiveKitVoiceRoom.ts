@@ -168,16 +168,36 @@ export function useLiveKitVoiceRoom(roomId: string | undefined) {
         body: JSON.stringify({ roomName: roomId })
       });
 
-      if (!response.ok) {
-        const errorJson = await response.json();
-        throw new Error(errorJson.error || 'فشل المتصفح في الحصول على تفويض الغرفة الصوتية من الخادم.');
+      const responseText = await response.text();
+      let responseData: any;
+
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (jsonErr) {
+        console.error('[useLiveKitVoiceRoom] Non-JSON API response:', responseText);
+        let errorDetails = `رمز الحالة HTTP: ${response.status} (${response.statusText})`;
+        if (responseText && responseText.length > 0) {
+          errorDetails += ` | محتوى الرد (أول 150 حرف): ${responseText.slice(0, 150)}`;
+        }
+        throw new Error(`فشل الحصول على تفويض الغرفة الصوتية: الخادم لم يرجع استجابة JSON صالحة. (${errorDetails})`);
       }
 
-      const responseData = await response.json();
+      if (!response.ok) {
+        let errMsg = responseData.error || 'حدث خطأ غير معروف على السيرفر.';
+        if (responseData.diagnostics?.envMissing) {
+          const keys = Object.keys(responseData.diagnostics.envMissing);
+          const missingKeys = keys.filter(k => responseData.diagnostics.envMissing[k]);
+          if (missingKeys.length > 0) {
+            errMsg += ` [المتغيرات المفقودة في السيرفر: ${missingKeys.join(', ')}]`;
+          }
+        }
+        throw new Error(errMsg);
+      }
+
       const { token, url } = responseData;
 
       if (!token || !url) {
-        throw new Error('الخادم لم يرجع رمز الدخول الصوتي بشكل صحيح.');
+        throw new Error('الخادم لم يرجع رمز الدخول الصوتي (token) أو العنوان (url) بشكل صحيح.');
       }
 
       console.log('[useLiveKitVoiceRoom] Token obtained successfully from API');
