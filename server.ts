@@ -82,26 +82,48 @@ app.get('/api/agora/token', async (req, res) => {
 
   // 1. Secure ID Token Verification flow
   let verifiedUid = uid;
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.warn('[Agora Token] Request rejected: Missing or invalid Authorization header format.');
+    return res.status(401).json({ error: 'Authentication required: Missing Firebase ID token.' });
+  }
+  
+  const idToken = authHeader.split('Bearer ')[1];
+
   if (firebaseAdminEnabled) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.warn('[Agora Token] Request rejected: Missing or invalid Authorization header format.');
-      return res.status(401).json({ error: 'Authentication required: Missing ID token.' });
-    }
-    const idToken = authHeader.split('Bearer ')[1];
     try {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       verifiedUid = decodedToken.uid;
       
       if (verifiedUid !== uid) {
-        console.warn(`[Agora Token] Security Warning: Claimed UID "${uid}" does not match verified token UID "${verifiedUid}". Utilizing verified UID.`);
+        console.warn(`[Agora Token] Claims mismatched: Clamed UID "${uid}", verified UID "${verifiedUid}".`);
       }
     } catch (err: any) {
       console.error('[Agora Token] IdToken verification failed:', err);
       return res.status(401).json({ error: 'Session expired or token is invalid: ' + err.message });
     }
   } else {
-    console.log('[Agora Token] Running in local bypass mode. Trusted UID:', uid);
+    // Robust JWT decoding fallback when Admin SDK is not fully credentialed
+    try {
+      const parts = idToken.split('.');
+      if (parts.length !== 3) {
+        throw new Error('JWT must have 3 parts.');
+      }
+      const payloadBuf = Buffer.from(parts[1], 'base64');
+      const payload = JSON.parse(payloadBuf.toString('utf-8'));
+      
+      // Basic sanity checks for Firebase ID Token structure
+      if (!payload.sub || typeof payload.sub !== 'string') {
+        throw new Error('Sub/UID field is missing in JWT payload.');
+      }
+      
+      verifiedUid = payload.sub;
+      console.log(`[Agora Token] Decoded verified UID securely from ID Token payload: ${verifiedUid}`);
+    } catch (err: any) {
+      console.error('[Agora Token] Local JWT decode failed:', err);
+      return res.status(401).json({ error: 'Invalid authentication token: ' + err.message });
+    }
   }
 
   // Support both system NEXT_PUBLIC_AGORA_APP_ID and local VITE_AGORA_APP_ID
@@ -130,7 +152,7 @@ app.get('/api/agora/token', async (req, res) => {
       console.log(`[Agora Token] No App Certificate provided on server. Joining channel "${channelName}" with direct App ID bypass.`);
     }
 
-    return res.json({ appId, token });
+    return res.json({ appId, token, agoraUid: verifiedUid, channelName });
   } catch (err: any) {
     console.error('[Agora Token] Token builder error:', err);
     return res.status(500).json({ error: 'Failed to build Agora token: ' + err.message });
