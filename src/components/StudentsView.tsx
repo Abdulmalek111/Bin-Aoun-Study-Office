@@ -179,23 +179,20 @@ export default function StudentsView({
         const dat = docSnap.data() as User;
         const uid = docSnap.id;
         
-        // Exclude the logged-in user themselves from the contactable directory
-        if (uid !== currentUid) {
-          const binId = dat.studentId || getBinStudentId(uid);
-          list.push({
-            ...dat,
-            uid,
-            binId
-          });
+        const binId = dat.studentId || getBinStudentId(uid);
+        list.push({
+          ...dat,
+          uid,
+          binId
+        });
 
-          // Check if this student in Firestore doesn't have studentId saved yet, and write it
-          if (!dat.studentId && currentUid !== 'anonymous') {
-            const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
-            const computedBinId = `bin_${randomDigits}`;
-            updateDoc(doc(db, 'users', uid), {
-              studentId: computedBinId
-            }).catch(() => {});
-          }
+        // Check if this student in Firestore doesn't have studentId saved yet, and write it
+        if (!dat.studentId && uid !== 'anonymous') {
+          const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+          const computedBinId = `bin_${randomDigits}`;
+          updateDoc(doc(db, 'users', uid), {
+            studentId: computedBinId
+          }).catch(() => {});
         }
       });
       setStudents(list);
@@ -603,11 +600,18 @@ export default function StudentsView({
 
   // Search filtering
   const filteredStudents = students.filter(student => {
-    const queryLower = searchQuery.toLowerCase();
+    const queryLower = searchQuery.toLowerCase().trim();
+    const numericQuery = queryLower.replace(/[^0-9]/g, '');
+    const cleanBinId = student.binId?.toLowerCase() || '';
+    
+    const matchesId = cleanBinId.includes(queryLower) || 
+                      (numericQuery !== '' && cleanBinId.includes(numericQuery)) ||
+                      (student.studentId?.toLowerCase() || '').includes(queryLower);
+
     return (
       student.username?.toLowerCase().includes(queryLower) ||
       student.email?.toLowerCase().includes(queryLower) ||
-      student.binId?.toLowerCase().includes(queryLower) ||
+      matchesId ||
       student.academicStage?.toLowerCase().includes(queryLower) ||
       student.academicYear?.toLowerCase().includes(queryLower)
     );
@@ -719,29 +723,35 @@ export default function StudentsView({
                   </div>
 
                   {/* Quick Action Triggers */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Triggers outgoing directly call
-                        handleStartCall(st);
-                      }}
-                      className="p-2 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white rounded-xl text-emerald-600 transition-all cursor-pointer"
-                      title="اتصال صوتي مباشر"
-                    >
-                      <Phone size={14} className="stroke-[2.5]" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setGlobalChatUser(st);
-                      }}
-                      className="p-2 bg-brand-gold/15 hover:bg-brand-gold hover:text-white text-brand-dark rounded-xl transition-all cursor-pointer"
-                      title="مراسلة سريعة"
-                    >
-                      <MessageSquare size={14} className="stroke-[2.5]" />
-                    </button>
-                  </div>
+                  {st.uid !== currentUid ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Triggers outgoing directly call
+                          handleStartCall(st);
+                        }}
+                        className="p-2 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white rounded-xl text-emerald-600 transition-all cursor-pointer"
+                        title="اتصال صوتي مباشر"
+                      >
+                        <Phone size={14} className="stroke-[2.5]" />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setGlobalChatUser(st);
+                        }}
+                        className="p-2 bg-brand-gold/15 hover:bg-brand-gold hover:text-white text-brand-dark rounded-xl transition-all cursor-pointer"
+                        title="مراسلة سريعة"
+                      >
+                        <MessageSquare size={14} className="stroke-[2.5]" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] bg-brand-gold/10 text-brand-gold font-extrabold px-2.5 py-1 rounded-xl">
+                      ملفك الشخصي
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -1103,29 +1113,38 @@ export default function StudentsView({
             </div>
 
             {/* Action buttons (Chat & Call) */}
-            <div className="grid grid-cols-2 gap-3 w-full mt-5">
-              <button
-                onClick={() => {
-                  setGlobalChatUser(viewingPublicProfile);
-                  setViewingPublicProfile(null);
-                }}
-                className="flex items-center justify-center gap-2 py-3 bg-brand-dark hover:bg-brand-blue text-white rounded-2xl text-xs font-extrabold transition-all cursor-pointer shadow-md"
-              >
-                <MessageSquare size={14} className="stroke-[2.5]" />
-                <span>مراسلة خاصة</span>
-              </button>
+            {viewingPublicProfile.uid !== currentUid ? (
+              <div className="grid grid-cols-2 gap-3 w-full mt-5">
+                <button
+                  onClick={() => {
+                    setGlobalChatUser(viewingPublicProfile);
+                    setViewingPublicProfile(null);
+                  }}
+                  className="flex items-center justify-center gap-2 py-3 bg-brand-dark hover:bg-brand-blue text-white rounded-2xl text-xs font-extrabold transition-all cursor-pointer shadow-md"
+                >
+                  <MessageSquare size={14} className="stroke-[2.5]" />
+                  <span>مراسلة خاصة</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  handleStartCall(viewingPublicProfile);
-                  setViewingPublicProfile(null);
-                }}
-                className="flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-xs font-extrabold transition-all cursor-pointer shadow-md shadow-emerald-500/10"
-              >
-                <Phone size={14} className="stroke-[2.5]" />
-                <span>اتصال صوتي</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    handleStartCall(viewingPublicProfile);
+                    setViewingPublicProfile(null);
+                  }}
+                  className="flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-xs font-extrabold transition-all cursor-pointer shadow-md shadow-emerald-500/10"
+                >
+                  <Phone size={14} className="stroke-[2.5]" />
+                  <span>اتصال صوتي</span>
+                </button>
+              </div>
+            ) : (
+              <div className="w-full mt-5 text-center">
+                <p className="text-[10px] text-gray-400 font-bold mb-2">يمكنك تعديل معلوماتك الشخصية في أي وقت من علامة تبويب "الملف الشخصي" بالصفحة الرئيسية.</p>
+                <div className="py-2.5 bg-brand-gold/10 text-brand-gold rounded-xl text-xs font-black">
+                  ✨ هذا هو مظهر ملفك للآخرين
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
