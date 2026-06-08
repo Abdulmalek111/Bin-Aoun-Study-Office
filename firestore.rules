@@ -39,6 +39,27 @@ service cloud.firestore {
              data.email is string && data.email.size() >= 3 && data.email.size() <= 256;
     }
 
+    function isChatParticipant(chatId) {
+      return isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+    }
+
+    function isValidChat(data) {
+      return data.keys().hasAll(['participants', 'participantIds', 'createdAt', 'updatedAt']) &&
+             data.participants is list && data.participants.size() == 2 &&
+             data.participantIds is map &&
+             data.createdAt is int &&
+             data.updatedAt is int;
+    }
+
+    function isValidChatDirectMessage(data) {
+      return data.keys().hasAll(['senderId', 'receiverId', 'text', 'createdAt', 'status']) &&
+             data.senderId is string && data.senderId == request.auth.uid &&
+             data.receiverId is string &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 10000 &&
+             data.createdAt is int &&
+             data.status in ['sent', 'read'];
+    }
+
     function isValidTicket(data) {
       return data.keys().hasAll(['id', 'senderEmail', 'senderName', 'message', 'createdAt']) &&
              data.id is string && data.id.size() <= 128 &&
@@ -201,15 +222,26 @@ service cloud.firestore {
       }
     }
 
-    // Private Chats Match Block
-    match /private_chats/{chatId} {
-      allow get: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
-      allow create, update: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+    // Direct Student-to-Student Chats Match Block
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && isChatParticipant(chatId);
+      allow list: if isSignedIn() && (resource.data.participants[0] == request.auth.uid || resource.data.participants[1] == request.auth.uid);
+      allow create: if isSignedIn() && isChatParticipant(chatId) && isValidChat(request.resource.data) && (
+        request.resource.data.participants[0] == request.auth.uid || request.resource.data.participants[1] == request.auth.uid
+      );
+      allow update: if isSignedIn() && isChatParticipant(chatId) && isValidChat(request.resource.data);
 
       match /messages/{messageId} {
-        allow get, list: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
-        allow create: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid) ;
-        allow update, delete: if isSignedIn() && (chatId.split('_')[0] == request.auth.uid || chatId.split('_')[1] == request.auth.uid);
+        allow get, list: if isSignedIn() && isChatParticipant(chatId);
+        allow create: if isSignedIn() && isChatParticipant(chatId) && isValidChatDirectMessage(request.resource.data);
+        allow update: if isSignedIn() && isChatParticipant(chatId) && (
+          request.resource.data.senderId == resource.data.senderId &&
+          request.resource.data.receiverId == resource.data.receiverId &&
+          request.resource.data.text == resource.data.text &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          (request.resource.data.status in ['sent', 'read'])
+        );
+        allow delete: if false;
       }
     }
 
