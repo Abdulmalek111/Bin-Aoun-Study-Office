@@ -182,10 +182,23 @@ export default function StudentsView({
         const dat = docSnap.data() as User;
         const uid = docSnap.id;
         
-        // Exclude system admins, instructors, and owner accounts unless explicitly a student role
+        // Exclude system administrators, instructors, general supervisors, and the admin email (abdulmlikoog@gmail.com)
         const roleLower = (dat.role || 'student').toLowerCase();
-        const isAdminRole = ['admin', 'owner', 'مشرف المنصة', 'instructor'].includes(roleLower);
-        if (!isAdminRole || roleLower === 'student') {
+        const emailLower = (dat.email || '').toLowerCase();
+        const isExcludedSupervisor = [
+          'admin', 
+          'owner', 
+          'instructor', 
+          'teacher', 
+          'moderator', 
+          'supervisor', 
+          'مشرف', 
+          'مشرف عام', 
+          'مشرف المنصة', 
+          'مدير المنصة'
+        ].includes(roleLower) || emailLower === 'abdulmlikoog@gmail.com';
+
+        if (!isExcludedSupervisor || roleLower === 'student') {
           const binId = dat.studentId || getBinStudentId(uid);
           list.push({
             ...dat,
@@ -193,8 +206,8 @@ export default function StudentsView({
             binId
           });
 
-          // Check if this student in Firestore doesn't have studentId saved yet, and write it (only for the current logged-in user)
-          if (!dat.studentId && uid !== 'anonymous' && uid === currentUid) {
+          // Check if this student in Firestore doesn't have studentId saved yet, and write it
+          if (!dat.studentId && uid !== 'anonymous') {
             const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
             const computedBinId = `bin_${randomDigits}`;
             updateDoc(doc(db, 'users', uid), {
