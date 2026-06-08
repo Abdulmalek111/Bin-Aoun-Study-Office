@@ -197,7 +197,8 @@ service cloud.firestore {
 
     // User Profiles Match Block
     match /users/{userId} {
-      allow get, list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
       allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
       allow update: if (
         isOwner(userId) && isValidUser(request.resource.data) && (

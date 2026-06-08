@@ -198,7 +198,7 @@ export default function StudentsView({
           'مدير المنصة'
         ].includes(roleLower) || emailLower === 'abdulmlikoog@gmail.com';
 
-        if (!isExcludedSupervisor || roleLower === 'student') {
+        if (uid !== currentUid && (!isExcludedSupervisor || roleLower === 'student')) {
           const binId = dat.studentId || getBinStudentId(uid);
           list.push({
             ...dat,
