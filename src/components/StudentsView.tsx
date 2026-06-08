@@ -182,23 +182,10 @@ export default function StudentsView({
         const dat = docSnap.data() as User;
         const uid = docSnap.id;
         
-        // Exclude system administrators, instructors, general supervisors, and the admin email (abdulmlikoog@gmail.com)
+        // Exclude system admins, instructors, and owner accounts unless explicitly a student role
         const roleLower = (dat.role || 'student').toLowerCase();
-        const emailLower = (dat.email || '').toLowerCase();
-        const isExcludedSupervisor = [
-          'admin', 
-          'owner', 
-          'instructor', 
-          'teacher', 
-          'moderator', 
-          'supervisor', 
-          'مشرف', 
-          'مشرف عام', 
-          'مشرف المنصة', 
-          'مدير المنصة'
-        ].includes(roleLower) || emailLower === 'abdulmlikoog@gmail.com';
-
-        if (uid !== currentUid && (!isExcludedSupervisor || roleLower === 'student')) {
+        const isAdminRole = ['admin', 'owner', 'مشرف المنصة', 'instructor'].includes(roleLower);
+        if (!isAdminRole || roleLower === 'student') {
           const binId = dat.studentId || getBinStudentId(uid);
           list.push({
             ...dat,
