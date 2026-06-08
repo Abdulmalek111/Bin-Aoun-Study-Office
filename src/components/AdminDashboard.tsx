@@ -634,7 +634,7 @@ export default function AdminDashboard({
     return () => unsubscribe();
   }, [selectedStudentEmail]);
 
-  const handleSendDirectNotification = (e: React.FormEvent) => {
+  const handleSendDirectNotification = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudentEmail) {
       alert('الرجاء تحديد البريد الإلكتروني للطالب المستهدف.');
@@ -650,10 +650,14 @@ export default function AdminDashboard({
     const studentName = isAll ? 'جميع الطلاب' : (sObj ? sObj.username : 'طالب معين');
 
     if (onAddNotification) {
-      onAddNotification(selectedStudentEmail, 'المشرف العام', directMessageText.trim());
-      addLog(`✓ تم إرسال تنبيه ${isAll ? 'عام لجميع الطلاب' : `خاص للطالب ${studentName} لبريده: ${selectedStudentEmail}`}`);
-      alert(`✓ تم إرسال التنبيه بنجاح إلى ${isAll ? 'جميع الطلاب المسجلين' : `حساب الطالب "${studentName}"`} وسيتلقى الجميع الإشعار فوراً!`);
-      setDirectMessageText('');
+      try {
+        await onAddNotification(selectedStudentEmail, 'المشرف العام', directMessageText.trim());
+        addLog(`✓ تم إرسال تنبيه ${isAll ? 'عام لجميع الطلاب' : `خاص للطالب ${studentName} لبريده: ${selectedStudentEmail}`}`);
+        alert(`✓ تم إرسال التنبيه بنجاح إلى ${isAll ? 'جميع الطلاب المسجلين' : `حساب الطالب "${studentName}"`} وسيتلقى الجميع الإشعار فوراً!`);
+        setDirectMessageText('');
+      } catch (err: any) {
+        alert(`❌ فشل في إرسال التنبيه: ${err.message || 'خطأ غير معروف أثناء الاتصال بالسيرفر'}`);
+      }
     } else {
       alert('خطأ ميكانيكي: محرك الإشعارات الفورية غير موصول حالياً.');
     }

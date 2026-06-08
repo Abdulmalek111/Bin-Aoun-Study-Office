@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Bell, Menu, Calendar, ChevronLeft, Award, Clock, Check, Trash2, X, MessageSquare, AlertCircle } from 'lucide-react';
 import { User, Subject, Exam, Notification } from '../types';
 import SubjectIcon from './SubjectIcon';
+import { db } from '../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 interface DashboardViewProps {
   user: User;
@@ -27,34 +29,91 @@ export default function DashboardView({
 
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Filter notifications specifically for the logged in user or global "all" list
-  const userNotifications = notifications.filter(
-    (n) => n.targetEmail.toLowerCase() === user.email.toLowerCase() || n.targetEmail.toLowerCase() === 'all'
-  );
-  const unreadCount = userNotifications.filter((n) => !n.read).length;
+  // Filter notifications specifically for the logged in user or global broadcast list
+  const userNotifications = notifications.filter((n) => {
+    if (n.type === 'broadcast' && n.targetRole === 'students') {
+      return true;
+    }
+    if (n.type === 'private' && n.targetUserId === user.uid) {
+      return true;
+    }
+    if (!n.type) {
+      return n.targetEmail?.toLowerCase() === user.email?.toLowerCase() || n.targetEmail?.toLowerCase() === 'all';
+    }
+    return false;
+  });
 
-  const handleMarkAsRead = (id: string) => {
+  const isRead = (noti: Notification) => {
+    if (Array.isArray(noti.readBy)) {
+      return noti.readBy.includes(user.uid || '');
+    }
+    return !!noti.read;
+  };
+
+  const unreadCount = userNotifications.filter((n) => !isRead(n)).length;
+
+  const handleMarkAsRead = async (id: string) => {
     const updated = notifications.map((n) => {
       if (n.id === id) {
-        return { ...n, read: true };
+        const readByArray = Array.isArray(n.readBy) ? [...n.readBy] : [];
+        if (!readByArray.includes(user.uid || '')) {
+          readByArray.push(user.uid || '');
+        }
+        return { ...n, readBy: readByArray, read: true };
       }
       return n;
     });
     if (onUpdateNotifications) {
       onUpdateNotifications(updated);
     }
+    try {
+      const notiRef = doc(db, 'notifications', id);
+      const notiObj = notifications.find(n => n.id === id);
+      if (notiObj) {
+        const readByArray = Array.isArray(notiObj.readBy) ? [...notiObj.readBy] : [];
+        if (!readByArray.includes(user.uid || '')) {
+          readByArray.push(user.uid || '');
+        }
+        await updateDoc(notiRef, {
+          readBy: readByArray,
+          read: true
+        });
+      }
+    } catch (e) {
+      console.error("Failed to mark as read in Firestore:", e);
+    }
   };
 
-  const handleMarkAllAsRead = () => {
+  const handleMarkAllAsRead = async () => {
     const updated = notifications.map((n) => {
-      const targetLower = n.targetEmail.toLowerCase();
-      if (targetLower === user.email.toLowerCase() || targetLower === 'all') {
-        return { ...n, read: true };
+      const isMine = (n.type === 'broadcast' && n.targetRole === 'students') ||
+                     (n.type === 'private' && n.targetUserId === user.uid) ||
+                     (!n.type && (n.targetEmail?.toLowerCase() === user.email?.toLowerCase() || n.targetEmail?.toLowerCase() === 'all'));
+      if (isMine) {
+        const readByArray = Array.isArray(n.readBy) ? [...n.readBy] : [];
+        if (!readByArray.includes(user.uid || '')) {
+          readByArray.push(user.uid || '');
+        }
+        return { ...n, readBy: readByArray, read: true };
       }
       return n;
     });
     if (onUpdateNotifications) {
       onUpdateNotifications(updated);
+    }
+    for (const n of userNotifications) {
+      const readByArray = Array.isArray(n.readBy) ? [...n.readBy] : [];
+      if (!readByArray.includes(user.uid || '')) {
+        readByArray.push(user.uid || '');
+        try {
+          await updateDoc(doc(db, 'notifications', n.id), {
+            readBy: readByArray,
+            read: true
+          });
+        } catch (e) {
+          console.error("Failed to mark all as read in Firestore:", e);
+        }
+      }
     }
   };
 
@@ -117,51 +176,67 @@ export default function DashboardView({
                 <p>صندوق الإشعارات فارغ حالياً.</p>
               </div>
             ) : (
-              userNotifications.map((noti) => (
-                <div 
-                  key={noti.id} 
-                  className={`p-3 rounded-xl border transition-all text-right space-y-1.5 relative ${
-                    noti.read 
-                      ? 'bg-white dark:bg-slate-950 border-gray-105 dark:border-slate-900/50 opacity-85' 
-                      : 'bg-brand-gold/5 dark:bg-amber-500/5 border-brand-gold/30 shadow-sm'
-                  }`}
-                >
-                  {/* Unread indicator */}
-                  {!noti.read && (
-                    <span className="absolute top-3 left-3 w-2.5 h-2.5 bg-brand-gold rounded-full ring-2 ring-white"></span>
-                  )}
-                  
-                  <div className="flex justify-between items-start gap-3">
-                    <span className="text-[9px] font-black text-white bg-brand-dark dark:bg-slate-800 px-1.5 py-0.5 rounded leading-none shrink-0">
-                      {noti.senderName}
-                    </span>
-                    <span className="text-[8px] font-mono text-gray-400 leading-none shrink-0">{noti.createdAt}</span>
-                  </div>
-
-                  <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 leading-normal">
-                    {noti.message}
-                  </p>
-
-                  <div className="flex justify-end gap-1.5 pt-1">
-                    {!noti.read && (
-                      <button
-                        onClick={() => handleMarkAsRead(noti.id)}
-                        className="flex items-center gap-1 px-2 py-0.5 bg-brand-gold hover:bg-yellow-600 text-white rounded text-[8px] font-bold cursor-pointer transition"
-                      >
-                        <Check size={8} />
-                        <span>تحديد كمقروء</span>
-                      </button>
+              userNotifications.map((noti) => {
+                const readStatus = isRead(noti);
+                return (
+                  <div 
+                    key={noti.id} 
+                    onClick={() => !readStatus && handleMarkAsRead(noti.id)}
+                    className={`p-3 rounded-xl border transition-all text-right space-y-1.5 relative ${
+                      readStatus 
+                        ? 'bg-white dark:bg-slate-950 border-gray-105 dark:border-slate-900/50 opacity-85' 
+                        : 'bg-brand-gold/5 dark:bg-amber-500/5 border-brand-gold/30 shadow-sm cursor-pointer hover:bg-brand-gold/10'
+                    }`}
+                  >
+                    {/* Unread indicator */}
+                    {!readStatus && (
+                      <span className="absolute top-3 left-3 w-2.5 h-2.5 bg-brand-gold rounded-full ring-2 ring-white animate-pulse"></span>
                     )}
-                    <button
-                      onClick={() => handleDeleteNotification(noti.id)}
-                      className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-400 rounded cursor-pointer transition"
-                      title="مسح الإشعار"
-                    >
-                      <Trash2 size={9} />
-                    </button>
+                    
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] font-black text-white bg-brand-dark dark:bg-slate-800 px-1.5 py-0.5 rounded leading-none shrink-0">
+                          {noti.senderName}
+                        </span>
+                        {noti.type === 'broadcast' && (
+                          <span className="text-[8px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-1.5 py-0.5 rounded leading-none shrink-0">
+                            📢 تنبيه عام
+                          </span>
+                        )}
+                        {noti.type === 'private' && (
+                          <span className="text-[8px] font-bold text-brand-dark bg-brand-blue/10 dark:bg-blue-900/20 dark:text-blue-400 px-1.5 py-0.5 rounded leading-none shrink-0 font-sans">
+                            ✉️ تنبيه خاص
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[8px] font-mono text-gray-400 leading-none shrink-0">{noti.createdAt}</span>
+                    </div>
+
+                    <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 leading-normal">
+                      {noti.message}
+                    </p>
+
+                    <div className="flex justify-end gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+                      {!readStatus && (
+                        <button
+                          onClick={() => handleMarkAsRead(noti.id)}
+                          className="flex items-center gap-1 px-2 py-0.5 bg-brand-gold hover:bg-yellow-600 text-white rounded text-[8px] font-bold cursor-pointer transition"
+                        >
+                          <Check size={8} />
+                          <span>تحديد كمقروء</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteNotification(noti.id)}
+                        className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-400 rounded cursor-pointer transition"
+                        title="مسح الإشعار"
+                      >
+                        <Trash2 size={9} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 

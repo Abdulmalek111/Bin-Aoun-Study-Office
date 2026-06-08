@@ -291,18 +291,25 @@ service cloud.firestore {
 
     // Private Notifications Match Block
     match /notifications/{notificationId} {
-      allow get, list: if isSignedIn() && (resource.data.targetEmail == request.auth.token.email || resource.data.targetEmail == 'all' || isAdmin());
-      allow create: if isSignedIn() && (
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        (resource.data.type == 'broadcast' && resource.data.targetRole == 'students') ||
+        (resource.data.type == 'private' && (resource.data.targetUserId == request.auth.uid || resource.data.targetEmail == request.auth.token.email)) ||
+        (!resource.data.keys().hasAll(['type']) && (resource.data.targetEmail == request.auth.token.email || resource.data.targetEmail == 'all'))
+      );
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && (
         isAdmin() ||
         (
-          request.resource.data.keys().hasAll(['id', 'senderName', 'message', 'createdAt', 'read', 'targetEmail']) &&
-          request.resource.data.read == false
+          // Must not modify core payload fields
+          request.resource.data.message == resource.data.message &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.senderName == resource.data.senderName &&
+          (!resource.data.keys().hasAll(['targetUserId']) || request.resource.data.targetUserId == resource.data.targetUserId) &&
+          (!resource.data.keys().hasAll(['createdBy']) || request.resource.data.createdBy == resource.data.createdBy) &&
+          (!resource.data.keys().hasAll(['type']) || request.resource.data.type == resource.data.type) &&
+          (!resource.data.keys().hasAll(['targetRole']) || request.resource.data.targetRole == resource.data.targetRole)
         )
-      );
-      allow update: if isSignedIn() && (
-        // Action: Student marks their notification as read
-        (resource.data.targetEmail == request.auth.token.email && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) ||
-        isAdmin()
       );
       allow delete: if isAdmin();
     }

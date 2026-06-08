@@ -187,6 +187,30 @@
         "targetEmail": {
           "type": "string",
           "description": "The destination email address of the notification target."
+        },
+        "type": {
+          "type": "string",
+          "description": "The category type: broadcast or private."
+        },
+        "targetRole": {
+          "type": "string",
+          "description": "The category of role targeted (e.g. students)."
+        },
+        "targetUserId": {
+          "type": "string",
+          "description": "The target UID of the user if private."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "The user UID of the creator."
+        },
+        "readBy": {
+          "type": "array",
+          "description": "An array of user UIDs who have read the notification."
+        },
+        "status": {
+          "type": "string",
+          "description": "Notice status state."
         }
       },
       "required": ["id", "senderName", "message", "createdAt", "read", "targetEmail"]

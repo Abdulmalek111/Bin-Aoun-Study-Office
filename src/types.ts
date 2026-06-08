@@ -86,6 +86,12 @@ export interface Notification {
   createdAt: string;
   read: boolean;
   targetEmail: string;
+  type?: 'broadcast' | 'private' | string;
+  targetRole?: 'students' | string | null;
+  targetUserId?: string | null;
+  createdBy?: string;
+  readBy?: string[];
+  status?: string;
 }
 
 export interface Payment {

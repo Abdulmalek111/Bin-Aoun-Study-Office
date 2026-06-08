@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield, Users, PhoneIncoming, X, Check } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { collection, onSnapshot, doc, setDoc, getDoc, query, where, limit, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, getDoc, getDocs, query, where, limit, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
@@ -102,26 +102,65 @@ export default function App() {
   const handleAddNotification = async (targetEmail: string, senderName: string, message: string) => {
     const today = new Date();
     const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
+    const isAll = targetEmail.trim().toLowerCase() === 'all';
+    
+    let targetUid: string | null = null;
+    if (!isAll) {
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', targetEmail.trim().toLowerCase()));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          targetUid = snapshot.docs[0].id;
+        } else {
+          // Fallback search by username
+          const q2 = query(usersRef, where('username', '==', targetEmail.trim()));
+          const s2 = await getDocs(q2);
+          if (!s2.empty) {
+            targetUid = s2.docs[0].id;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to query target user UID in handleAddNotification:", err);
+      }
+    }
+
+    const notifId = 'noti-' + Math.floor(100000 + Math.random() * 900000).toString();
     const newNoti: Notification = {
-      id: 'noti-' + Math.floor(100000 + Math.random() * 900000).toString(),
+      id: notifId,
       senderName,
       message,
       createdAt: formattedDate,
       read: false,
-      targetEmail: targetEmail.trim()
+      targetEmail: targetEmail.trim(),
+      type: isAll ? 'broadcast' : 'private',
+      targetRole: isAll ? 'students' : null,
+      targetUserId: isAll ? null : targetUid,
+      createdBy: user?.uid || 'admin_user',
+      readBy: [],
+      status: 'active'
     };
+
     setNotifications(prev => [newNoti, ...prev]);
+
     try {
-      await setDoc(doc(db, 'notifications', newNoti.id), {
-        id: newNoti.id,
+      await setDoc(doc(db, 'notifications', notifId), {
+        id: notifId,
         senderName: newNoti.senderName,
         message: newNoti.message,
         createdAt: newNoti.createdAt,
         read: newNoti.read,
-        targetEmail: newNoti.targetEmail
+        targetEmail: newNoti.targetEmail,
+        type: newNoti.type,
+        targetRole: newNoti.targetRole,
+        targetUserId: newNoti.targetUserId,
+        createdBy: newNoti.createdBy,
+        readBy: newNoti.readBy,
+        status: newNoti.status
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to write notification to Firestore:", e);
+      throw e;
     }
   };
 
@@ -452,38 +491,140 @@ export default function App() {
       return;
     }
 
-    // 1. Subscribe to Announcements / Notifications (filtered to prevent permission errors)
+    // 1. Subscribe to Announcements / Notifications (filtered to prevent permission errors & comply with Firestore security rules)
     const isSchoolAdmin = user.email === 'abdulmlikoog@gmail.com';
     const notifColl = collection(db, 'notifications');
-    const notifQuery = isSchoolAdmin 
-      ? notifColl 
-      : query(notifColl, where('targetEmail', 'in', [user.email.toLowerCase(), 'all']));
 
-    const unsubNotif = onSnapshot(notifQuery, (snapshot) => {
-      const list: Notification[] = [];
-      snapshot.forEach((docRef) => {
-        const d = docRef.data();
-        const target = d.targetEmail || '';
-        if (
-          isSchoolAdmin ||
-          target.toLowerCase() === user.email.toLowerCase() ||
-          target.toLowerCase() === 'all'
-        ) {
+    let unsubNotif1 = () => {};
+    let unsubNotif2 = () => {};
+    let unsubNotif3 = () => {};
+
+    if (isSchoolAdmin) {
+      unsubNotif1 = onSnapshot(notifColl, (snapshot) => {
+        const list: Notification[] = [];
+        snapshot.forEach((docRef) => {
+          const d = docRef.data();
           list.push({
             id: docRef.id,
             senderName: d.senderName || 'المشرف العام',
             message: d.message || '',
             createdAt: d.createdAt || '',
             read: !!d.read,
-            targetEmail: target
+            targetEmail: d.targetEmail || '',
+            type: d.type || '',
+            targetRole: d.targetRole || null,
+            targetUserId: d.targetUserId || null,
+            createdBy: d.createdBy || '',
+            readBy: d.readBy || [],
+            status: d.status || ''
           });
-        }
+        });
+        list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setNotifications(list);
+      }, (err) => {
+        console.warn("Admin notifications subscription bypassed:", err);
       });
-      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      setNotifications(list);
-    }, (error) => {
-      console.warn("[Notifications] Security rule restricted reading entire notifications collection, using secure query filter. Error message:", error);
-    });
+    } else {
+      let broadcastList: Notification[] = [];
+      let privateList: Notification[] = [];
+      let legacyList: Notification[] = [];
+
+      const updateCombinedList = () => {
+        const combined = [...broadcastList, ...privateList, ...legacyList];
+        const unique: Record<string, Notification> = {};
+        for (const item of combined) {
+          unique[item.id] = item;
+        }
+        const sorted = Object.values(unique).sort((a, b) => b.createdAt ? b.createdAt.localeCompare(a.createdAt) : 1);
+        setNotifications(sorted);
+      };
+
+      // Query broadcasts for students
+      const qBroadcast = query(notifColl, where('type', '==', 'broadcast'), where('targetRole', '==', 'students'));
+      unsubNotif1 = onSnapshot(qBroadcast, (snapshot) => {
+        broadcastList = [];
+        snapshot.forEach((docRef) => {
+          const d = docRef.data();
+          broadcastList.push({
+            id: docRef.id,
+            senderName: d.senderName || 'المشرف العام',
+            message: d.message || '',
+            createdAt: d.createdAt || '',
+            read: !!d.read,
+            targetEmail: d.targetEmail || '',
+            type: d.type || '',
+            targetRole: d.targetRole || null,
+            targetUserId: d.targetUserId || null,
+            createdBy: d.createdBy || '',
+            readBy: d.readBy || [],
+            status: d.status || ''
+          });
+        });
+        updateCombinedList();
+      }, (err) => {
+        console.warn("Broadcast query bypassed:", err);
+      });
+
+      // Query private for this student
+      const qPrivate = query(notifColl, where('type', '==', 'private'), where('targetUserId', '==', user.uid));
+      unsubNotif2 = onSnapshot(qPrivate, (snapshot) => {
+        privateList = [];
+        snapshot.forEach((docRef) => {
+          const d = docRef.data();
+          privateList.push({
+            id: docRef.id,
+            senderName: d.senderName || 'المشرف العام',
+            message: d.message || '',
+            createdAt: d.createdAt || '',
+            read: !!d.read,
+            targetEmail: d.targetEmail || '',
+            type: d.type || '',
+            targetRole: d.targetRole || null,
+            targetUserId: d.targetUserId || null,
+            createdBy: d.createdBy || '',
+            readBy: d.readBy || [],
+            status: d.status || ''
+          });
+        });
+        updateCombinedList();
+      }, (err) => {
+        console.warn("Private query bypassed:", err);
+      });
+
+      // Legacy direct matching notifications query
+      const qLegacy = query(notifColl, where('targetEmail', '==', user.email.toLowerCase()));
+      unsubNotif3 = onSnapshot(qLegacy, (snapshot) => {
+        legacyList = [];
+        snapshot.forEach((docRef) => {
+          const d = docRef.data();
+          if (!d.type) {
+            legacyList.push({
+              id: docRef.id,
+              senderName: d.senderName || 'المشرف العام',
+              message: d.message || '',
+              createdAt: d.createdAt || '',
+              read: !!d.read,
+              targetEmail: d.targetEmail || '',
+              type: d.type || '',
+              targetRole: d.targetRole || null,
+              targetUserId: d.targetUserId || null,
+              createdBy: d.createdBy || '',
+              readBy: d.readBy || [],
+              status: d.status || ''
+            });
+          }
+        });
+        updateCombinedList();
+      }, (err) => {
+        console.warn("Legacy query bypassed:", err);
+      });
+    }
+
+    const unsubNotif = () => {
+      unsubNotif1();
+      unsubNotif2();
+      unsubNotif3();
+    };
 
     // 2. Subscribe to Student Support Tickets
     const ticketsColl = collection(db, 'tickets');
