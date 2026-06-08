@@ -1039,7 +1039,7 @@ export default function StudentsView({
             {/* Close button */}
             <button 
               onClick={() => setViewingPublicProfile(null)}
-              className="absolute top-4 left-4 p-2 hover:bg-slate-100 rounded-xl text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+              className="absolute top-4 left-4 p-2 hover:bg-slate-100 rounded-xl text-gray-400 hover:text-gray-700 transition-colors cursor-pointer z-20"
             >
               <X size={16} />
             </button>
