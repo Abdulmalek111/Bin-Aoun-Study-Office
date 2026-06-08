@@ -164,7 +164,6 @@ export default function AdminDashboard({
   };
 
   const handleRejectPayment = async (payment: any) => {
-    if (!window.confirm('هل أنت متأكد من رفض طلب الدفع هذا؟')) return;
     try {
       const payDocRef = doc(db, 'payments', payment.id);
       await updateDoc(payDocRef, {
@@ -1395,7 +1394,7 @@ export default function AdminDashboard({
                             <button
                               type="button"
                               onClick={() => handleRejectPayment(payment)}
-                              className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-500/10 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                              className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm"
                             >
                               <X size={12} />
                               <span>رفض ❌</span>

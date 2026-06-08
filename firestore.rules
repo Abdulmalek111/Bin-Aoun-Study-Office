@@ -19,7 +19,11 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'abdulmlikoog@gmail.com' ||
-        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data != null
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data != null ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'Admin', 'owner', 'مشرف المنصة', 'instructor']
+        )
       );
     }
 
@@ -173,11 +177,12 @@ service cloud.firestore {
     // User Profiles Match Block
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow list: if isAdmin();
       allow create: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
       allow update: if (
         isOwner(userId) && isValidUser(request.resource.data) && (
-          // Student is forbidden from editing their email or balance or admin status directly.
+          // Student is forbidden from editing their email, balance, role or admin status directly.
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isAdmin', 'balance']) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'username', 'avatarUrl', 'telegram', 'isLoggedIn',
             'academicStage', 'academicYear', 'academicSemester', 'academicTrack',
@@ -286,8 +291,14 @@ service cloud.firestore {
 
     // Private Notifications Match Block
     match /notifications/{notificationId} {
-      allow get, list: if isSignedIn() && (resource.data.targetEmail == request.auth.token.email || isAdmin());
-      allow create: if isAdmin() && isValidNotification(request.resource.data);
+      allow get, list: if isSignedIn() && (resource.data.targetEmail == request.auth.token.email || resource.data.targetEmail == 'all' || isAdmin());
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (
+          request.resource.data.keys().hasAll(['id', 'senderName', 'message', 'createdAt', 'read', 'targetEmail']) &&
+          request.resource.data.read == false
+        )
+      );
       allow update: if isSignedIn() && (
         // Action: Student marks their notification as read
         (resource.data.targetEmail == request.auth.token.email && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) ||
@@ -314,20 +325,25 @@ service cloud.firestore {
 
     // Payments Match Block
     match /payments/{paymentId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn(); // Needs to allow admin to list, and students can query/list their own or all of them.
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending_review');
-      allow update: if isSignedIn() && isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending_review'
+        && request.resource.data.currency == 'RUB'
+        && request.resource.data.price is number
+        && request.resource.data.price > 0;
+
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      allow update, delete: if isAdmin();
     }
 
     // User Purchases Match Block
     match /user_purchases/{purchaseId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isAdmin();
-      allow update: if isSignedIn() && isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      allow create, update, delete: if isAdmin();
     }
 
     // --- Voice Rooms Match Rules ---

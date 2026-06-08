@@ -28,10 +28,10 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
   const [loadingFinancials, setLoadingFinancials] = useState(false);
 
   useEffect(() => {
-    if (!user || !user.email) return;
+    if (!user || !user.email || !user.uid) return;
 
     setLoadingFinancials(true);
-    const qPayments = query(collection(db, 'payments'), where('userEmail', '==', user.email));
+    const qPayments = query(collection(db, 'payments'), where('userId', '==', user.uid));
     const unsubscribePayments = onSnapshot(qPayments, (snapshot) => {
       const list: any[] = [];
       snapshot.forEach((doc) => {
@@ -42,7 +42,7 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
       console.error("Error listening to student payments:", error);
     });
 
-    const qPurchases = query(collection(db, 'user_purchases'), where('userEmail', '==', user.email));
+    const qPurchases = query(collection(db, 'user_purchases'), where('userId', '==', user.uid));
     const unsubscribePurchases = onSnapshot(qPurchases, (snapshot) => {
       const list: any[] = [];
       snapshot.forEach((doc) => {
@@ -89,20 +89,32 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
       const paymentId = `pay_${user.uid || Math.random().toString(36).substr(2, 9)}_${activePurchaseItem.subjectId}_${activePurchaseItem.item.id}_${Date.now()}`;
       const payDocRef = doc(db, 'payments', paymentId);
       
+      const subject = subjects.find(s => s.id === activePurchaseItem.subjectId);
+      const subjectNameAr = subject ? subject.nameAr : activePurchaseItem.subjectId;
+      const calculatedItemNameAr = `${activePurchaseItem.item.name} (${activePurchaseItem.subjectId === 'physics' ? 'رغبة فيزياء РГР' : activePurchaseItem.subjectId === 'programming' ? 'حل برمجة' : activePurchaseItem.subjectId === 'algorithms' ? 'حل خوارزميات' : activePurchaseItem.subjectId === 'safety' ? 'حل سلامة مهنية' : 'رسم نانوكاد'})`;
+
       const payload = {
         id: paymentId,
         userId: user.uid || 'unauthenticated',
-        username: user.username || 'طالب مجهول الهوية',
+        userName: user.fullName || user.username || 'طالب مجهول الهوية',
         userEmail: user.email,
         subjectId: activePurchaseItem.subjectId,
+        subjectName: subjectNameAr,
         itemId: activePurchaseItem.item.id,
-        itemNameAr: `${activePurchaseItem.item.name} (${activePurchaseItem.subjectId === 'physics' ? 'رغبة فيزياء РГР' : activePurchaseItem.subjectId === 'programming' ? 'حل برمجة' : activePurchaseItem.subjectId === 'algorithms' ? 'حل خوارزميات' : activePurchaseItem.subjectId === 'safety' ? 'حل سلامة مهنية' : 'رسم نانوكاد'})`,
+        itemName: activePurchaseItem.item.name,
+        itemType: activePurchaseItem.item.type || 'single',
         price: activePurchaseItem.item.price,
+        currency: 'RUB',
+        cardNumber: '220010500228419',
+        status: 'pending_review',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        
+        // Custom captured fields
         senderName: inputs.senderName,
         telegram: inputs.telegram,
         notes: inputs.notes,
-        status: 'pending_review',
-        createdAt: new Date().toISOString()
+        itemNameAr: calculatedItemNameAr
       };
 
       await setDoc(payDocRef, payload);
