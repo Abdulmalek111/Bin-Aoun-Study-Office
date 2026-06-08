@@ -139,6 +139,35 @@ service cloud.firestore {
              data.createdAt is string;
     }
 
+    function isValidPayment(data) {
+      return data.keys().hasAll(['id', 'userId', 'userName', 'userEmail', 'subjectId', 'subjectName', 'itemId', 'itemName', 'itemType', 'price', 'currency', 'cardNumber', 'status', 'createdAt', 'updatedAt']) &&
+             data.id is string &&
+             data.userId is string &&
+             data.userName is string &&
+             data.userEmail is string &&
+             data.subjectId is string &&
+             data.subjectName is string &&
+             data.itemId is string &&
+             data.itemName is string &&
+             data.itemType is string &&
+             data.price is number &&
+             data.currency == 'RUB' &&
+             data.cardNumber == '220010500228419' &&
+             data.status in ['pending_review', 'paid', 'rejected'] &&
+             data.createdAt is string &&
+             data.updatedAt is string;
+    }
+
+    function isValidUserPurchase(data) {
+      return data.keys().hasAll(['userId', 'subjectId', 'itemId', 'paymentId', 'accessGranted', 'createdAt']) &&
+             data.userId is string &&
+             data.subjectId is string &&
+             data.itemId is string &&
+             data.paymentId is string &&
+             data.accessGranted is bool &&
+             data.createdAt is string;
+    }
+
     // --- Path Match Blocks (Phase 1 Codebase Match Mapping) ---
 
     // User Profiles Match Block
@@ -281,6 +310,24 @@ service cloud.firestore {
     match /admins/{adminUid} {
       allow read: if isSignedIn();
       allow write: if false; // Only manageable through Cloud Console
+    }
+
+    // Payments Match Block
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn(); // Needs to allow admin to list, and students can query/list their own or all of them.
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending_review');
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // User Purchases Match Block
+    match /user_purchases/{purchaseId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isAdmin();
     }
 
     // --- Voice Rooms Match Rules ---

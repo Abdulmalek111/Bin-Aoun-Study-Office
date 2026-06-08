@@ -99,6 +99,95 @@ export default function AdminDashboard({
 
   // State Management
   const [students, setStudents] = useState<SimulatedStudent[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'pending_review' | 'paid' | 'rejected'>('pending_review');
+
+  useEffect(() => {
+    const q = collection(db, 'payments');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      list.sort((a, b) => {
+        const timeA = b.createdAt ? (typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() : (b.createdAt.seconds ? b.createdAt.seconds * 1000 : 0)) : 0;
+        const timeB = a.createdAt ? (typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() : (a.createdAt.seconds ? a.createdAt.seconds * 1000 : 0)) : 0;
+        return timeA - timeB;
+      });
+      setPayments(list);
+      setLoadingPayments(false);
+    }, (error) => {
+      console.error("Error listening to payments:", error);
+      setLoadingPayments(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleApprovePayment = async (payment: any) => {
+    try {
+      const payDocRef = doc(db, 'payments', payment.id);
+      await updateDoc(payDocRef, {
+        status: 'paid',
+        approvedAt: new Date().toISOString()
+      });
+
+      const purchaseId = `purch_${payment.userId}_${payment.itemId}`;
+      const purchaseDocRef = doc(db, 'user_purchases', purchaseId);
+      await setDoc(purchaseDocRef, {
+        id: purchaseId,
+        userId: payment.userId,
+        userEmail: payment.userEmail,
+        username: payment.username || '',
+        subjectId: payment.subjectId,
+        itemId: payment.itemId,
+        itemNameAr: payment.itemNameAr,
+        accessGranted: true,
+        approvedAt: new Date().toISOString(),
+        price: payment.price
+      });
+
+      if (onAddNotification) {
+        onAddNotification(
+          payment.userEmail,
+          'قسم المالية والتحصيل',
+          `✓ تم اعتماد الدفع وتفعيل الملف: "${payment.itemNameAr}" بنجاح! يمكنك الذهاب لقسم المواد وتنزيله الآن.`
+        );
+      }
+
+      addLog(`✓ تم اعتماد دفع الطالب ${payment.username || payment.userEmail} للملف: ${payment.itemNameAr}`);
+      alert('✓ تم اعتماد الدفع بنجاح وتفعيل الملف للطالب فوريّاً!');
+    } catch (e: any) {
+      console.error("Failed to approve payment:", e);
+      alert(`❌ فشل اعتماد طلب الدفع: ${e.message}`);
+    }
+  };
+
+  const handleRejectPayment = async (payment: any) => {
+    if (!window.confirm('هل أنت متأكد من رفض طلب الدفع هذا؟')) return;
+    try {
+      const payDocRef = doc(db, 'payments', payment.id);
+      await updateDoc(payDocRef, {
+        status: 'rejected',
+        rejectedAt: new Date().toISOString()
+      });
+
+      if (onAddNotification) {
+        onAddNotification(
+          payment.userEmail,
+          'قسم المالية والتحصيل',
+          `❌ تم رفض طلب الدفع لملف: "${payment.itemNameAr}". يرجى إعادة إرسال طلب الدفع مع بيانات صحيحة.`
+        );
+      }
+
+      addLog(`❌ تم رفض طلب دفع الطالب ${payment.username || payment.userEmail} للملف: ${payment.itemNameAr}`);
+      alert('تم رفض طلب الدفع بنجاح وإرسال إشعار فوري للطالب.');
+    } catch (e: any) {
+      console.error("Failed to reject payment:", e);
+      alert(`❌ فشل رفض طلب الدفع: ${e.message}`);
+    }
+  };
+
   const [studentSearch, setStudentSearch] = useState('');
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentEmail, setNewStudentEmail] = useState('');
@@ -1181,6 +1270,166 @@ export default function AdminDashboard({
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Module: Manual Payments Approval Queue */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-4 text-right">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-105 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-brand-gold flex items-center justify-center font-bold text-sm">
+              💳
+            </div>
+            <div>
+              <h3 className="font-extrabold text-xs text-brand-dark dark:text-white mt-0.5">طلبات مراجعة واعتماد الدفع اليدوي</h3>
+              <p className="text-[9px] text-gray-400">إدارة ومراجعة طلبات تفعيل حلول الملفات والأعمال المدفوعة للطلاب</p>
+            </div>
+          </div>
+          
+          {/* Status Filter Chips */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ direction: 'rtl' }}>
+            {[
+              { id: 'pending_review', label: 'قيد الانتظار', count: payments.filter(p => p.status === 'pending_review').length, color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+              { id: 'paid', label: 'المعتمدة', count: payments.filter(p => p.status === 'paid').length, color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+              { id: 'rejected', label: 'المرفوضة', count: payments.filter(p => p.status === 'rejected').length, color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
+              { id: 'all', label: 'الكل', count: payments.length, color: 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300' }
+            ].map(chip => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setPaymentFilter(chip.id as any)}
+                className={`px-3 py-1 rounded-xl text-[10px] font-black tracking-tight whitespace-nowrap transition-all cursor-pointer ${
+                  paymentFilter === chip.id
+                    ? 'bg-brand-dark text-white shadow-xs dark:bg-brand-gold dark:text-brand-dark'
+                    : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-300'
+                }`}
+              >
+                {chip.label} ({chip.count})
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Payments List */}
+        {loadingPayments ? (
+          <div className="text-center py-6 text-xs text-gray-400 font-bold">جاري تحميل المعاملات المالية...</div>
+        ) : (
+          (() => {
+            const filtered = payments.filter(p => paymentFilter === 'all' || p.status === paymentFilter);
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-8 bg-gray-50/50 dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-800">
+                  <p className="text-[11px] font-bold text-gray-400">لا توجد طلبات دفع ضمن هذا التبويب حالياً.</p>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-3.5 max-h-[400px] overflow-y-auto no-scrollbar pr-1">
+                {filtered.map(payment => {
+                  const createdAtStr = payment.createdAt ? (
+                    typeof payment.createdAt === 'string' ? payment.createdAt : (payment.createdAt.seconds ? new Date(payment.createdAt.seconds * 1000).toLocaleString('ar-EG') : '')
+                  ) : '';
+                  return (
+                    <div 
+                      key={payment.id} 
+                      className="p-3.5 rounded-2xl border border-gray-150/60 dark:border-slate-850 bg-white dark:bg-slate-950 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:bg-slate-50/50 dark:hover:bg-slate-900/50 text-right"
+                    >
+                      {/* Left: Info */}
+                      <div className="space-y-2 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 md:gap-2 text-[10px]">
+                          {/* Subject Tag */}
+                          <span className="font-extrabold px-1.5 py-0.5 rounded-lg bg-brand-blue/5 text-brand-blue border border-brand-blue/10 dark:bg-brand-gold/10 dark:text-brand-gold dark:border-brand-gold/25 uppercase">
+                            {payment.subjectId === 'physics' ? 'الفيزياء' : 
+                             payment.subjectId === 'safety' ? 'سلامة الحياة' : 
+                             payment.subjectId === 'programming' ? 'البرمجة' : 
+                             payment.subjectId === 'algorithms' ? 'الخوارزميات' : 
+                             payment.subjectId === 'nanocad' ? 'نانوكاد' : payment.subjectId}
+                          </span>
+                          {/* Document Name */}
+                          <span className="font-black text-brand-dark dark:text-white underline">
+                            {payment.itemNameAr}
+                          </span>
+                          {/* Price Tag */}
+                          <span className="font-sans font-black text-xs text-brand-gold bg-amber-50 px-1.5 py-0.5 rounded dark:bg-slate-800">
+                            {payment.price} RUB
+                          </span>
+                        </div>
+
+                        {/* Student/Sender fields */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] text-gray-500 dark:text-gray-300">
+                          <div>
+                            <span className="font-bold">الطالب:</span> {payment.username || 'اسم غير محدد'} ({payment.userEmail})
+                          </div>
+                          <div>
+                            <span className="font-bold">اسم المرسل المحول:</span> <strong className="text-brand-dark dark:text-white">{payment.senderName || 'غير محدد'}</strong>
+                          </div>
+                          {payment.telegram && (
+                            <div>
+                              <span className="font-bold">التليجرام:</span> <span className="font-mono text-brand-blue">{payment.telegram}</span>
+                            </div>
+                          )}
+                          {payment.notes && (
+                            <div className="sm:col-span-2 col-span-1">
+                              <span className="font-bold">ملاحظات التحويل:</span> {payment.notes}
+                            </div>
+                          )}
+                          {createdAtStr && (
+                            <div className="text-[8px] text-gray-400 font-bold sm:col-span-2 col-span-1">
+                              تاريخ الطلب: {createdAtStr}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Actions / Status */}
+                      <div className="flex items-center gap-2 shrink-0 md:self-center">
+                        {payment.status === 'pending_review' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApprovePayment(payment)}
+                              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-sm active:scale-95"
+                            >
+                              <CheckCircle size={12} />
+                              <span>اعتماد وقبول ✅</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectPayment(payment)}
+                              className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-500/10 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                            >
+                              <X size={12} />
+                              <span>رفض ❌</span>
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border ${
+                              payment.status === 'paid'
+                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                            }`}>
+                              {payment.status === 'paid' ? 'معتمد ومفتوح ✓' : 'مرفوض ❌'}
+                            </span>
+                            {payment.status === 'paid' && payment.approvedAt && (
+                              <span className="text-[8px] text-gray-400 font-bold">
+                                اعتمد في: {new Date(payment.approvedAt).toLocaleString('ar-EG')}
+                              </span>
+                            )}
+                            {payment.status === 'rejected' && payment.rejectedAt && (
+                              <span className="text-[8px] text-gray-400 font-bold">
+                                رفض في: {new Date(payment.rejectedAt).toLocaleString('ar-EG')}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
+        )}
       </div>
 
       {/* Module 4: Live Technical Support Tickets Management */}

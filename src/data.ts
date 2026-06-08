@@ -43,10 +43,18 @@ export const initialSubjects: Subject[] = [
   },
   {
     id: 'programming',
-    nameAr: 'البرمجة والخوارزميات',
-    nameEn: 'Programming and Algorithms',
-    lecturesCount: 16,
-    completedLectures: 8,
+    nameAr: 'البرمجة',
+    nameEn: 'Programming',
+    lecturesCount: 8,
+    completedLectures: 4,
+    iconType: 'programming'
+  },
+  {
+    id: 'algorithms',
+    nameAr: 'الخوارزميات',
+    nameEn: 'Algorithms',
+    lecturesCount: 8,
+    completedLectures: 3,
     iconType: 'programming'
   },
   {
@@ -199,3 +207,107 @@ export const initialExams: Exam[] = [
     timeSlot: '09:00 ص'
   }
 ];
+
+export interface PaidWorkItem {
+  id: string;
+  name: string;
+  type: 'single' | 'bundle' | 'seminar' | 'lab';
+  price: number;
+  originalPrice?: number;
+  downloadUrl?: string;
+}
+
+export interface SubjectPaidConfig {
+  subjectId: string;
+  sectionNameAr: string;
+  items: PaidWorkItem[];
+  bundles?: {
+    id: string;
+    name: string;
+    price: number;
+    itemIds: string[];
+    downloadUrl?: string;
+  }[];
+}
+
+export const paidSubjectsConfig: Record<string, SubjectPaidConfig> = {
+  physics: {
+    subjectId: 'physics',
+    sectionNameAr: 'شراء أعمال الرسوم البيانية РГР',
+    items: [
+      { id: 'physics_rgr1', name: 'РГР 1', type: 'single', price: 250, downloadUrl: 'https://yadi.sk/d/physics_rgr1_solution' },
+      { id: 'physics_rgr2', name: 'РГР 2', type: 'single', price: 250, downloadUrl: 'https://yadi.sk/d/physics_rgr2_solution' },
+      { id: 'physics_rgr3', name: 'РГР 3', type: 'single', price: 250, downloadUrl: 'https://yadi.sk/d/physics_rgr3_solution' },
+      { id: 'physics_rgr4', name: 'РГР 4', type: 'single', price: 250, downloadUrl: 'https://yadi.sk/d/physics_rgr4_solution' },
+      { id: 'physics_rgr5', name: 'РГР 5', type: 'single', price: 250, downloadUrl: 'https://yadi.sk/d/physics_rgr5_solution' }
+    ],
+    bundles: [
+      {
+        id: 'physics_rgr_bundle',
+        name: 'باكيج РГР كامل (من 1 إلى 5)',
+        price: 400,
+        itemIds: ['physics_rgr1', 'physics_rgr2', 'physics_rgr3', 'physics_rgr4', 'physics_rgr5'],
+        downloadUrl: 'https://yadi.sk/d/physics_rgr_bundle_solution'
+      }
+    ]
+  },
+  safety: {
+    subjectId: 'safety',
+    sectionNameAr: 'شراء التقارير والندوات الجاهزة (Семинары и Лабораторные)',
+    items: [
+      { id: 'safety_seminar1', name: 'Семинар 1', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_1' },
+      { id: 'safety_seminar2', name: 'Семинар 2', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_2' },
+      { id: 'safety_seminar3', name: 'Семинар 3', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_3' },
+      { id: 'safety_seminar4', name: 'Семинар 4', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_4' },
+      { id: 'safety_seminar5', name: 'Семинар 5', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_5' },
+      { id: 'safety_seminar6', name: 'Семинар 6', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_6' },
+      { id: 'safety_seminar7', name: 'Семинар 7', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_7' },
+      { id: 'safety_seminar8', name: 'Семинар 8', type: 'seminar', price: 100, downloadUrl: 'https://yadi.sk/d/safety_sem_8' },
+      { id: 'safety_lab1', name: 'Лабораторная работа 1', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/safety_lab_1' },
+      { id: 'safety_lab2', name: 'Лабораторная работа 2', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/safety_lab_2' },
+      { id: 'safety_lab3', name: 'Лабораторная работа 3', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/safety_lab_3' },
+      { id: 'safety_lab4', name: 'Лабораторная работа 4', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/safety_lab_4' }
+    ]
+  },
+  programming: {
+    subjectId: 'programming',
+    sectionNameAr: 'شراء حلول واجبات مادة البرمجة',
+    items: [
+      { id: 'programming_seminar1', name: 'Семинар 1', type: 'seminar', price: 500, downloadUrl: 'https://yadi.sk/d/prog_sem_1' },
+      { id: 'programming_seminar2', name: 'Семинар 2', type: 'seminar', price: 500, downloadUrl: 'https://yadi.sk/d/prog_sem_2' },
+      { id: 'programming_seminar3', name: 'Семинар 3', type: 'seminar', price: 500, downloadUrl: 'https://yadi.sk/d/prog_sem_3' },
+      { id: 'programming_seminar4', name: 'Семинар 4', type: 'seminar', price: 500, downloadUrl: 'https://yadi.sk/d/prog_sem_4' },
+      { id: 'programming_lab1', name: 'Лабораторная работа 1', type: 'lab', price: 1000, downloadUrl: 'https://yadi.sk/d/prog_lab_1' },
+      { id: 'programming_lab2', name: 'Лабораторная работа 2', type: 'lab', price: 1000, downloadUrl: 'https://yadi.sk/d/prog_lab_2' },
+      { id: 'programming_lab3', name: 'Лабораторная работа 3', type: 'lab', price: 1000, downloadUrl: 'https://yadi.sk/d/prog_lab_3' },
+      { id: 'programming_lab4', name: 'Лабораторная работа 4', type: 'lab', price: 1000, downloadUrl: 'https://yadi.sk/d/prog_lab_4' }
+    ]
+  },
+  algorithms: {
+    subjectId: 'algorithms',
+    sectionNameAr: 'شراء حلول مختبرات الخوارزميات',
+    items: [
+      { id: 'algorithms_lab1', name: 'Лабораторная работа 1', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_1' },
+      { id: 'algorithms_lab2', name: 'Лабораторная работа 2', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_2' },
+      { id: 'algorithms_lab3', name: 'Лабораторная работа 3', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_3' },
+      { id: 'algorithms_lab4', name: 'Лабораторная работа 4', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_4' },
+      { id: 'algorithms_lab5', name: 'Лабораторная работа 5', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_5' },
+      { id: 'algorithms_lab6', name: 'Лабораторная работа 6', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_6' },
+      { id: 'algorithms_lab7', name: 'Лабораторная работа 7', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_7' },
+      { id: 'algorithms_lab8', name: 'Лабораторная работа 8', type: 'lab', price: 500, downloadUrl: 'https://yadi.sk/d/algo_lab_8' }
+    ]
+  },
+  nanocad: {
+    subjectId: 'nanocad',
+    sectionNameAr: 'شراء مجلدات تطبيق نانو كاد',
+    items: [
+      { id: 'nanocad_lab1', name: 'Лабораторная работа 1', type: 'lab', price: 500, originalPrice: 800, downloadUrl: 'https://yadi.sk/d/nanocad_lab_1' },
+      { id: 'nanocad_lab2', name: 'Лабораторная работа 2', type: 'lab', price: 500, originalPrice: 800, downloadUrl: 'https://yadi.sk/d/nanocad_lab_2' },
+      { id: 'nanocad_lab3', name: 'Лабораторная работа 3', type: 'lab', price: 500, originalPrice: 800, downloadUrl: 'https://yadi.sk/d/nanocad_lab_3' },
+      { id: 'nanocad_lab4', name: 'Лабораторная работа 4', type: 'lab', price: 600, downloadUrl: 'https://yadi.sk/d/nanocad_lab_4' },
+      { id: 'nanocad_lab5', name: 'Лабораторная работа 5', type: 'lab', price: 600, downloadUrl: 'https://yadi.sk/d/nanocad_lab_5' },
+      { id: 'nanocad_lab6', name: 'Лабораторная работа 6', type: 'lab', price: 600, downloadUrl: 'https://yadi.sk/d/nanocad_lab_6' },
+      { id: 'nanocad_lab7', name: 'Лабораторная работа 7', type: 'lab', price: 600, downloadUrl: 'https://yadi.sk/d/nanocad_lab_7' }
+    ]
+  }
+};

@@ -1,22 +1,120 @@
-import React, { useState } from 'react';
-import { Search, ChevronLeft, ChevronDown, CheckCircle2, ChevronRight, BookOpen, Video, FileText, Sparkles, Send, GraduationCap, X } from 'lucide-react';
-import { Subject } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Search, ChevronLeft, ChevronDown, CheckCircle2, ChevronRight, BookOpen, Video, FileText, Sparkles, Send, GraduationCap, X, Copy, Check, Lock, Unlock, QrCode, AlertCircle, RefreshCw } from 'lucide-react';
+import { Subject, User } from '../types';
 import SubjectIcon from './SubjectIcon';
+import { db } from '../lib/firebase';
+import { collection, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { paidSubjectsConfig, PaidWorkItem } from '../data';
+import PurchaseModal from './PurchaseModal';
 
 interface SubjectsViewProps {
   subjects: Subject[];
   onToggleLecture: (subjectId: string, lectureIndex: number) => void;
   subjectLecturesMap: Record<string, { title: string; duration: string; type: 'video' | 'pdf'; url?: string }[]>;
+  user: User | null;
 }
 
-export default function SubjectsView({ subjects, onToggleLecture, subjectLecturesMap }: SubjectsViewProps) {
+export default function SubjectsView({ subjects, onToggleLecture, subjectLecturesMap, user }: SubjectsViewProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
 
   // Sub-tabs for safety and programming: 'lectures' or 'seminar'
-  const [subTabs, setSubTabs] = useState<Record<string, 'lectures' | 'seminar'>>({});
+  const [subTabs, setSubTabs] = useState<Record<string, 'lectures' | 'seminar' | 'paid'>>({});
   
+  // Real-time payments & purchases for current student
+  const [payments, setPayments] = useState<any[]>([]);
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [loadingFinancials, setLoadingFinancials] = useState(false);
+
+  useEffect(() => {
+    if (!user || !user.email) return;
+
+    setLoadingFinancials(true);
+    const qPayments = query(collection(db, 'payments'), where('userEmail', '==', user.email));
+    const unsubscribePayments = onSnapshot(qPayments, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setPayments(list);
+    }, (error) => {
+      console.error("Error listening to student payments:", error);
+    });
+
+    const qPurchases = query(collection(db, 'user_purchases'), where('userEmail', '==', user.email));
+    const unsubscribePurchases = onSnapshot(qPurchases, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setPurchases(list);
+      setLoadingFinancials(false);
+    }, (error) => {
+      console.error("Error listening to student purchases:", error);
+      setLoadingFinancials(false);
+    });
+
+    return () => {
+      unsubscribePayments();
+      unsubscribePurchases();
+    };
+  }, [user]);
+
+  const getPaymentStatus = (subjectId: string, itemId: string): 'not_paid' | 'pending_review' | 'rejected' | 'paid' => {
+    const purchased = purchases.some(p => p.subjectId === subjectId && p.itemId === itemId && p.accessGranted === true);
+    if (purchased) return 'paid';
+
+    const itemPayments = payments.filter(p => p.subjectId === subjectId && p.itemId === itemId);
+    if (itemPayments.length > 0) {
+      const hasPending = itemPayments.some(p => p.status === 'pending_review');
+      if (hasPending) return 'pending_review';
+
+      const hasPaid = itemPayments.some(p => p.status === 'paid');
+      if (hasPaid) return 'paid';
+
+      const hasRejected = itemPayments.some(p => p.status === 'rejected');
+      if (hasRejected) return 'rejected';
+    }
+
+    return 'not_paid';
+  };
+
+  // Student purchase initiation & checkout
+  const [activePurchaseItem, setActivePurchaseItem] = useState<{ subjectId: string; item: PaidWorkItem } | null>(null);
+
+  const handleSendPaymentNotification = async (inputs: { senderName: string; telegram: string; notes: string }) => {
+    if (!user || !user.email || !activePurchaseItem) return;
+    try {
+      const paymentId = `pay_${user.uid || Math.random().toString(36).substr(2, 9)}_${activePurchaseItem.subjectId}_${activePurchaseItem.item.id}_${Date.now()}`;
+      const payDocRef = doc(db, 'payments', paymentId);
+      
+      const payload = {
+        id: paymentId,
+        userId: user.uid || 'unauthenticated',
+        username: user.username || 'طالب مجهول الهوية',
+        userEmail: user.email,
+        subjectId: activePurchaseItem.subjectId,
+        itemId: activePurchaseItem.item.id,
+        itemNameAr: `${activePurchaseItem.item.name} (${activePurchaseItem.subjectId === 'physics' ? 'رغبة فيزياء РГР' : activePurchaseItem.subjectId === 'programming' ? 'حل برمجة' : activePurchaseItem.subjectId === 'algorithms' ? 'حل خوارزميات' : activePurchaseItem.subjectId === 'safety' ? 'حل سلامة مهنية' : 'رسم نانوكاد'})`,
+        price: activePurchaseItem.item.price,
+        senderName: inputs.senderName,
+        telegram: inputs.telegram,
+        notes: inputs.notes,
+        status: 'pending_review',
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(payDocRef, payload);
+      alert('✓ تم إرسال إشعار الدفع وبدء مراجعة وتأكيد التحويل! سيقوم المسؤول العام بمراجعتها فوراً وتفعيل الملف التجهيزي لك.');
+      setActivePurchaseItem(null);
+    } catch (err: any) {
+      console.error("Error creating payment: ", err);
+      alert(`❌ فشل في إرسال إشعار الدفع: ${err.message}`);
+      throw err;
+    }
+  };
+
   // Selected model details state for dialog popup
   const [selectedModel, setSelectedModel] = useState<{ subjectId: string; modelNum: number } | null>(null);
   
@@ -152,37 +250,70 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
 
                 {/* Expanded Section */}
                 {isExpanded && (
-                  <div className="bg-gray-50/60 border-t border-gray-50 px-4 py-3.5 dark:bg-slate-850 dark:border-slate-800">
+                  <div className="bg-gray-50/60 border-t border-gray-50 px-4 py-3.5 dark:bg-slate-850 dark:border-slate-800 space-y-4">
                     
-                    {/* Conditional sub-tabs switch for safety and programming */}
-                    {(sub.id === 'safety' || sub.id === 'programming') ? (
+                    {/* Conditional sub-tabs switch for subjects with paid configs */}
+                    {paidSubjectsConfig[sub.id] !== undefined ? (
                       <div className="space-y-4">
-                        {/* Tab Toggle Switchers */}
+                        {/* Tab Switch Layout */}
                         <div className="flex gap-2 p-1 bg-gray-200/50 dark:bg-slate-800 rounded-xl">
                           <button
-                            onClick={() => setSubTabs({ ...subTabs, [sub.id]: 'lectures' })}
-                            className={`flex-1 py-1.5 text-center text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
-                              activeTabForSub === 'lectures'
-                                ? 'bg-brand-dark text-white shadow-sm dark:bg-slate-705'
+                            type="button"
+                            onClick={() => {
+                              const current = subTabs[sub.id] || 'lectures';
+                              if (current !== 'lectures') {
+                                setSubTabs({ ...subTabs, [sub.id]: 'lectures' });
+                              }
+                            }}
+                            className={`flex-1 py-1.5 text-center text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
+                              (subTabs[sub.id] || 'lectures') === 'lectures'
+                                ? 'bg-brand-dark text-white shadow-sm dark:bg-slate-700'
                                 : 'text-gray-500 dark:text-slate-400 hover:text-brand-dark dark:hover:text-white'
                             }`}
                           >
-                            المستندات المطلوبة
+                            المراجع المعتمدة (مجاناً)
                           </button>
+                          
+                          {/* For life safety and programming: display interactive homework model grids Option */}
+                          {(sub.id === 'safety' || sub.id === 'programming') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = subTabs[sub.id];
+                                if (current !== 'seminar') {
+                                  setSubTabs({ ...subTabs, [sub.id]: 'seminar' });
+                                }
+                              }}
+                              className={`flex-1 py-1.5 text-center text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
+                                subTabs[sub.id] === 'seminar'
+                                  ? 'bg-amber-500 text-white shadow-sm'
+                                  : 'text-gray-500 dark:text-slate-400 hover:text-brand-dark dark:hover:text-white'
+                              }`}
+                            >
+                              حلول الواجبات (1-25)
+                            </button>
+                          )}
+
                           <button
-                            onClick={() => setSubTabs({ ...subTabs, [sub.id]: 'seminar' })}
-                            className={`flex-1 py-1.5 text-center text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
-                              activeTabForSub === 'seminar'
-                                ? 'bg-brand-gold text-white shadow-sm'
-                                : 'text-brand-gold/80 dark:text-brand-gold/70 hover:text-brand-gold'
+                            type="button"
+                            onClick={() => {
+                              const current = subTabs[sub.id];
+                              if (current !== 'paid') {
+                                setSubTabs({ ...subTabs, [sub.id]: 'paid' });
+                              }
+                            }}
+                            className={`flex-1 py-1.5 text-center text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
+                              subTabs[sub.id] === 'paid'
+                                ? 'bg-brand-gold text-brand-dark shadow-sm font-black'
+                                : 'text-brand-gold dark:text-brand-gold/80 hover:text-brand-gold/100'
                             }`}
                           >
-                            Семинар и Лабораторные
+                            ملفات جاهزة معتمدة 💎
                           </button>
                         </div>
 
-                        {/* Rendering Switcher output */}
-                        {activeTabForSub === 'lectures' ? (
+                        {/* Switch Rendering Content */}
+                        {(subTabs[sub.id] || 'lectures') === 'lectures' && (
                           <div className="divide-y divide-gray-100 dark:divide-slate-800">
                             {subLectures.map((lecture, i) => {
                               const isCompleted = i < sub.completedLectures;
@@ -199,13 +330,13 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                     >
                                       <CheckCircle2 size={17} className="fill-current stroke-white" />
                                     </button>
-                                    <div>
+                                    <div className="text-right">
                                       <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 opacity-80' : 'text-brand-dark dark:text-white'}`}>
                                         {lecture.title}
                                       </p>
-                                      <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1 mt-0.5">
-                                        {lecture.type === 'video' ? <Video size={11} /> : <FileText size={11} />}
+                                      <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center justify-end gap-1 mt-0.5">
                                         <span>{lecture.duration} | {lecture.type === 'video' ? 'شرح مرئي' : 'مذكرة مرجعية PDF'}</span>
+                                        {lecture.type === 'video' ? <Video size={11} /> : <FileText size={11} />}
                                       </span>
                                     </div>
                                   </div>
@@ -219,15 +350,15 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                               );
                             })}
                           </div>
-                        ) : (
-                          /* RENDER THE 1 TO 25 MODELS GRID */
+                        )}
+
+                        {subTabs[sub.id] === 'seminar' && (sub.id === 'safety' || sub.id === 'programming') && (
                           <div className="space-y-3">
                             <div className="bg-amber-500/5 border border-brand-gold/15 p-3 rounded-xl flex items-center gap-2 text-brand-gold text-[10px] font-black leading-relaxed">
                               <Sparkles size={14} className="shrink-0 animate-bounce" />
                               <span>الندوات المختبرية العلمية Семинары и Лабораторные работы (النماذج 1 - 25)</span>
                             </div>
                             
-                            {/* Symmetric 5-Column adaptive Grid (Adaptable to day & night modes) */}
                             <div className="grid grid-cols-5 gap-2 text-center" style={{ direction: 'rtl' }}>
                               {Array.from({ length: 25 }, (_, idx) => idx + 1).map((number) => {
                                 const isSubmitted = labSubmitted[`${sub.id}-${number}`];
@@ -257,13 +388,179 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                             </p>
                           </div>
                         )}
+
+                        {subTabs[sub.id] === 'paid' && (
+                          <div className="space-y-4">
+                            {/* Premium Welcome Message */}
+                            <div className="bg-gradient-to-r from-amber-500/5 to-brand-gold/5 border border-brand-gold/15 p-4 rounded-2xl space-y-2 text-right">
+                              <div className="flex items-center gap-1.5 text-brand-gold font-extrabold text-[11px]">
+                                <Sparkles size={14} className="text-brand-gold shrink-0 animate-pulse" />
+                                <span>قسم الحلول والأعمال الجاهزة المعتمدة والمضمونة الكلية والجزئية 💎</span>
+                              </div>
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold leading-normal">
+                                نوفر لك حلولاً نموذجية مصممة باحترافية كاملة لمساعدتك على التفوق وضمان الدرجات الكاملة في مادة {sub.nameAr} بكفاءة عالية.
+                              </p>
+                            </div>
+
+                            {/* Render Bundles if any */}
+                            {paidSubjectsConfig[sub.id]?.bundles && (
+                              <div className="space-y-2 text-right">
+                                <p className="text-[11px] font-black text-brand-dark dark:text-white flex items-center gap-1">
+                                  <span>📦</span>
+                                  <span>الباقات والعروض الشاملة الموفرة:</span>
+                                </p>
+                                <div className="space-y-2">
+                                  {paidSubjectsConfig[sub.id].bundles!.map(bundle => {
+                                    const status = getPaymentStatus(sub.id, bundle.id);
+                                    return (
+                                      <div key={bundle.id} className="p-3 bg-amber-500/5 dark:bg-slate-800 rounded-2xl border border-brand-gold/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-right">
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-xs">📚</span>
+                                            <h4 className="font-black text-xs text-brand-dark dark:text-white">{bundle.name}</h4>
+                                            <span className="text-[9px] bg-brand-gold/20 text-brand-dark dark:text-white px-1.5 py-0.5 rounded font-black">توفير رائع!</span>
+                                          </div>
+                                          <p className="text-[9px] text-gray-400 font-bold leading-normal">
+                                            تتضمن: {bundle.itemIds.map(id => paidSubjectsConfig[sub.id].items.find(i => i.id === id)?.name || id).join(' ، ')}
+                                          </p>
+                                        </div>
+
+                                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                                          <span className="font-sans font-black text-xs text-brand-gold">{bundle.price} RUB</span>
+                                          {(() => {
+                                            if (status === 'paid') {
+                                              return (
+                                                <a
+                                                  href={bundle.downloadUrl || '#'}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black flex items-center gap-1 shadow-sm font-sans transition-all hover:scale-[1.03] cursor-pointer"
+                                                >
+                                                  <Unlock size={11} />
+                                                  <span>تنزيل الباقة كاملة 🚀</span>
+                                                </a>
+                                              );
+                                            } else if (status === 'pending_review') {
+                                              return (
+                                                <span className="px-3 py-1.5 bg-amber-500/10 text-amber-500 rounded-xl text-[10px] font-extrabold border border-amber-500/20 flex items-center gap-1 font-sans animate-pulse">
+                                                  <RefreshCw size={11} className="animate-spin" />
+                                                  <span>قيد المراجعة</span>
+                                                </span>
+                                              );
+                                            } else if (status === 'rejected') {
+                                              return (
+                                                <button
+                                                  onClick={() => setActivePurchaseItem({ subjectId: sub.id, item: bundle as any })}
+                                                  className="px-3 py-1.5 bg-rose-500/10 text-rose-500 hover:bg-rose-600 hover:text-white border border-rose-500/20 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
+                                                >
+                                                  <AlertCircle size={11} />
+                                                  <span>مرفوض - أعد الطلب</span>
+                                                </button>
+                                              );
+                                            } else {
+                                              return (
+                                                <button
+                                                  onClick={() => setActivePurchaseItem({ subjectId: sub.id, item: bundle as any })}
+                                                  className="px-3 py-1.5 bg-brand-gold hover:bg-amber-600 text-white rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.03] cursor-pointer whitespace-nowrap"
+                                                >
+                                                  <Lock size={11} />
+                                                  <span>طلب الباقة الشاملة</span>
+                                                </button>
+                                              );
+                                            }
+                                          })()}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Render Individual Items */}
+                            <div className="space-y-2 text-right">
+                              <p className="text-[11px] font-black text-brand-dark dark:text-white flex items-center gap-1">
+                                <span>📄</span>
+                                <span>الأعمال والحلول المفردة المتاحة للطلب الفوري:</span>
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {paidSubjectsConfig[sub.id].items.map(item => {
+                                  const status = getPaymentStatus(sub.id, item.id);
+                                  return (
+                                    <div key={item.id} className="p-3 bg-white dark:bg-slate-900 border border-gray-150/60 dark:border-slate-800 rounded-xl flex items-center justify-between gap-3 shadow-xs text-right">
+                                      <div className="space-y-0.5">
+                                        <h5 className="font-black text-xs text-brand-dark dark:text-white">{item.name}</h5>
+                                        <p className="text-[9px] text-gray-400 font-bold">
+                                          {item.type === 'seminar' ? 'ملف سيمنار أكاديمي جاهز' : item.type === 'lab' ? 'تقرير معمل متكامل' : 'رغبة РГР كاملة بالحلول'}
+                                        </p>
+                                      </div>
+
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-left font-sans flex flex-col justify-center shrink-0">
+                                          {item.originalPrice && (
+                                            <span className="text-[9px] text-gray-400 line-through leading-none font-bold block text-right">{item.originalPrice} RUB</span>
+                                          )}
+                                          <span className="font-sans font-black text-xs text-brand-gold block">{item.price} RUB</span>
+                                        </div>
+
+                                        {(() => {
+                                          if (status === 'paid') {
+                                            return (
+                                              <a
+                                                href={item.downloadUrl || '#'}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[9px] font-black flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                              >
+                                                <Unlock size={11} />
+                                                <span>تحميل</span>
+                                              </a>
+                                            );
+                                          } else if (status === 'pending_review') {
+                                            return (
+                                              <span className="px-2.5 py-1.5 bg-amber-500/10 text-amber-500 rounded-lg text-[9px] font-extrabold border border-amber-500/20 flex items-center gap-1 font-sans animate-pulse">
+                                                <RefreshCw size={11} className="animate-spin" />
+                                                <span>مراجعة</span>
+                                              </span>
+                                            );
+                                          } else if (status === 'rejected') {
+                                            return (
+                                              <button
+                                                onClick={() => setActivePurchaseItem({ subjectId: sub.id, item })}
+                                                className="px-2.5 py-1.5 bg-rose-500/10 text-rose-500 hover:bg-rose-555 hover:text-white border border-rose-500/20 rounded-lg text-[9px] font-black flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shadow-xs"
+                                                title="اضغط لإعادة الإرسال"
+                                              >
+                                                <AlertCircle size={10} />
+                                                <span>re-send</span>
+                                              </button>
+                                            );
+                                          } else {
+                                            return (
+                                              <button
+                                                onClick={() => setActivePurchaseItem({ subjectId: sub.id, item })}
+                                                className="px-2.5 py-1.5 bg-brand-gold hover:bg-amber-600 text-white rounded-lg text-[9px] font-black flex items-center gap-1 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                                              >
+                                                <Lock size={10} />
+                                                <span>شراء</span>
+                                              </button>
+                                            );
+                                          }
+                                        })()}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      /* Standard Lectures Listing for other subjects */
+                      /* Standard Lectures Listing for subjects with NO paid configs */
                       <div className="space-y-1 divide-y divide-gray-100 dark:divide-slate-800">
-                        <p className="text-[11px] font-extrabold text-slate-700 dark:text-brand-gold pb-2 flex items-center gap-1">
-                          <BookOpen size={13} className="text-brand-gold animate-pulse" />
-                          <span>قائمة المستندات المطلوبة والمراجع المعتمدة:</span>
+                        <p className="text-[11px] font-extrabold text-slate-700 dark:text-brand-gold pb-2 flex items-center gap-1 text-right justify-end">
+                          <span>قائمة المستندات المطلوبة والمراجع المعتمدة للمادة:</span>
+                          <BookOpen size={13} className="text-brand-gold animate-pulse text-right" />
                         </p>
                         
                         {subLectures.map((lecture, i) => {
@@ -284,13 +581,13 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
                                 >
                                   <CheckCircle2 size={17} className="fill-current stroke-white" />
                                 </button>
-                                <div>
+                                <div className="text-right">
                                   <p className={`font-bold ${isCompleted ? 'text-slate-550 dark:text-slate-400 opacity-80' : 'text-brand-dark dark:text-white'}`}>
                                     {lecture.title}
                                   </p>
-                                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1 mt-0.5">
-                                    {lecture.type === 'video' ? <Video size={11} /> : <FileText size={11} />}
+                                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-medium flex items-center justify-end gap-1 mt-0.5">
                                     <span>{lecture.duration} | {lecture.type === 'video' ? 'شرح مرئي' : 'مذكرة مرجعية PDF'}</span>
+                                    {lecture.type === 'video' ? <Video size={11} /> : <FileText size={11} />}
                                   </span>
                                 </div>
                               </div>
@@ -558,6 +855,18 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
 
           </div>
         </div>
+      )}
+
+      {/* RENDER THE MANUAL PAYMENT CHECKOUT DIALOG */}
+      {activePurchaseItem && (
+        <PurchaseModal
+          isOpen={true}
+          onClose={() => setActivePurchaseItem(null)}
+          subjectId={activePurchaseItem.subjectId}
+          item={activePurchaseItem.item}
+          user={user}
+          onSubmitPayment={handleSendPaymentNotification}
+        />
       )}
 
     </div>

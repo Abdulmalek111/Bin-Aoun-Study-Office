@@ -255,8 +255,11 @@ export default function App() {
     if (savedSubjects) {
       try {
         const parsed = JSON.parse(savedSubjects) as Subject[];
-        // Auto-merge to ensure any new subject definitions in initialSubjects are added
-        const merged = [...parsed];
+        // Auto-merge to ensure any new subject definitions in initialSubjects are added with correct localized names and fields
+        const merged = parsed.map(item => {
+          const matched = initialSubjects.find(init => init.id === item.id);
+          return matched ? { ...item, ...matched } : item;
+        });
         initialSubjects.forEach(initSub => {
           if (!merged.some(m => m.id === initSub.id)) {
             merged.push(initSub);
@@ -1113,6 +1116,7 @@ export default function App() {
                   subjects={subjects}
                   onToggleLecture={handleToggleLecture}
                   subjectLecturesMap={subjectLectures}
+                  user={user}
                 />
               )}
 

@@ -359,6 +359,46 @@
         "metadata": { "type": "object" }
       },
       "required": ["type", "uid", "createdAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A payment submission record from a student for a paid academic work.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "itemId": { "type": "string" },
+        "itemName": { "type": "string" },
+        "itemType": { "type": "string" },
+        "price": { "type": "number" },
+        "currency": { "type": "string" },
+        "cardNumber": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending_review", "paid", "rejected"] },
+        "proofImageUrl": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "reviewedBy": { "type": "string" },
+        "reviewedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "userName", "userEmail", "subjectId", "subjectName", "itemId", "itemName", "itemType", "price", "currency", "cardNumber", "status", "createdAt", "updatedAt"]
+    },
+    "UserPurchase": {
+      "title": "UserPurchase",
+      "description": "Active purchase access granted information indicating which paid items a student has unlocked.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "itemId": { "type": "string" },
+        "paymentId": { "type": "string" },
+        "accessGranted": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "subjectId", "itemId", "paymentId", "accessGranted", "createdAt"]
     }
   },
   "firestore": {
@@ -429,6 +469,14 @@
     "voice_rooms/{roomId}/calls/{callId}/calleeCandidates/{candidateId}": {
       "schema": "IceCandidate",
       "description": "ICE candidate packets from callee."
+    },
+    "payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Manual payment submissions and invoices for paid works."
+    },
+    "user_purchases/{purchaseId}": {
+      "schema": "UserPurchase",
+      "description": "Granted student item accesses corresponding to validated payments."
     }
   }
 }

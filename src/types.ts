@@ -88,3 +88,33 @@ export interface Notification {
   targetEmail: string;
 }
 
+export interface Payment {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  subjectId: string;
+  subjectName: string;
+  itemId: string;
+  itemName: string;
+  itemType: 'single' | 'bundle' | 'seminar' | 'lab';
+  price: number;
+  currency: 'RUB';
+  cardNumber: string; // The constant paid card number (e.g. 220010500228419)
+  status: 'pending_review' | 'paid' | 'rejected';
+  proofImageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+}
+
+export interface UserPurchase {
+  userId: string;
+  subjectId: string;
+  itemId: string;
+  paymentId: string;
+  accessGranted: boolean;
+  createdAt: string;
+}
+
