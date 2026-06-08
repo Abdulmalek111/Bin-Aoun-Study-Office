@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield, Send, ArrowRight, MessageSquare, Lock, Camera, Phone, GraduationCap, ShieldAlert } from 'lucide-react';
+import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield, Send, ArrowRight, MessageSquare, Lock, Camera, Phone, GraduationCap, ShieldAlert, Copy } from 'lucide-react';
 import { User as UserType, SupportTicket, ChatMessage } from '../types';
 import { auth, db, storage } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -77,6 +77,45 @@ export default function ProfileView({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Copying state & handler for Student ID
+  const [copied, setCopied] = useState(false);
+  const handleCopyId = () => {
+    if (user.studentId) {
+      navigator.clipboard.writeText(user.studentId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Student Bio states & handler
+  const [bioInput, setBioInput] = useState(user.bio || '');
+  const [isSavingBio, setIsSavingBio] = useState(false);
+  const [bioSaveSuccess, setBioSaveSuccess] = useState(false);
+
+  const handleSaveBio = async () => {
+    setIsSavingBio(true);
+    setBioSaveSuccess(false);
+    try {
+      const userDocRef = doc(db, 'users', user.uid || auth.currentUser?.uid || '');
+      await updateDoc(userDocRef, {
+        bio: bioInput.trim(),
+        updatedAt: serverTimestamp()
+      });
+
+      // Update parent state
+      onUpdateProfile({
+        ...user,
+        bio: bioInput.trim()
+      });
+      setBioSaveSuccess(true);
+    } catch (e) {
+      console.error("Error saving bio:", e);
+      alert("عذراً، حدث خطأ أثناء حفظ الوصف الشخصي. الرجاء المحاولة مرة أخرى.");
+    } finally {
+      setIsSavingBio(false);
+    }
+  };
+
   // Support & Interactive Chat states
   const [supportMsg, setSupportMsg] = useState('');
   const [supportSuccess, setSupportSuccess] = useState(false);
@@ -100,6 +139,7 @@ export default function ProfileView({
     setAcademicYearInput(user.academicYear || 'سنة أولى');
     setAcademicSemesterInput(user.academicSemester || 'فصل أول');
     setAcademicTrackInput(user.academicTrack || 'علمي');
+    setBioInput(user.bio || '');
   }, [user]);
 
   const getProfileYearsList = (stage: string) => {
@@ -573,6 +613,21 @@ export default function ProfileView({
               </h3>
               <p className="text-xs text-gray-400 font-mono mt-0.5">{user.email}</p>
               
+              {user.studentId && (
+                <div className="flex items-center justify-center gap-1.5 mt-2 bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl max-w-xs mx-auto">
+                  <span className="text-[10px] text-gray-500 font-bold">رقم الطالب / Student ID:</span>
+                  <span className="font-mono text-xs font-black text-brand-dark select-all">{user.studentId}</span>
+                  <button
+                    onClick={handleCopyId}
+                    type="button"
+                    className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-brand-gold transition-colors shrink-0 cursor-pointer"
+                    title="نسخ المعرف"
+                  >
+                    {copied ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
+                  </button>
+                </div>
+              )}
+              
               {/* Badges row for Role and Account Status */}
               <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                 <span className="text-[10px] font-extrabold bg-brand-gold/15 text-brand-blue border border-brand-gold/25 px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
@@ -791,6 +846,52 @@ export default function ProfileView({
                 </button>
               </div>
 
+              {/* Bio / Personal Description */}
+              <div className="bg-white p-4 rounded-2xl border border-gray-150 space-y-3">
+                <div className="flex items-center gap-1.5 pb-2 border-b border-gray-100">
+                  <span className="text-sm">📝</span>
+                  <span className="font-extrabold text-xs text-brand-dark">الوصف الشخصي / Personal Description</span>
+                </div>
+                
+                <div className="space-y-2.5">
+                  <textarea
+                    maxLength={160}
+                    value={bioInput}
+                    onChange={(e) => {
+                      setBioInput(e.target.value);
+                      if (bioSaveSuccess) setBioSaveSuccess(false);
+                    }}
+                    placeholder="اكتب نبذة مختصرة عن نفسك هنا (الحد الأقصى 160 حرفًا)..."
+                    className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs p-3 text-right font-medium focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner text-brand-dark min-h-[70px] resize-none"
+                  />
+                  
+                  <div className="flex items-center justify-between text-[11px] text-gray-400">
+                    <span className="font-mono">{bioInput.length}/160</span>
+                    <button
+                      type="button"
+                      onClick={handleSaveBio}
+                      disabled={isSavingBio}
+                      className="px-4.5 py-2 bg-brand-blue hover:bg-brand-dark text-white rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                    >
+                      {isSavingBio ? (
+                        <span className="animate-pulse">جاري الحفظ...</span>
+                      ) : (
+                        <>
+                          <Check size={12} className="stroke-[2.5]" />
+                          <span>حفظ الوصف الشخصي</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {bioSaveSuccess && (
+                    <p className="text-[10px] text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg text-center border border-emerald-100 animate-fade-in">
+                      ✓ تم تحديث الوصف الشخصي وحفظه بنجاح!
+                    </p>
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -844,6 +945,13 @@ export default function ProfileView({
                         <span className="text-gray-400 font-semibold font-sans">Telegram Username:</span>
                         <span className="font-extrabold text-brand-gold bg-amber-500/5 px-1.5 py-0.5 rounded font-mono text-[10px]">{user.telegram || 'مطلوب @'}</span>
                       </div>
+
+                      {user.studentId && (
+                        <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
+                          <span className="text-gray-400 font-semibold">رقم الطالب / Student ID:</span>
+                          <span className="font-extrabold text-brand-blue font-mono">{user.studentId}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

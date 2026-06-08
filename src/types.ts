@@ -15,6 +15,7 @@ export interface User {
   academicTrack?: string; // علمي, أدبي
   balance?: number; // رصيد المحفظة المالي للطالب
   studentId?: string; // المعرف الفريد للطالب المبتدئ بـ bin_
+  bio?: string; // الوصف الشخصي
   // New profile fields for students and admin dashboard integration
   uid?: string;
   fullName?: string;

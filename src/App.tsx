@@ -395,6 +395,7 @@ export default function App() {
                 academicTrack: data.academicTrack || 'علمي',
                 balance: data.balance,
                 studentId: data.studentId,
+                bio: data.bio || '',
                 uid: data.uid,
                 fullName: data.fullName,
                 phone: data.phone,
@@ -443,8 +444,9 @@ export default function App() {
   // Auto-resolve custom Student ID starting with 'bin'
   useEffect(() => {
     if (user && auth.currentUser) {
-      const computedBinId = getBinStudentId(auth.currentUser.uid);
-      if (!user.studentId || user.studentId !== computedBinId) {
+      if (!user.studentId) {
+        const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+        const computedBinId = `bin_${randomDigits}`;
         const updated = { ...user, studentId: computedBinId };
         setUser(updated);
         localStorage.setItem('school_user', JSON.stringify(updated));

@@ -37,7 +37,8 @@ import {
   Hash, 
   MessageCircle,
   PhoneIncoming,
-  CircleDot
+  CircleDot,
+  Copy
 } from 'lucide-react';
 
 // Generates a stable deterministic student ID starting with 'bin' using a hash of user Uid
@@ -101,6 +102,8 @@ export default function StudentsView({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedChatUser, setSelectedChatUser] = useState<(User & { uid: string; binId: string }) | null>(null);
+  const [viewingPublicProfile, setViewingPublicProfile] = useState<(User & { uid: string; binId: string }) | null>(null);
+  const [modalCopied, setModalCopied] = useState(false);
   
   // Real-time Chat state
   const [chatMessages, setChatMessages] = useState<PrivateMessage[]>([]);
@@ -178,7 +181,7 @@ export default function StudentsView({
         
         // Exclude the logged-in user themselves from the contactable directory
         if (uid !== currentUid) {
-          const binId = getBinStudentId(uid);
+          const binId = dat.studentId || getBinStudentId(uid);
           list.push({
             ...dat,
             uid,
@@ -187,8 +190,10 @@ export default function StudentsView({
 
           // Check if this student in Firestore doesn't have studentId saved yet, and write it
           if (!dat.studentId && currentUid !== 'anonymous') {
+            const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+            const computedBinId = `bin_${randomDigits}`;
             updateDoc(doc(db, 'users', uid), {
-              studentId: binId
+              studentId: computedBinId
             }).catch(() => {});
           }
         }
@@ -670,7 +675,7 @@ export default function StudentsView({
                 <div 
                   key={st.uid}
                   onClick={() => {
-                    setGlobalChatUser(st);
+                    setViewingPublicProfile(st);
                     unlockAudioEngine();
                   }}
                   className="p-4 bg-slate-50 hover:bg-slate-100/60 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer transition-all duration-200 group relative overflow-hidden"
@@ -1011,6 +1016,116 @@ export default function StudentsView({
                 </button>
               </div>
             )}
+
+          </div>
+        </div>
+      )}
+
+      {/* 4. PUBLIC STUDENT PROFILE MODAL/POPUP */}
+      {viewingPublicProfile && (
+        <div className="fixed inset-0 bg-brand-dark/65 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-gray-150 shadow-2xl relative overflow-hidden flex flex-col items-center">
+            
+            {/* Close button */}
+            <button 
+              onClick={() => setViewingPublicProfile(null)}
+              className="absolute top-4 left-4 p-2 hover:bg-slate-100 rounded-xl text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Ambient gold radial background design */}
+            <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-brand-gold/15 to-transparent"></div>
+
+            {/* Profile Avatar */}
+            <div className="relative mt-5 mb-4 shrink-0">
+              <img 
+                src={viewingPublicProfile.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(viewingPublicProfile.username)}`} 
+                alt={viewingPublicProfile.username}
+                className="w-24 h-24 rounded-3xl border-4 border-white shadow-md object-cover relative z-10"
+                referrerPolicy="no-referrer"
+              />
+              <span className="absolute bottom-0 left-0 w-5 h-5 bg-green-500 border-4 border-white rounded-full z-20"></span>
+            </div>
+
+            {/* Name */}
+            <h3 className="font-extrabold text-slate-800 text-lg text-center leading-snug">
+              {viewingPublicProfile.fullName || viewingPublicProfile.username}
+            </h3>
+
+            {/* Student ID block */}
+            <div className="flex items-center gap-1.5 mt-2.5 bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl">
+              <span className="text-[10px] text-gray-500 font-bold">رقم الطالب / Student ID:</span>
+              <span className="font-mono text-xs font-black text-brand-blue select-all">{viewingPublicProfile.binId}</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(viewingPublicProfile.binId);
+                  setModalCopied(true);
+                  setTimeout(() => setModalCopied(false), 2000);
+                }}
+                type="button"
+                className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-brand-gold transition-colors shrink-0 cursor-pointer"
+                title="نسخ المعرف"
+              >
+                {modalCopied ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
+              </button>
+            </div>
+
+            {/* Academic Information tag details */}
+            <div className="w-full mt-4 bg-slate-50/50 rounded-2xl p-3.5 border border-slate-100 grid grid-cols-2 gap-2 text-xs text-right">
+              <div>
+                <p className="text-[10px] text-gray-400 font-bold">المستوى الدراسي</p>
+                <p className="font-black text-slate-700 mt-0.5">{viewingPublicProfile.academicStage || 'بكالوريوس'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-400 font-bold">السنة الدراسية</p>
+                <p className="font-extrabold text-slate-700 mt-0.5">{viewingPublicProfile.academicYear || 'سنة أولى'}</p>
+              </div>
+              {viewingPublicProfile.department && (
+                <div className="col-span-2 border-t border-slate-100 pt-2 mt-1">
+                  <p className="text-[10px] text-gray-400 font-bold">القسم / التخصص الإكلينيكي</p>
+                  <p className="font-black text-brand-blue mt-0.5">{viewingPublicProfile.department}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Bio / Personal Description */}
+            <div className="w-full mt-4 bg-slate-50/50 rounded-2xl p-4 border border-slate-100 text-right">
+              <p className="text-[10px] text-gray-400 font-black mb-1.5 flex items-center gap-1">
+                <span>📝 الوصف الشخصي</span>
+              </p>
+              <p className="text-xs text-slate-600 leading-relaxed font-semibold whitespace-pre-wrap">
+                {viewingPublicProfile.bio && viewingPublicProfile.bio.trim() !== '' 
+                  ? viewingPublicProfile.bio 
+                  : 'لم يضف وصفاً بعد'
+                }
+              </p>
+            </div>
+
+            {/* Action buttons (Chat & Call) */}
+            <div className="grid grid-cols-2 gap-3 w-full mt-5">
+              <button
+                onClick={() => {
+                  setGlobalChatUser(viewingPublicProfile);
+                  setViewingPublicProfile(null);
+                }}
+                className="flex items-center justify-center gap-2 py-3 bg-brand-dark hover:bg-brand-blue text-white rounded-2xl text-xs font-extrabold transition-all cursor-pointer shadow-md"
+              >
+                <MessageSquare size={14} className="stroke-[2.5]" />
+                <span>مراسلة خاصة</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  handleStartCall(viewingPublicProfile);
+                  setViewingPublicProfile(null);
+                }}
+                className="flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-xs font-extrabold transition-all cursor-pointer shadow-md shadow-emerald-500/10"
+              >
+                <Phone size={14} className="stroke-[2.5]" />
+                <span>اتصال صوتي</span>
+              </button>
+            </div>
 
           </div>
         </div>
