@@ -285,7 +285,11 @@ export default function App() {
 
     if (savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+        if (parsed?.email !== 'abdulmlikoog@gmail.com') {
+          setActiveTab('home');
+        }
       } catch (e) {
         localStorage.removeItem('school_user');
       }
@@ -411,6 +415,9 @@ export default function App() {
               };
               setUser(mergedUser);
               localStorage.setItem('school_user', JSON.stringify(mergedUser));
+              if (mergedUser.email !== 'abdulmlikoog@gmail.com') {
+                setActiveTab(prev => prev === 'admin' ? 'home' : prev);
+              }
             }
           }, (error) => {
             console.error("Error listening to user snapshot:", error);
@@ -828,6 +835,9 @@ export default function App() {
         setUser(loggedUser);
         localStorage.setItem('school_user', JSON.stringify(loggedUser));
         setAuthScreen('welcome');
+        if (loggedUser.email !== 'abdulmlikoog@gmail.com') {
+          setActiveTab('home');
+        }
       }
     } catch (error: any) {
       console.error('Firebase Auth Error:', error);
@@ -901,12 +911,16 @@ export default function App() {
     setUser(loggedUser);
     localStorage.setItem('school_user', JSON.stringify(loggedUser));
     setAuthScreen('welcome');
+    if (loggedUser.email !== 'abdulmlikoog@gmail.com') {
+      setActiveTab('home');
+    }
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('school_user');
     setAuthScreen('welcome');
+    setActiveTab('home');
     // Clear all "Remember Me" stored credentials on logout
     localStorage.removeItem('school_remember_me');
     localStorage.removeItem('school_remembered_user');

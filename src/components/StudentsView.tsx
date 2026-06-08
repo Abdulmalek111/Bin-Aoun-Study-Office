@@ -193,8 +193,8 @@ export default function StudentsView({
             binId
           });
 
-          // Check if this student in Firestore doesn't have studentId saved yet, and write it
-          if (!dat.studentId && uid !== 'anonymous') {
+          // Check if this student in Firestore doesn't have studentId saved yet, and write it (only for the current logged-in user)
+          if (!dat.studentId && uid !== 'anonymous' && uid === currentUid) {
             const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
             const computedBinId = `bin_${randomDigits}`;
             updateDoc(doc(db, 'users', uid), {
