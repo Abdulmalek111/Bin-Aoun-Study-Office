@@ -4,9 +4,7 @@ import {
   Menu, 
   Calendar, 
   ChevronLeft, 
-  Award, 
   Clock, 
-  Check, 
   Trash2, 
   X, 
   MessageSquare, 
@@ -15,9 +13,7 @@ import {
   Play, 
   BookOpen, 
   ClipboardList, 
-  Users, 
-  Sparkles, 
-  MapPin, 
+  Sparkles,
   ChevronRight,
   BookMarked
 } from 'lucide-react';
@@ -37,35 +33,21 @@ interface DashboardViewProps {
   onUpdateNotifications: (updated: Notification[]) => void;
 }
 
-// Custom photo mapping for subjects to render a gorgeous luxury educational visual
+// Interactive metadata to match premium design styles
 const subjectImages: Record<string, string> = {
-  math: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&q=80&w=400",
-  physics: "https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&q=80&w=400",
   chemistry: "https://images.unsplash.com/photo-1532187643603-ba119ca4109e?auto=format&fit=crop&q=80&w=400",
+  physics: "https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&q=80&w=400",
+  math: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&q=80&w=400",
   english: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=400",
-  safety: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&q=80&w=400",
-  programming: "https://images.unsplash.com/photo-1605379399642-870262d3d051?auto=format&fit=crop&q=80&w=400",
-  algorithms: "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&q=80&w=400",
-  history: "https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=400",
-  russian: "https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&q=80&w=400",
-  sports: "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=400",
-  nanocad: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=400",
 };
 
 const defaultSubjectImage = "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&q=80&w=400";
 
 const subjectInstructors: Record<string, string> = {
-  math: "م/ بن عون",
-  physics: "أ/ عبدالملك",
-  chemistry: "د/ خالد منصور",
-  english: "أ/ عاصم الشريف",
-  safety: "م/ ناصر الجهني",
-  programming: "م/ بن عون",
-  algorithms: "أ/ عمار العطاس",
-  history: "د/ إيغور الكسندر",
-  russian: "أ/ يوليا سيرجيفنا",
-  sports: "الكابتن/ علي هادي",
-  nanocad: "م/ أحمد السالم",
+  math: "أ. محمد خالد",
+  physics: "أ. سارة علي",
+  chemistry: "د. أحمد محمد",
+  english: "أ. عاصم الشريف",
 };
 
 export default function DashboardView({
@@ -201,7 +183,7 @@ export default function DashboardView({
   const bannerSlides = [
     {
       title: "طريقك نحو التفوق",
-      subtitle: "ابدأ رحلتك التعليمية معنا وحقق أهدافك بأسرع وقت وأقل جهد.",
+      subtitle: "ابدأ رحلتك التعليمية معنا وحقق أهدافك",
       badge: "دبلوم وبكالوريوس 2026",
       actionText: "ابدأ الآن",
       bgImage: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200",
@@ -222,37 +204,120 @@ export default function DashboardView({
     }
   ];
 
+  // Map subjects for high fidelity matching with reference image
+  // 1. الرياضيات المتقدمة / 2. الفيزياء العامة / 3. الكيمياء العضوية
+  const visualSubjects = [
+    {
+      id: "math_advanced",
+      nameAr: "الرياضيات المتقدمة",
+      nameEn: "Advanced Math",
+      instructor: "أ. محمد خالد",
+      lecturesCount: 10,
+      badge: "جديد",
+      badgeColor: "bg-[#0077FF]", // beautiful high contrast blue
+      img: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&q=80&w=400"
+    },
+    {
+      id: "physics_general",
+      nameAr: "الفيزياء العامة",
+      nameEn: "General Physics",
+      instructor: "أ. سارة علي",
+      lecturesCount: 8,
+      badge: "مميز",
+      badgeColor: "bg-[#D4A63A]", // Gold Theme
+      img: "https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&q=80&w=400"
+    },
+    {
+      id: "chemistry_organic",
+      nameAr: "الكيمياء العضوية",
+      nameEn: "Organic Chemistry",
+      instructor: "د. أحمد محمد",
+      lecturesCount: 12,
+      badge: "جديد",
+      badgeColor: "bg-[#10B981]", // Modern green
+      img: "https://images.unsplash.com/photo-1532187643603-ba119ca4109e?auto=format&fit=crop&q=80&w=400"
+    }
+  ];
+
   return (
-    <div className="space-y-6 w-full max-w-md mx-auto" dir="rtl">
+    <div className="w-full max-w-md mx-auto bg-[#F8FAFC] min-h-screen pb-20" dir="rtl">
       
-      {/* 2026 Premium Header */}
-      <div className="flex items-center justify-between py-2 border-b border-gray-100/80">
-        <button 
-          onClick={() => onNavigateToTab('profile')}
-          className="p-2 hover:bg-gray-100 rounded-full text-[#071B3B] transition-colors"
-          id="menu-sidebar-btn"
-        >
-          <Menu size={24} className="stroke-[2]" />
-        </button>
+      {/* Dynamic Header Block with Deep Navy Curved Background */}
+      <div className="bg-[#031737] px-4 pt-6 pb-9 rounded-b-[42px] transition-all relative overflow-hidden shadow-xl shadow-[#031737]/15">
         
-        <div className="flex items-center justify-center">
-          <Logo variant="logo-only" className="h-9 w-auto" />
+        {/* Subtle decorative vector mesh style */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4A63A]/5 rounded-full blur-2xl"></div>
+        <div className="absolute -bottom-8 left-16 w-24 h-24 bg-[#0D2A57] rounded-full blur-xl"></div>
+
+        {/* Header Navigation Actions row */}
+        <div className="flex items-center justify-between gap-4 relative z-10 mb-6">
+          
+          {/* Side menu trigger ☰ with gorgeous bordered transparent card */}
+          <button 
+            onClick={() => onNavigateToTab('profile')}
+            className="w-11 h-11 bg-white/10 hover:bg-white/15 border border-white/10 rounded-2xl flex items-center justify-center text-white transition-all active:scale-95"
+            id="sidebar-trigger-btn"
+          >
+            <Menu size={22} className="stroke-[2.5]" />
+          </button>
+          
+          {/* Centered Logo block */}
+          <div className="flex-1 flex justify-center">
+            <Logo variant="logo-only" className="h-10 w-auto transform hover:scale-102 transition-transform duration-300" />
+          </div>
+          
+          {/* Notifications bell icon with absolute badge from mock */}
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="w-11 h-11 bg-white/10 hover:bg-white/15 border border-white/10 rounded-2xl flex items-center justify-center text-white relative transition-all active:scale-95"
+            id="bell-trigger-btn"
+          >
+            <Bell size={21} className="stroke-[2]" />
+            {unreadCount > 0 ? (
+              <span className="absolute -top-1 -right-1 w-5 h-5 text-[9px] font-black text-white bg-[#D4A63A] rounded-full flex items-center justify-center shadow-lg border border-white animate-bounce">
+                {unreadCount}
+              </span>
+            ) : (
+              <span className="absolute -top-1 -right-1.5 w-4.5 h-4.5 bg-[#D4A63A] text-white text-[9px] font-black rounded-full flex items-center justify-center border border-[#031737] shadow-sm">
+                3
+              </span>
+            )}
+          </button>
+
         </div>
-        
-        <button 
-          onClick={() => setShowNotifications(!showNotifications)}
-          className="relative p-2 hover:bg-gray-100 rounded-full text-[#071B3B] transition-colors"
-          id="notifications-bell-btn"
-        >
-          <Bell size={24} className="stroke-[2]" />
-          {unreadCount > 0 ? (
-            <span className="absolute top-1.5 right-1.5 w-5 h-5 text-[10px] font-black text-white bg-[#D4A63A] rounded-full flex items-center justify-center shadow border-2 border-white animate-pulse">
-              {unreadCount}
-            </span>
-          ) : (
-            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#D4A63A] rounded-full ring-2 ring-white"></span>
+
+        {/* Greeting message - aligned to the right screen edge */}
+        <div className="text-right text-white space-y-1 relative z-10 mb-6 px-1">
+          <div className="flex items-center justify-start gap-1">
+            <h2 className="text-2xl font-black tracking-tight leading-tight">مرحباً بك 👋</h2>
+          </div>
+          <p className="text-xs font-semibold text-gray-300/90 font-sans">
+            ماذا تريد أن تتعلم اليوم؟
+          </p>
+        </div>
+
+        {/* Premium White Search Bar with Search Icon on the right side */}
+        <div className="relative z-10 px-0.5">
+          <input 
+            type="text" 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ابحث عن مواد، محاضرات، أو مواضيع..." 
+            className="w-full text-[11px] font-extrabold text-[#12233D] placeholder-gray-400 pr-11 pl-11 py-3.5 bg-white border border-transparent rounded-[20px] focus:outline-none focus:ring-2 focus:ring-[#D4A63A] shadow-lg hover:shadow-xl transition-all text-right"
+          />
+          <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400">
+            <Search size={17} className="stroke-[2.7]" />
+          </div>
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 left-4 flex items-center text-gray-400 hover:text-[#031737]"
+            >
+              <X size={16} />
+            </button>
           )}
-        </button>
+        </div>
+
       </div>
 
       {/* Notifications Drawer (Glass UI Overlay) */}
@@ -262,10 +327,10 @@ export default function DashboardView({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="fixed inset-x-4 top-16 bg-white/95 backdrop-blur-md border border-gray-200 p-4 rounded-2xl shadow-2xl z-50 max-w-md mx-auto space-y-3"
+            className="fixed inset-x-4 top-24 bg-white/95 backdrop-blur-md border border-gray-200 p-4 rounded-2xl shadow-2xl z-50 max-w-sm mx-auto space-y-3 font-sans"
           >
             <div className="flex items-center justify-between border-b pb-2 border-gray-100">
-              <h3 className="text-xs font-black text-[#071B3B] flex items-center gap-1.5">
+              <h3 className="text-xs font-black text-[#031737] flex items-center gap-1.5">
                 <Bell size={14} className="text-[#D4A63A]" />
                 <span>إشعارات المنصة ({userNotifications.length})</span>
               </h3>
@@ -277,7 +342,7 @@ export default function DashboardView({
               </button>
             </div>
 
-            <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
+            <div className="space-y-2 max-h-[250px] overflow-y-auto no-scrollbar">
               {userNotifications.length === 0 ? (
                 <div className="text-center py-6 text-gray-400 text-[10px] space-y-1">
                   <AlertCircle size={20} className="mx-auto text-gray-300" />
@@ -301,13 +366,13 @@ export default function DashboardView({
                       )}
                       
                       <div className="flex justify-between items-start gap-2">
-                        <span className="text-[9px] font-black text-white bg-[#071B3B] px-1.5 py-0.5 rounded leading-none shrink-0">
+                        <span className="text-[9px] font-black text-white bg-[#031737] px-1.5 py-0.5 rounded leading-none shrink-0 border border-white/5">
                           {noti.senderName}
                         </span>
                         <span className="text-[8px] font-mono text-gray-400 leading-none shrink-0">{noti.createdAt}</span>
                       </div>
 
-                      <p className="text-[11px] font-semibold text-[#12233D] leading-normal mt-1">
+                      <p className="text-[11px] font-semibold text-[#12233D] leading-normal mt-1 text-right">
                         {noti.message}
                       </p>
 
@@ -348,36 +413,6 @@ export default function DashboardView({
         )}
       </AnimatePresence>
 
-      {/* Styled Welcome Banner Block */}
-      <div className="text-right space-y-1">
-        <p className="text-sm font-bold text-[#D4A63A]">مرحباً بك 👋</p>
-        <h1 className="text-2xl font-black text-[#071B3B] leading-tight">
-          ماذا تريد أن تتعلم اليوم؟
-        </h1>
-      </div>
-
-      {/* Large Creative Search Bar */}
-      <div className="relative">
-        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400">
-          <Search size={20} className="stroke-[2.5] text-[#D4A63A]" />
-        </div>
-        <input 
-          type="text" 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="ابحث عن مواد، محاضرات، اختبارات، ملفات..." 
-          className="w-full pl-4 pr-11 py-3.5 bg-white border border-gray-150 rounded-2xl text-xs font-semibold text-[#12233D] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#D4A63A]/50 focus:border-[#D4A63A] shadow-sm transition-all"
-        />
-        {searchQuery && (
-          <button 
-            onClick={() => setSearchQuery('')}
-            className="absolute inset-y-0 left-3 flex items-center text-gray-400 hover:text-[#071B3B]"
-          >
-            <X size={16} />
-          </button>
-        )}
-      </div>
-
       {/* Dynamic Search Results Screen overlay */}
       <AnimatePresence>
         {searchQuery.trim() !== '' && (
@@ -385,9 +420,9 @@ export default function DashboardView({
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
-            className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xl space-y-4 text-right"
+            className="mx-4 mt-2 bg-white border border-gray-200 rounded-2xl p-4 shadow-xl space-y-4 text-right relative z-20"
           >
-            <h3 className="text-xs font-black text-[#071B3B] border-b pb-2 border-gray-100 flex items-center gap-1.5">
+            <h3 className="text-xs font-black text-[#031737] border-b pb-2 border-gray-100 flex items-center gap-1.5">
               <Sparkles size={13} className="text-[#D4A63A]" />
               <span>نتائج البحث عن ({searchQuery})</span>
             </h3>
@@ -404,10 +439,10 @@ export default function DashboardView({
                         setSearchQuery('');
                         onNavigateToTab('subjects');
                       }}
-                      className="flex items-center justify-between p-2.5 rounded-xl border border-gray-100 hover:bg-[#F8FAFC] text-right"
+                      className="flex items-center justify-between p-2.5 rounded-xl border border-gray-100 hover:bg-[#F8FAFC] text-right w-full"
                     >
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-[#071B3B]/10 flex items-center justify-center text-[#071B3B]">
+                        <div className="w-8 h-8 rounded-lg bg-[#031737]/5 flex items-center justify-center text-[#031737]">
                           <BookOpen size={16} />
                         </div>
                         <div>
@@ -434,7 +469,7 @@ export default function DashboardView({
                         setSearchQuery('');
                         onSelectExam(ex.id);
                       }}
-                      className="flex items-center justify-between p-2.5 rounded-xl border border-gray-100 hover:bg-[#F8FAFC] text-right"
+                      className="flex items-center justify-between p-2.5 rounded-xl border border-gray-100 hover:bg-[#F8FAFC] text-right w-full"
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-[#D4A63A]/10 flex items-center justify-center text-[#D4A63A]">
@@ -461,290 +496,278 @@ export default function DashboardView({
         )}
       </AnimatePresence>
 
-      {/* Deluxe Sliding Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden shadow-lg aspect-[16/10] bg-[#071B3B] group">
-        
-        {/* Carousel Background Image with custom CSS academic overlays */}
-        <div className="absolute inset-0 z-0">
-          <img 
-            src={bannerSlides[activeSlide].bgImage} 
-            alt="Educational Study Banner backdrop" 
-            className="w-full h-full object-cover opacity-35 brightness-75 scale-105 group-hover:scale-100 transition-transform duration-700 pointer-events-none"
-            referrerPolicy="no-referrer"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#071B3B] via-[#071B3B]/60 to-transparent"></div>
+      <div className="px-4 mt-6 space-y-6">
+
+        {/* Deluxe Sliding Hero Banner matches 100% layout in mockup */}
+        <div className="relative rounded-[2.2rem] overflow-hidden shadow-lg aspect-[16/9.2] bg-[#031737] group border border-white/5">
           
-          {/* Subtle Warm Amber Spotlight Academic Effect */}
-          <div className="absolute top-0 right-1/4 w-40 h-40 bg-[#D4A63A] rounded-full blur-[80px] opacity-25"></div>
-        </div>
-
-        {/* Banner Content Container */}
-        <div className="absolute inset-0 z-10 p-5 flex flex-col justify-end text-right text-white space-y-2">
-          <div>
-            <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#D4A63A] bg-[#D4A63A]/10 border border-[#D4A63A]/30 px-2 py-0.5 rounded-full inline-block mb-1.5 backdrop-blur-sm">
-              {bannerSlides[activeSlide].badge}
-            </span>
-            <h2 className="text-xl font-black tracking-tight leading-tight md:text-2xl">
-              {bannerSlides[activeSlide].title}
-            </h2>
-            <p className="text-[10px] text-gray-200 mt-1 max-w-[85%] leading-relaxed font-sans font-medium">
-              {bannerSlides[activeSlide].subtitle}
-            </p>
-          </div>
-
-          <div className="pt-2 flex items-center justify-between">
-            <motion.button 
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                if (activeSlide === 0) onNavigateToTab('subjects');
-                else if (activeSlide === 1) onNavigateToTab('subjects');
-                else onNavigateToTab('exams');
-              }}
-              className="py-2.5 px-5 bg-[#D4A63A] hover:bg-[#D4A63A]/90 text-white font-extrabold rounded-xl text-xs transition-colors shadow-lg shadow-[#D4A63A]/20 cursor-pointer"
-            >
-              {bannerSlides[activeSlide].actionText}
-            </motion.button>
-
-            {/* Slider Indicators dots directly into the slide corner */}
-            <div className="flex gap-1.5">
-              {bannerSlides.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveSlide(idx)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    activeSlide === idx ? 'w-5 bg-[#D4A63A]' : 'w-1.5 bg-white/40'
-                  }`}
-                  aria-label={`Slide ${idx + 1}`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4 Quick Services Cards - (الخدمات السريعة) */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-black text-[#6B7280] uppercase tracking-wider text-right">الوصول السريع للأدوات</h3>
-        <div className="grid grid-cols-2 gap-3" id="quick-services-section">
-          
-          {/* Card 1: lectures */}
-          <motion.div 
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => onNavigateToTab('subjects')}
-            className="p-3.5 bg-white border border-gray-100 rounded-2xl text-right flex flex-col justify-between shadow-sm hover:shadow-md cursor-pointer transition-all h-[100px] relative overflow-hidden group"
-          >
-            <div className="absolute top-0 left-0 w-12 h-12 bg-[#071B3B]/5 rounded-br-3xl transition-transform group-hover:scale-110"></div>
-            <div className="p-2 bg-[#071B3B]/5 rounded-xl w-fit text-[#071B3B]">
-              <Play size={18} className="fill-current" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-xs text-[#071B3B]">المحاضرات</h4>
-              <p className="text-[9px] font-bold text-[#D4A63A] mt-0.5">شاهد الآن</p>
-            </div>
-          </motion.div>
-
-          {/* Card 2: subjects */}
-          <motion.div 
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => onNavigateToTab('subjects')}
-            className="p-3.5 bg-white border border-gray-100 rounded-2xl text-right flex flex-col justify-between shadow-sm hover:shadow-md cursor-pointer transition-all h-[100px] relative overflow-hidden group"
-          >
-            <div className="absolute top-0 left-0 w-12 h-12 bg-[#D4A63A]/5 rounded-br-3xl transition-transform group-hover:scale-110"></div>
-            <div className="p-2 bg-[#D4A63A]/10 rounded-xl w-fit text-[#D4A63A]">
-              <BookOpen size={18} className="stroke-[2.5]" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-xs text-[#071B3B]">المواد الدراسية</h4>
-              <p className="text-[9px] font-bold text-[#D4A63A] mt-0.5">تصفح المواد</p>
-            </div>
-          </motion.div>
-
-          {/* Card 3: exams */}
-          <motion.div 
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => onNavigateToTab('exams')}
-            className="p-3.5 bg-white border border-gray-100 rounded-2xl text-right flex flex-col justify-between shadow-sm hover:shadow-md cursor-pointer transition-all h-[100px] relative overflow-hidden group"
-          >
-            <div className="absolute top-0 left-0 w-12 h-12 bg-[#071B3B]/5 rounded-br-3xl transition-transform group-hover:scale-110"></div>
-            <div className="p-2 bg-[#071B3B]/5 rounded-xl w-fit text-[#071B3B]">
-              <ClipboardList size={18} className="stroke-[2.5]" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-xs text-[#071B3B]">الاختبارات</h4>
-              <p className="text-[9px] font-bold text-[#D4A63A] mt-0.5">اختبر نفسك</p>
-            </div>
-          </motion.div>
-
-          {/* Card 4: discussions */}
-          <motion.div 
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => onNavigateToTab('discussions')}
-            className="p-3.5 bg-white border border-gray-100 rounded-2xl text-right flex flex-col justify-between shadow-sm hover:shadow-md cursor-pointer transition-all h-[100px] relative overflow-hidden group"
-          >
-            <div className="absolute top-0 left-0 w-12 h-12 bg-[#D4A63A]/5 rounded-br-3xl transition-transform group-hover:scale-110"></div>
-            <div className="p-2 bg-[#D4A63A]/10 rounded-xl w-fit text-[#D4A63A]">
-              <MessageSquare size={18} className="stroke-[2.5]" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-xs text-[#071B3B]">المناقشات</h4>
-              <p className="text-[9px] font-bold text-[#D4A63A] mt-0.5">شارك وتعلم</p>
-            </div>
-          </motion.div>
-
-        </div>
-      </div>
-
-      {/* Modern Subjects Section: (المواد الحديثة) with horizontal scroll */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-[#071B3B]">المواد الحديثة</h3>
-          <button 
-            onClick={() => onNavigateToTab('subjects')}
-            className="text-xs font-black text-[#D4A63A] hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            <span>عرض الكل</span>
-            <ChevronLeft size={16} />
-          </button>
-        </div>
-
-        {/* Horizontal scroll subjects layout */}
-        <div className="flex gap-4 overflow-x-auto pb-4 pt-1 no-scrollbar scroll-smooth snap-x">
-          {subjects.map((sub, index) => {
-            // Pick static or mapped subject metadata
-            const subImage = subjectImages[sub.id] || defaultSubjectImage;
-            const subTeacher = subjectInstructors[sub.id] || "م/ بن عون المتميز";
-            const badgeType = index % 3 === 0 ? "جديد" : "مميز";
-
-            return (
-              <motion.div
-                key={sub.id}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onNavigateToTab('subjects')}
-                className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-gray-250 shadow-sm shrink-0 w-[185px] snap-right cursor-pointer flex flex-col group transition-all duration-300"
-              >
-                {/* Subject Image Wrapper with badges */}
-                <div className="relative aspect-[16/10] overflow-hidden bg-gray-100 shrink-0">
-                  <img 
-                    src={subImage} 
-                    alt={sub.nameAr} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 pointer-events-none"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                  
-                  {/* Badge */}
-                  <span className={`absolute top-2.5 right-2.5 text-[8px] font-extrabold px-2 py-0.5 rounded-full text-white ${
-                    badgeType === "جديد" ? 'bg-[#D4A63A]' : 'bg-[#071B3B]'
-                  }`}>
-                    {badgeType}
-                  </span>
-                </div>
-
-                {/* Subject Info Body */}
-                <div className="p-3 text-right flex-1 flex flex-col justify-between space-y-1">
-                  <div>
-                    <h4 className="font-bold text-[11px] text-[#071B3B] line-clamp-1 group-hover:text-[#D4A63A] transition-colors">
-                      {sub.nameAr}
-                    </h4>
-                    <p className="text-[10px] text-[#6B7280] line-clamp-1 font-medium mt-0.5">
-                      {subTeacher}
-                    </p>
-                  </div>
-
-                  <div className="pt-1.5 border-t border-gray-50 flex items-center justify-between text-[9px] text-gray-400">
-                    <span className="font-bold text-[#071B3B] bg-gray-50 px-1.5 py-0.5 rounded">
-                      {sub.lecturesCount} محاضرات
-                    </span>
-                    <span className="font-mono text-[9px]">EN: {sub.nameEn}</span>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Upcoming Schedule: (جدولك القادم) Card */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-black text-[#071B3B] text-right">جدولك القادم</h3>
-
-        <div className="bg-[#071B3B] rounded-3xl p-4 text-white shadow-lg space-y-3 relative overflow-hidden">
-          
-          {/* Light glowing patterns to represent 2026 aesthetics */}
-          <div className="absolute top-0 left-0 w-32 h-full bg-[#D4A63A] opacity-5 rounded-r-3xl transformation scale-110 skew-x-12"></div>
-          <div className="absolute -bottom-1/2 -right-1/4 w-32 h-32 bg-[#D4A63A] rounded-full blur-[50px] opacity-15"></div>
-
-          <div className="flex items-center justify-between border-b pb-2.5 border-white/10">
-            <div className="flex items-center gap-1.5 text-[#D4A63A] font-bold">
-              <Calendar size={14} />
-              <span className="text-[10px] tracking-wide font-medium">الأسبوع الحالي</span>
-            </div>
+          {/* Carousel Background with academic study backdrop */}
+          <div className="absolute inset-0 z-0">
+            <img 
+              src="https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=800" 
+              alt="Deep warm education lighting book scene" 
+              className="w-full h-full object-cover opacity-65 brightness-[0.7] transform group-hover:scale-102 transition-transform duration-[6s] pointer-events-none"
+              referrerPolicy="no-referrer"
+            />
+            {/* Ambient vignette */}
+            <div className="absolute inset-0 bg-gradient-to-l from-transparent via-[#031737]/40 to-[#031737]/95"></div>
             
-            <span className="text-[9px] bg-[#D4A63A]/10 border border-[#D4A63A]/30 text-[#D4A63A] px-2 py-0.5 rounded-full font-black">
-              أونلاين
+            {/* The beautiful academic amber study glow matching mock image exactly */}
+            <div className="absolute top-1/2 -translate-y-1/2 left-2 w-32 h-32 rounded-full bg-[#D4A63A] opacity-25 blur-2xl"></div>
+          </div>
+
+          {/* Banner Content (Text left, aligned nicely in RTL) */}
+          <div className="absolute inset-0 z-10 p-5 flex flex-col justify-center items-start text-right text-white space-y-2">
+            
+            <span className="text-[9px] font-black uppercase text-[#D4A63A] tracking-wider bg-[#D4A63A]/10 border border-[#D4A63A]/20 px-2.5 py-0.5 rounded-full inline-block">
+              طريقك نحو التفوق
             </span>
-          </div>
+            
+            <h2 className="text-sm sm:text-base font-extrabold tracking-tight leading-snug w-full text-white text-right">
+              ابدأ رحلتك التعليمية معنا <br /> وتحقق أهدافك
+            </h2>
 
-          <div className="flex justify-between items-center gap-2">
-            <div>
-              <p className="text-[10px] text-gray-300">ماتم جدولته للطلاب:</p>
-              <h4 className="font-extrabold text-xs text-white mt-1">الرياضيات المتقدمة والتحليل</h4>
-              <p className="text-[9px] text-[#D4A63A] mt-0.5 font-sans">بإشراف: م/ بن عون</p>
-            </div>
-
-            <div className="text-left shrink-0 bg-white/5 rounded-2xl p-2.5 border border-white/10 text-center min-w-[70px]">
-              <Clock size={14} className="mx-auto text-[#D4A63A] mb-1" />
-              <p className="text-[9px] font-black leading-none">04:00 مساءً</p>
-              <p className="text-[7px] text-gray-300 font-bold mt-1">اليوم، 9 يونيو</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Latest 3 Notifications: (الإشعارات) */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-black text-[#071B3B] text-right">آخر التنبيهات والأخبار</h3>
-        
-        <div className="space-y-2.5">
-          {userNotifications.slice(0, 3).map((noti) => {
-            const readStatus = isRead(noti);
-            return (
-              <div 
-                key={noti.id}
-                onClick={() => !readStatus && handleMarkAsRead(noti.id)}
-                className="p-3 bg-white border border-gray-100 rounded-2xl shadow-sm text-right flex gap-3 items-start hover:shadow transition-all relative overflow-hidden"
+            <div className="pt-1.5">
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
+                onClick={() => onNavigateToTab('subjects')}
+                className="py-1.5 px-5 bg-[#D4A63A] hover:bg-[#D4A63A]/90 text-[#031737] font-black rounded-full text-[10px] transition-all hover:shadow-lg shadow-[#D4A63A]/20 cursor-pointer"
               >
-                {!readStatus && (
-                  <div className="absolute top-0 right-0 w-1.5 h-full bg-[#D4A63A]"></div>
-                )}
-                
-                <div className="p-2 bg-[#D4A63A]/10 text-[#D4A63A] rounded-xl shrink-0 mt-0.5">
-                  <Bell size={14} className="stroke-[2.5]" />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center text-[9px] text-gray-400">
-                    <span className="font-extrabold text-[#071B3B]">{noti.senderName}</span>
-                    <span>{noti.createdAt}</span>
-                  </div>
-                  <p className="text-[10px] font-semibold text-[#12233D] leading-relaxed mt-1 truncate">
-                    {noti.message}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-
-          {userNotifications.length === 0 && (
-            <div className="text-center py-6 bg-white/50 border border-gray-100 border-dashed rounded-2xl text-[10px] text-gray-400">
-              لا توجد تنبيهات عاجلة في صندوقك.
+                ابدأ الآن
+              </motion.button>
             </div>
-          )}
+          </div>
+
+          {/* Slider Indicators centered matching mockup */}
+          <div className="absolute bottom-3 right-1/2 translate-x-1/2 z-10 flex gap-1.5 bg-black/10 px-2 py-1 rounded-full backdrop-blur-xs">
+            {[0, 1, 2].map((idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveSlide(idx)}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  activeSlide === idx ? 'w-5 bg-[#D4A63A]' : 'w-1.5 bg-white/40'
+                }`}
+                aria-label={`Slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+
         </div>
+
+        {/* 4 Quick Services Grid Cards (الخدمات السريعة - 4 Columns) matches reference picture */}
+        <div className="space-y-2.5 pt-0.5">
+          <div className="grid grid-cols-4 gap-2.5" id="quick-grid-dashboard">
+            
+            {/* 1. Discussions / المناقشات (RTL Far-Right) */}
+            <motion.div 
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onNavigateToTab('discussions')}
+              className="py-3 px-1 bg-white border border-gray-100 hover:border-gray-200 rounded-3xl text-center flex flex-col items-center justify-center shadow-xs hover:shadow-sm cursor-pointer transition-all aspect-[4/5] shrink-0 space-y-2"
+            >
+              <div className="w-10 h-10 bg-[#D4A63A]/10 rounded-full flex items-center justify-center text-[#D4A63A]">
+                <MessageSquare size={18} className="stroke-[2.2]" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="font-extrabold text-[10px] text-[#031737] leading-none">المناقشات</h4>
+                <p className="text-[7.5px] font-bold text-[#6B7280] leading-none mt-1">شارك وتعلم</p>
+              </div>
+            </motion.div>
+
+            {/* 2. Exams / الاختبارات */}
+            <motion.div 
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onNavigateToTab('exams')}
+              className="py-3 px-1 bg-white border border-gray-100 hover:border-gray-200 rounded-3xl text-center flex flex-col items-center justify-center shadow-xs hover:shadow-sm cursor-pointer transition-all aspect-[4/5] shrink-0 space-y-2"
+            >
+              <div className="w-10 h-10 bg-[#D4A63A]/10 rounded-full flex items-center justify-center text-[#D4A63A]">
+                <ClipboardList size={18} className="stroke-[2.2]" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="font-extrabold text-[10px] text-[#031737] leading-none">الاختبارات</h4>
+                <p className="text-[7.5px] font-bold text-[#6B7280] leading-none mt-1">اختبر نفسك</p>
+              </div>
+            </motion.div>
+
+            {/* 3. Subjects / المواد الدراسية */}
+            <motion.div 
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onNavigateToTab('subjects')}
+              className="py-3 px-1 bg-white border border-gray-100 hover:border-gray-200 rounded-3xl text-center flex flex-col items-center justify-center shadow-xs hover:shadow-sm cursor-pointer transition-all aspect-[4/5] shrink-0 space-y-2"
+            >
+              <div className="w-10 h-10 bg-[#D4A63A]/10 rounded-full flex items-center justify-center text-[#D4A63A]">
+                <BookOpen size={18} className="stroke-[2.2]" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="font-extrabold text-[10px] text-[#031737] leading-none">المواد</h4>
+                <p className="text-[7.5px] font-bold text-[#6B7280] leading-none mt-1">تصفح المواد</p>
+              </div>
+            </motion.div>
+
+            {/* 4. Lectures / المحاضرات (RTL Far-Left) */}
+            <motion.div 
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onNavigateToTab('subjects')}
+              className="py-3 px-1 bg-white border border-gray-100 hover:border-gray-200 rounded-3xl text-center flex flex-col items-center justify-center shadow-xs hover:shadow-sm cursor-pointer transition-all aspect-[4/5] shrink-0 space-y-2"
+            >
+              <div className="w-10 h-10 bg-[#D4A63A]/10 rounded-full flex items-center justify-center text-[#D4A63A]">
+                <Play size={18} className="stroke-[2.2] fill-[#D4A63A]" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="font-extrabold text-[10px] text-[#031737] leading-none">المحاضرات</h4>
+                <p className="text-[7.5px] font-bold text-[#6B7280] leading-none mt-1">شاهد الآن</p>
+              </div>
+            </motion.div>
+
+          </div>
+        </div>
+
+        {/* Modern Subjects Section (المواد الحديثة) with horizontal scroll exactly like the reference */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center justify-between px-0.5">
+            <h3 className="text-xs sm:text-sm font-extrabold text-[#031737]">المواد الحديثة</h3>
+            <button 
+              onClick={() => onNavigateToTab('subjects')}
+              className="text-[10px] sm:text-xs font-black text-[#D4A63A] hover:underline flex items-center gap-0.5 cursor-pointer"
+            >
+              <span>عرض الكل</span>
+              <ChevronLeft size={14} className="stroke-[2.5]" />
+            </button>
+          </div>
+
+          {/* Horizontal scroll subjects layout matching style, card sizes, and colors of mockup */}
+          <div className="flex gap-3 overflow-x-auto pb-2 pt-0.5 no-scrollbar scroll-smooth snap-x">
+            {visualSubjects.map((vis) => {
+              // Ensure real subjects can be selected or routed flawlessly
+              const matchingSubject = subjects.find(s => s.nameAr.includes(vis.nameAr.slice(0, 5))) || subjects[0];
+              
+              return (
+                <motion.div
+                  key={vis.id}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    if (matchingSubject) {
+                      onNavigateToTab('subjects');
+                    }
+                  }}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-150 shadow-xs shrink-0 w-[145px] snap-right cursor-pointer flex flex-col group transition-all duration-300"
+                >
+                  {/* Image Wrapper with badge overlay */}
+                  <div className="relative aspect-[16/11] overflow-hidden bg-gray-50 shrink-0">
+                    <img 
+                      src={vis.img} 
+                      alt={vis.nameAr} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-104 pointer-events-none"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                    
+                    {/* Style-match badge ("جديد" or "مميز") */}
+                    <span className={`absolute top-2 right-2 text-[8px] font-black px-2 py-0.5 rounded-md text-white ${vis.badgeColor} shadow-md`}>
+                      {vis.badge}
+                    </span>
+                  </div>
+
+                  {/* Info Body */}
+                  <div className="p-2.5 text-right flex-1 flex flex-col justify-between space-y-1">
+                    <div>
+                      <h4 className="font-extrabold text-[10px] text-[#031737] line-clamp-1 group-hover:text-[#D4A63A] transition-colors leading-tight">
+                        {vis.nameAr}
+                      </h4>
+                      <p className="text-[8px] text-[#6B7280] font-sans font-bold leading-normal mt-0.5">
+                        {vis.instructor}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-100 flex items-center justify-start text-[8px] text-gray-500 gap-1.5 mt-1.5">
+                      <Calendar size={10} className="text-[#D4A63A]" />
+                      <span className="font-black text-[8px] text-[#031737]">
+                        {vis.lecturesCount} محاضرات
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Upcoming Schedule: (جدولك القادم) Card matching the reference exactly */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center justify-between px-0.5">
+            <h3 className="text-xs sm:text-sm font-extrabold text-[#031737]">جدولك القادم</h3>
+            <button 
+              onClick={() => onNavigateToTab('subjects')}
+              className="text-[10px] sm:text-xs font-black text-[#D4A63A] hover:underline flex items-center gap-0.5 cursor-pointer"
+            >
+              <span>عرض الكل</span>
+              <ChevronLeft size={14} className="stroke-[2.5]" />
+            </button>
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-[2.2rem] p-3.5 shadow-md flex justify-between items-center gap-3 relative overflow-hidden select-none hover:shadow-lg transition-all duration-300">
+            
+            {/* Rightmost: Beautiful deep blue container containing a gold/yellow calendar checkbox icon */}
+            <div className="w-11 h-11 bg-[#031737] rounded-2xl flex items-center justify-center text-white shrink-0 shadow-md">
+              <Calendar size={18} className="text-[#D4A63A] stroke-[2.3]" />
+            </div>
+
+            {/* Middle portion details: aligned to the right side next to the icon */}
+            <div className="flex-1 text-right space-y-0.5 min-w-0 pr-1">
+              <h4 className="font-extrabold text-xs text-[#031737] leading-snug truncate">محاضرة الرياضيات المتقدمة</h4>
+              <p className="text-[9px] text-[#6B7280] font-bold leading-none">أ. محمد خالد</p>
+              
+              <div className="flex items-center justify-start gap-1 text-[8.5px] text-gray-400 font-extrabold pt-1">
+                <Calendar size={10} className="text-[#D4A63A] shrink-0" />
+                <span className="truncate">الأحد 25 مايو 2024</span>
+              </div>
+            </div>
+
+            {/* Leftmost: Beautiful solid dark blue badge displaying 'Time Slot' exactly as the mockup */}
+            <div className="bg-[#031737] text-white py-2.5 px-3 rounded-2xl min-w-[70px] text-center shadow-md shrink-0 flex flex-col justify-center items-center">
+              <span className="text-[13px] font-black tracking-tight leading-none">10:00</span>
+              <span className="text-[8.5px] font-extrabold tracking-wider mt-1 text-[#D4A63A]">صباحاً</span>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Latest Announcements Header */}
+        {userNotifications.length > 0 && (
+          <div className="space-y-3 pt-1 pb-4">
+            <h3 className="text-xs sm:text-sm font-extrabold text-[#031737] text-right">صندوق التنبيهات</h3>
+            <div className="space-y-2.5">
+              {userNotifications.slice(0, 2).map((noti) => {
+                const readStatus = isRead(noti);
+                return (
+                  <div 
+                    key={noti.id}
+                    onClick={() => !readStatus && handleMarkAsRead(noti.id)}
+                    className="p-3 bg-white border border-gray-100 rounded-2xl shadow-xs text-right flex gap-3 items-start hover:shadow transition-all relative overflow-hidden"
+                  >
+                    {!readStatus && (
+                      <div className="absolute top-0 right-0 w-1.5 h-full bg-[#D4A63A]"></div>
+                    )}
+                    
+                    <div className="p-2 bg-[#D4A63A]/10 text-[#D4A63A] rounded-xl shrink-0 mt-0.5">
+                      <Bell size={13} className="stroke-[2.5]" />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center text-[8px] text-gray-400">
+                        <span className="font-extrabold text-[#031737]">{noti.senderName}</span>
+                        <span>{noti.createdAt}</span>
+                      </div>
+                      <p className="text-[9px] font-bold text-[#12233D] leading-relaxed mt-1 truncate">
+                        {noti.message}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
 
     </div>

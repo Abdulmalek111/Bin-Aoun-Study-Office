@@ -1336,73 +1336,79 @@ export default function App() {
         {/* BOTTOM NAVIGATION DOCK (Fully responsive: visible on mobiles, hidden on desktop/computers screens `lg:hidden`) */}
         {user && !activeExamId && (
           <>
-            <nav className="lg:hidden bg-white/95 backdrop-blur-md border-t border-gray-150 px-2 sm:px-3 py-2.5 sm:py-3 flex justify-around items-center text-gray-400 shadow-xl z-30 select-none rounded-t-2xl shrink-0">
+            <nav className="lg:hidden bg-white/95 backdrop-blur-md border-t border-gray-150 px-2 sm:px-3 py-1.5 flex justify-around items-end text-gray-400 shadow-xl z-30 select-none rounded-t-3xl shrink-0" dir="rtl">
               
-              {/* Home tab button - highlighted with brand-gold */}
-              <button
-                onClick={() => {
-                  setActiveTab('home');
-                  setShowMoreMenu(false);
-                }}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === 'home' ? 'text-[#D4A63A] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
-                }`}
-              >
-                <Home size={20} className="text-[#D4A63A] stroke-[2.3]" />
-                <span className="text-[10px]">الرئيسية</span>
-              </button>
-
-              {/* Subjects tab button */}
-              <button
-                onClick={() => {
-                  setActiveTab('subjects');
-                  setShowMoreMenu(false);
-                }}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === 'subjects' ? 'text-[#071B3B] scale-105 font-black font-sans' : 'text-[#6B7280] hover:text-[#071B3B]'
-                }`}
-              >
-                <LayoutGrid size={20} className={activeTab === 'subjects' ? 'text-[#071B3B] stroke-[2.2]' : 'stroke-[1.8]'} />
-                <span className="text-[10px]">المواد</span>
-              </button>
-
-              {/* Discussions tab button - labeled 'المحادثات' as requested */}
-              <button
-                onClick={() => {
-                  setActiveTab('discussions');
-                  setShowMoreMenu(false);
-                }}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === 'discussions' ? 'text-[#071B3B] scale-105 font-black font-sans' : 'text-[#6B7280] hover:text-[#071B3B]'
-                }`}
-              >
-                <MessageSquare size={20} className={activeTab === 'discussions' ? 'text-[#071B3B] stroke-[2.2]' : 'stroke-[1.8]'} />
-                <span className="text-[10px]">المحادثات</span>
-              </button>
-
-              {/* Profile tab button - labeled 'ملفي' as requested */}
+              {/* 5. الملف الشخصي (Leftmost in RTL) */}
               <button
                 onClick={() => {
                   setActiveTab('profile');
                   setShowMoreMenu(false);
                 }}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === 'profile' ? 'text-[#071B3B] scale-105 font-black font-sans' : 'text-[#6B7280] hover:text-[#071B3B]'
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
+                  activeTab === 'profile' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
                 }`}
               >
-                <UserIcon size={20} className={activeTab === 'profile' ? 'text-[#071B3B] stroke-[2.2]' : 'stroke-[1.8]'} />
-                <span className="text-[10px]">ملفي</span>
+                <UserIcon size={22} className={activeTab === 'profile' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <span className="text-[9px] font-bold">الملف الشخصي</span>
               </button>
 
-              {/* More tab button - trigger professional drawer overlay */}
+              {/* 4. المحادثات (Second from left, with gorgeous badge 2) */}
               <button
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  showMoreMenu ? 'text-[#D4A63A] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                onClick={() => {
+                  setActiveTab('discussions');
+                  setShowMoreMenu(false);
+                }}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 relative ${
+                  activeTab === 'discussions' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
                 }`}
               >
-                <MoreHorizontal size={20} className={showMoreMenu ? 'text-[#D4A63A] stroke-[2.3]' : 'stroke-[1.8]'} />
-                <span className="text-[10px]">المزيد</span>
+                <div className="relative">
+                  <MessageSquare size={22} className={activeTab === 'discussions' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                  {/* Matching gold badge with '2' from the mockup */}
+                  <span className="absolute -top-1 -right-2.5 w-4 h-4 bg-[#D4A63A] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white">
+                    2
+                  </span>
+                </div>
+                <span className="text-[9px] font-bold">المحادثات</span>
+              </button>
+
+              {/* 3. الرئيسية (Center highlighted) */}
+              <button
+                onClick={() => {
+                  setActiveTab('home');
+                  setShowMoreMenu(false);
+                }}
+                className="flex flex-col items-center gap-0.5 cursor-pointer transition-all -mt-3.5"
+              >
+                <div className="w-13 h-13 rounded-full bg-[#071B3B] border-4 border-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95">
+                  <Home size={22} className="text-[#D4A63A] stroke-[2.5]" />
+                </div>
+                <span className={`text-[10px] font-black ${activeTab === 'home' && !showMoreMenu ? 'text-[#071B3B]' : 'text-[#6B7280]'}`}>الرئيسية</span>
+              </button>
+
+              {/* 2. المواد */}
+              <button
+                onClick={() => {
+                  setActiveTab('subjects');
+                  setShowMoreMenu(false);
+                }}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
+                  activeTab === 'subjects' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                }`}
+              >
+                <BookOpen size={22} className={activeTab === 'subjects' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <span className="text-[9px] font-bold">المواد</span>
+              </button>
+
+              {/* 1. المزيد (Rightmost in RTL) */}
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
+                  showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                }`}
+              >
+                <LayoutGrid size={22} className={showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <span className="text-[9px] font-bold">المزيد</span>
               </button>
 
             </nav>
