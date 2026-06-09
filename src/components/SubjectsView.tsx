@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, ChevronLeft, ChevronDown, CheckCircle2, ChevronRight, BookOpen, Video, FileText, Sparkles, Send, GraduationCap, X, Copy, Check, Lock, Unlock, QrCode, AlertCircle, RefreshCw } from 'lucide-react';
 import { Subject, User } from '../types';
 import SubjectIcon from './SubjectIcon';
-import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { db, safeQuery, safeWhere, safeOnSnapshot } from '../lib/firebase';
+import { collection, doc, setDoc } from 'firebase/firestore';
 import { paidSubjectsConfig, PaidWorkItem } from '../data';
 import PurchaseModal from './PurchaseModal';
 
@@ -28,11 +28,15 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
   const [loadingFinancials, setLoadingFinancials] = useState(false);
 
   useEffect(() => {
-    if (!user || !user.email || !user.uid) return;
+    if (!user || !user.uid) {
+      setPayments([]);
+      setPurchases([]);
+      return;
+    }
 
     setLoadingFinancials(true);
-    const qPayments = query(collection(db, 'payments'), where('userId', '==', user.uid));
-    const unsubscribePayments = onSnapshot(qPayments, (snapshot) => {
+    const qPayments = safeQuery(collection(db, 'payments'), safeWhere('userId', '==', user.uid));
+    const unsubscribePayments = safeOnSnapshot(qPayments, (snapshot) => {
       const list: any[] = [];
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() });
@@ -42,8 +46,8 @@ export default function SubjectsView({ subjects, onToggleLecture, subjectLecture
       console.error("Error listening to student payments:", error);
     });
 
-    const qPurchases = query(collection(db, 'user_purchases'), where('userId', '==', user.uid));
-    const unsubscribePurchases = onSnapshot(qPurchases, (snapshot) => {
+    const qPurchases = safeQuery(collection(db, 'user_purchases'), safeWhere('userId', '==', user.uid));
+    const unsubscribePurchases = safeOnSnapshot(qPurchases, (snapshot) => {
       const list: any[] = [];
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() });

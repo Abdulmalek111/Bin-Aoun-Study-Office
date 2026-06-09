@@ -14,7 +14,7 @@ import {
   limit,
   collectionGroup
 } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { db, auth, safeQuery, safeWhere, safeOnSnapshot } from '../lib/firebase';
 import { User } from '../types';
 import { 
   MessageSquare, 
@@ -183,10 +183,10 @@ export default function StudentsView({
         const dat = docSnap.data() as User;
         const uid = docSnap.id;
         
-        // Exclude system admins, instructors, and owner accounts unless explicitly a student role
+        // Exclude system admins ONLY if role is explicitly admin
         const roleLower = (dat.role || 'student').toLowerCase();
-        const isAdminRole = ['admin', 'owner', 'مشرف المنصة', 'instructor'].includes(roleLower);
-        if (!isAdminRole || roleLower === 'student') {
+        const isAdmin = roleLower === 'admin';
+        if (!isAdmin) {
           const binId = dat.studentId || getBinStudentId(uid);
           list.push({
             ...dat,
@@ -216,14 +216,17 @@ export default function StudentsView({
 
   // Real-time listener for direct chats to get unread counts & last messages
   useEffect(() => {
-    if (currentUid === 'anonymous') return;
+    if (!currentUid || currentUid === 'anonymous') {
+      setChatsMap({});
+      return;
+    }
 
-    const q = query(
+    const q = safeQuery(
       collection(db, 'chats'), 
-      where('participants', 'array-contains', currentUid)
+      safeWhere('participants', 'array-contains', currentUid)
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
+    const unsub = safeOnSnapshot(q, (snapshot) => {
       const map: Record<string, { unreadCount: number; lastMessage?: string; lastMessageAt?: number }> = {};
       snapshot.forEach((docSnap) => {
         const chatData = docSnap.data();
@@ -485,15 +488,15 @@ export default function StudentsView({
 
   // Listen to remote call audio packets
   useEffect(() => {
-    if (activeCall?.status !== 'accepted') return;
+    if (activeCall?.status !== 'accepted' || !activeCall?.id) return;
 
     // Fetch call audio packets
     const packetsColl = collection(db, 'private_calls', activeCall.id, 'audio_packets');
     // Query recently sent packets
     const minTime = Date.now() - 30000; // only last 30s
-    const q = query(packetsColl, where('timestamp', '>', minTime));
+    const q = safeQuery(packetsColl, safeWhere('timestamp', '>', minTime));
 
-    const unsub = onSnapshot(q, (snapshot) => {
+    const unsub = safeOnSnapshot(q, (snapshot) => {
       snapshot.forEach((docSnap) => {
         const p = docSnap.data();
         if (p.id && p.senderUid !== currentUid && !playedPacketsRef.current.has(p.id)) {
@@ -669,11 +672,11 @@ export default function StudentsView({
 
   // Incoming Call passive monitoring scanner
   useEffect(() => {
-    if (activeCall?.id) return; // already in active dialog
+    if (activeCall?.id || !currentUid || currentUid === 'anonymous') return;
 
     // Listen to private_calls collection to capture if someone calls us in real-time
-    const q = query(collection(db, 'private_calls'), where('calleeUid', '==', currentUid), limit(1));
-    const unsub = onSnapshot(q, (snapshot) => {
+    const q = safeQuery(collection(db, 'private_calls'), safeWhere('calleeUid', '==', currentUid), limit(1));
+    const unsub = safeOnSnapshot(q, (snapshot) => {
       snapshot.forEach((docSnap) => {
         const call = docSnap.data() as ActiveCall;
         if (call.status === 'calling' || call.status === 'ringing') {

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield, Users, PhoneIncoming, X, Check, MoreHorizontal } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
-import { auth, googleProvider, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { collection, onSnapshot, doc, setDoc, getDoc, getDocs, query, where, limit, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, googleProvider, db, handleFirestoreError, OperationType, safeQuery, safeWhere, safeOnSnapshot } from './lib/firebase';
+import { collection, onSnapshot, doc, setDoc, getDoc, getDocs, limit, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 // Types and Initial Mock Data
 import { User, Subject, Exam, TabType, SupportTicket, Notification } from './types';
@@ -23,6 +23,7 @@ import StudentsView, { getBinStudentId } from './components/StudentsView';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>(initialSubjects);
@@ -109,16 +110,20 @@ export default function App() {
     if (!isAll) {
       try {
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('email', '==', targetEmail.trim().toLowerCase()));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          targetUid = snapshot.docs[0].id;
-        } else {
-          // Fallback search by username
-          const q2 = query(usersRef, where('username', '==', targetEmail.trim()));
-          const s2 = await getDocs(q2);
-          if (!s2.empty) {
-            targetUid = s2.docs[0].id;
+        const q = safeQuery(usersRef, safeWhere('email', '==', targetEmail.trim().toLowerCase()));
+        if (q) {
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            targetUid = snapshot.docs[0].id;
+          } else {
+            // Fallback search by username
+            const q2 = safeQuery(usersRef, safeWhere('username', '==', targetEmail.trim()));
+            if (q2) {
+              const s2 = await getDocs(q2);
+              if (!s2.empty) {
+                targetUid = s2.docs[0].id;
+              }
+            }
           }
         }
       } catch (err) {
@@ -329,29 +334,34 @@ export default function App() {
           const userDocRef = doc(db, 'users', fbUser.uid);
           let docSnap = await getDoc(userDocRef);
 
+          const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+          const computedBinId = `bin_${randomDigits}`;
+          const displayName = fbUser.displayName || fbUser.email?.split('@')[0] || 'طالب';
+          const avatar = fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=1b365d,c9a24a`;
+
           if (!docSnap.exists()) {
-            const displayName = fbUser.displayName || fbUser.email?.split('@')[0] || 'طالب';
-            const signUpDateFormatted = new Date().toISOString().split('T')[0].replace(/-/g, '/');
-            
             await setDoc(userDocRef, {
               uid: fbUser.uid,
+              displayName: displayName,
               fullName: displayName,
               username: displayName,
               email: fbUser.email || '',
+              role: 'student',
+              studentId: computedBinId,
+              photoURL: fbUser.photoURL || '',
+              avatarUrl: avatar,
+              bio: '',
               phone: '',
               university: '',
               college: '',
               department: '',
               level: 'بكالوريوس',
-              photoURL: fbUser.photoURL || '',
-              avatarUrl: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=1b365d,c9a24a`,
-              role: 'student',
               isActive: true,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
               telegram: '@no_telegram',
               isLoggedIn: true,
-              signUpDate: signUpDateFormatted,
+              signUpDate: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
               scorePct: 100,
               completedCount: 0,
               academicStage: 'بكالوريوس',
@@ -360,32 +370,32 @@ export default function App() {
               academicTrack: 'علمي'
             });
           } else {
+            // Document exists. Ensure required fields are set
             const d = docSnap.data();
             const updates: any = {};
             if (d.uid === undefined) updates.uid = fbUser.uid;
-            if (d.fullName === undefined) updates.fullName = d.username || d.fullName || fbUser.displayName || '';
+            if (d.displayName === undefined) updates.displayName = d.username || d.fullName || displayName;
+            if (d.fullName === undefined) updates.fullName = d.username || d.fullName || displayName;
             if (d.email === undefined) updates.email = fbUser.email || d.email || '';
-            if (d.phone === undefined) updates.phone = '';
-            if (d.university === undefined) updates.university = '';
-            if (d.college === undefined) updates.college = '';
-            if (d.department === undefined) updates.department = '';
-            if (d.level === undefined) updates.level = d.academicStage || 'بكالوريوس';
-            if (d.photoURL === undefined) updates.photoURL = d.photoURL || d.avatarUrl || fbUser.photoURL || '';
             if (d.role === undefined) updates.role = 'student';
-            if (d.isActive === undefined) updates.isActive = true;
+            if (d.studentId === undefined) updates.studentId = computedBinId;
+            if (d.photoURL === undefined) updates.photoURL = fbUser.photoURL || '';
+            if (d.bio === undefined) updates.bio = '';
             if (d.createdAt === undefined) updates.createdAt = serverTimestamp();
             if (d.updatedAt === undefined) updates.updatedAt = serverTimestamp();
 
             if (Object.keys(updates).length > 0) {
-              await updateDoc(userDocRef, updates);
+              await setDoc(userDocRef, updates, { merge: true });
             }
           }
 
+          // Subscribe to changes in the user profile in real-time
           const unsubSnapshot = onSnapshot(userDocRef, (snapshot) => {
             if (snapshot.exists()) {
               const data = snapshot.data();
+              const roleVal = data.role === undefined ? 'student' : data.role;
               const mergedUser: User = {
-                username: data.username || data.fullName || 'طالب',
+                username: data.username || data.fullName || data.displayName || 'طالب',
                 email: data.email || '',
                 avatarUrl: data.photoURL || data.avatarUrl || '',
                 isLoggedIn: true,
@@ -397,30 +407,36 @@ export default function App() {
                 balance: data.balance,
                 studentId: data.studentId,
                 bio: data.bio || '',
-                uid: data.uid,
-                fullName: data.fullName,
-                phone: data.phone,
-                university: data.university,
-                college: data.college,
-                department: data.department,
-                level: data.level,
-                photoURL: data.photoURL,
-                role: data.role,
-                isActive: data.isActive,
+                uid: data.uid || fbUser.uid,
+                fullName: data.fullName || data.displayName || 'طالب',
+                phone: data.phone || '',
+                university: data.university || '',
+                college: data.college || '',
+                department: data.department || '',
+                level: data.level || 'بكالوريوس',
+                photoURL: data.photoURL || '',
+                role: roleVal,
+                isActive: data.isActive !== undefined ? data.isActive : true,
                 createdAt: data.createdAt,
                 updatedAt: data.updatedAt
               };
               setUser(mergedUser);
               localStorage.setItem('school_user', JSON.stringify(mergedUser));
             }
+            setAuthLoading(false);
           }, (error) => {
             console.error("Error listening to user snapshot:", error);
+            setAuthLoading(false);
           });
 
           return () => unsubSnapshot();
         } catch (err) {
           console.error("Error syncing authenticated user: ", err);
+          setAuthLoading(false);
         }
+      } else {
+        setUser(null);
+        setAuthLoading(false);
       }
     });
 
@@ -469,8 +485,8 @@ export default function App() {
       return;
     }
     const currentUid = auth.currentUser.uid;
-    const q = query(collection(db, 'private_calls'), where('calleeUid', '==', currentUid), limit(1));
-    const unsub = onSnapshot(q, (snapshot) => {
+    const q = safeQuery(collection(db, 'private_calls'), safeWhere('calleeUid', '==', currentUid), limit(1));
+    const unsub = safeOnSnapshot(q, (snapshot) => {
       let foundCall = false;
       snapshot.forEach((docSnap) => {
         const call = docSnap.data();
@@ -543,8 +559,8 @@ export default function App() {
       };
 
       // Query broadcasts for students
-      const qBroadcast = query(notifColl, where('type', '==', 'broadcast'), where('targetRole', '==', 'students'));
-      unsubNotif1 = onSnapshot(qBroadcast, (snapshot) => {
+      const qBroadcast = safeQuery(notifColl, safeWhere('type', '==', 'broadcast'), safeWhere('targetRole', '==', 'students'));
+      unsubNotif1 = safeOnSnapshot(qBroadcast, (snapshot) => {
         broadcastList = [];
         snapshot.forEach((docRef) => {
           const d = docRef.data();
@@ -569,8 +585,8 @@ export default function App() {
       });
 
       // Query private for this student
-      const qPrivate = query(notifColl, where('type', '==', 'private'), where('targetUserId', '==', user.uid));
-      unsubNotif2 = onSnapshot(qPrivate, (snapshot) => {
+      const qPrivate = safeQuery(notifColl, safeWhere('type', '==', 'private'), safeWhere('targetUserId', '==', user.uid));
+      unsubNotif2 = safeOnSnapshot(qPrivate, (snapshot) => {
         privateList = [];
         snapshot.forEach((docRef) => {
           const d = docRef.data();
@@ -595,8 +611,8 @@ export default function App() {
       });
 
       // Legacy direct matching notifications query
-      const qLegacy = query(notifColl, where('targetEmail', '==', user.email.toLowerCase()));
-      unsubNotif3 = onSnapshot(qLegacy, (snapshot) => {
+      const qLegacy = safeQuery(notifColl, safeWhere('targetEmail', '==', user.email?.toLowerCase()));
+      unsubNotif3 = safeOnSnapshot(qLegacy, (snapshot) => {
         legacyList = [];
         snapshot.forEach((docRef) => {
           const d = docRef.data();
@@ -633,9 +649,9 @@ export default function App() {
     const ticketsColl = collection(db, 'tickets');
     const ticketsQuery = isSchoolAdmin
       ? ticketsColl
-      : query(ticketsColl, where('senderEmail', '==', user.email));
+      : safeQuery(ticketsColl, safeWhere('senderEmail', '==', user.email));
 
-    const unsubTickets = onSnapshot(ticketsQuery, (snapshot) => {
+    const unsubTickets = safeOnSnapshot(ticketsQuery, (snapshot) => {
       const list: SupportTicket[] = [];
       snapshot.forEach((docRef) => {
         const d = docRef.data();
@@ -1052,6 +1068,17 @@ export default function App() {
       }
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#071B3B] text-white flex flex-col items-center justify-center p-6 text-center" style={{ direction: 'rtl' }}>
+        <div className="space-y-4">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-bold text-slate-300">جاري تحميل منصة بن عون التعليمية...</p>
+        </div>
+      </div>
+    );
+  }
 
   const activeExam = initialExams.find((e) => e.id === activeExamId);
 

@@ -88,3 +88,76 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error Occurred: ', JSON.stringify(errInfo));
   // Not throwing here avoids uncaught asynchronous exceptions that crash the entire React application
 }
+
+// --- Safe Firestore Query Helpers ---
+import { 
+  Query, 
+  DocumentData, 
+  QueryConstraint, 
+  CollectionReference, 
+  onSnapshot, 
+  query, 
+  where 
+} from 'firebase/firestore';
+
+/**
+ * Creates a QueryFieldFilterConstraint safely. If the value is undefined or null, it returns null.
+ */
+export function safeWhere(
+  fieldPath: string,
+  opStr: any,
+  value: any
+): QueryConstraint | null {
+  if (value === undefined || value === null) {
+    console.warn(`[SafeQuery] Bypassed where() constraint on [${fieldPath}] because value is undefined/null.`);
+    return null;
+  }
+  return where(fieldPath, opStr, value);
+}
+
+/**
+ * Builds a Query safely. 
+ * If any constraint is null (representing a bypassed safeWhere), or if the query contains null/undefined,
+ * this function returns null, indicating the query cannot be run.
+ */
+export function safeQuery<T = DocumentData>(
+  baseRef: CollectionReference<T> | Query<T>,
+  ...constraints: (QueryConstraint | null | undefined)[]
+): Query<T> | null {
+  const validConstraints: QueryConstraint[] = [];
+  for (const c of constraints) {
+    if (c === null || c === undefined) {
+      return null; // Entire query is ignored/un-runnable
+    }
+    validConstraints.push(c);
+  }
+  return query(baseRef, ...validConstraints);
+}
+
+/**
+ * Attaches a Firestore listener safely.
+ * If the query is null (representing a bypassed query), it calls onNext immediately with an empty mock snapshot
+ * and returns a standard empty unsubscribe function.
+ */
+export function safeOnSnapshot<T = DocumentData>(
+  queryInstance: Query<T> | null,
+  onNext: (snapshot: { empty: boolean; forEach: (cb: (doc: any) => void) => void; docs: any[] }) => void,
+  onError?: (error: any) => void
+): () => void {
+  if (!queryInstance) {
+    // Deliver an empty state immediately and safely
+    setTimeout(() => {
+      onNext({ empty: true, forEach: () => {}, docs: [] });
+    }, 0);
+    return () => {};
+  }
+  try {
+    return onSnapshot(queryInstance, onNext as any, onError);
+  } catch (err) {
+    console.error('[SafeQuery] Error in safeOnSnapshot:', err);
+    setTimeout(() => {
+      onNext({ empty: true, forEach: () => {}, docs: [] });
+    }, 0);
+    return () => {};
+  }
+}
