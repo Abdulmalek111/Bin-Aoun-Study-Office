@@ -1090,7 +1090,7 @@ export default function App() {
         !user 
           ? 'max-w-[460px] bg-brand-dark border-transparent shadow-2xl shadow-black/40 h-screen md:h-[880px] md:max-h-[880px] md:rounded-[36px]' 
           : 'max-w-full md:max-w-[480px] lg:max-w-6xl xl:max-w-7xl bg-white border-gray-100 shadow-2xl h-screen lg:h-[880px] lg:max-h-[880px] lg:rounded-[36px]'
-      } overflow-hidden flex flex-col lg:flex-row justify-between border relative`}>
+      } overflow-hidden flex flex-col lg:flex-row justify-between border-0 lg:border relative`}>
         
         {/* RIGHT SIDEBAR FOR DESKTOPS (Only visible if logged in, screen is lg+, and not in active exam mode) */}
         {user && !activeExamId && (
@@ -1240,7 +1240,7 @@ export default function App() {
 
         {/* MAIN DISPLAY VIEWPORT CONTAINER (Scroll content & screen routing) */}
         <div className={`flex-grow overflow-y-auto no-scrollbar flex flex-col justify-between ${
-          !user ? 'p-0' : 'px-4 py-3.5 md:p-6 lg:p-8'
+          !user ? 'p-0' : activeTab === 'home' ? 'p-0' : 'px-4 py-3.5 md:p-6 lg:p-8'
         }`}>
           
           {!user ? (
@@ -1361,7 +1361,7 @@ export default function App() {
         </div>
 
         {/* BOTTOM NAVIGATION DOCK (Fully responsive: visible on mobiles, hidden on desktop/computers screens `lg:hidden`) */}
-        {user && !activeExamId && (
+        {user && !activeExamId && activeTab !== 'home' && (
           <>
             <nav className="lg:hidden bg-white/95 backdrop-blur-md border-t border-gray-150 px-2 sm:px-3 py-1.5 flex justify-around items-end text-gray-400 shadow-xl z-30 select-none rounded-t-3xl shrink-0" dir="rtl">
               
@@ -1410,7 +1410,7 @@ export default function App() {
                 <div className="w-13 h-13 rounded-full bg-[#071B3B] border-4 border-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95">
                   <Home size={22} className="text-[#D4A63A] stroke-[2.5]" />
                 </div>
-                <span className={`text-[10px] font-black ${activeTab === 'home' && !showMoreMenu ? 'text-[#071B3B]' : 'text-[#6B7280]'}`}>الرئيسية</span>
+                <span className={`text-[10px] font-black ${(activeTab as string) === 'home' && !showMoreMenu ? 'text-[#071B3B]' : 'text-[#6B7280]'}`}>الرئيسية</span>
               </button>
 
               {/* 2. المواد */}
