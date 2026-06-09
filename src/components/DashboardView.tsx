@@ -266,20 +266,16 @@ export default function DashboardView({
             <Logo variant="logo-only" className="h-10 w-auto transform hover:scale-102 transition-transform duration-300" />
           </div>
           
-          {/* Notifications bell icon with absolute badge from mock */}
+          {/* Notifications bell icon with absolute badge */}
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
             className="w-11 h-11 bg-white/10 hover:bg-white/15 border border-white/10 rounded-2xl flex items-center justify-center text-white relative transition-all active:scale-95"
             id="bell-trigger-btn"
           >
             <Bell size={21} className="stroke-[2]" />
-            {unreadCount > 0 ? (
+            {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 text-[9px] font-black text-white bg-[#D4A63A] rounded-full flex items-center justify-center shadow-lg border border-white animate-bounce">
                 {unreadCount}
-              </span>
-            ) : (
-              <span className="absolute -top-1 -right-1.5 w-4.5 h-4.5 bg-[#D4A63A] text-white text-[9px] font-black rounded-full flex items-center justify-center border border-[#031737] shadow-sm">
-                3
               </span>
             )}
           </button>
@@ -289,10 +285,10 @@ export default function DashboardView({
         {/* Greeting message - aligned to the right screen edge */}
         <div className="text-right text-white space-y-1 relative z-10 mb-6 px-1">
           <div className="flex items-center justify-start gap-1">
-            <h2 className="text-2xl font-black tracking-tight leading-tight">مرحباً بك 👋</h2>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">مرحباً بك، {user.fullName || user.username || 'يا طالب'} 👋</h2>
           </div>
-          <p className="text-xs font-semibold text-gray-300/90 font-sans">
-            ماذا تريد أن تتعلم اليوم؟
+          <p className="text-[10.5px] font-medium text-gray-300/90">
+            طالب بقسم {user.department || 'الهندسة'} • {user.academicYear || 'سنة أولى'} • {user.academicStage || 'بكالوريوس'}
           </p>
         </div>
 
@@ -501,12 +497,16 @@ export default function DashboardView({
         {/* Deluxe Sliding Hero Banner matches 100% layout in mockup */}
         <div className="relative rounded-[2.2rem] overflow-hidden shadow-lg aspect-[16/9.2] bg-[#031737] group border border-white/5">
           
-          {/* Carousel Background with academic study backdrop */}
+          {/* Carousel Background with dynamic academic study backdrops */}
           <div className="absolute inset-0 z-0">
-            <img 
-              src="https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=800" 
-              alt="Deep warm education lighting book scene" 
-              className="w-full h-full object-cover opacity-65 brightness-[0.7] transform group-hover:scale-102 transition-transform duration-[6s] pointer-events-none"
+            <motion.img 
+              key={activeSlide}
+              initial={{ opacity: 0.3 }}
+              animate={{ opacity: 0.65 }}
+              transition={{ duration: 0.4 }}
+              src={bannerSlides[activeSlide].bgImage} 
+              alt={bannerSlides[activeSlide].title} 
+              className="w-full h-full object-cover brightness-[0.7] transform group-hover:scale-102 transition-transform duration-[6s] pointer-events-none"
               referrerPolicy="no-referrer"
             />
             {/* Ambient vignette */}
@@ -519,21 +519,47 @@ export default function DashboardView({
           {/* Banner Content (Text left, aligned nicely in RTL) */}
           <div className="absolute inset-0 z-10 p-5 flex flex-col justify-center items-start text-right text-white space-y-2">
             
-            <span className="text-[9px] font-black uppercase text-[#D4A63A] tracking-wider bg-[#D4A63A]/10 border border-[#D4A63A]/20 px-2.5 py-0.5 rounded-full inline-block">
-              طريقك نحو التفوق
-            </span>
+            <motion.span 
+              key={`badge-${activeSlide}`}
+              initial={{ x: 15, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.4 }}
+              className="text-[9px] font-black uppercase text-[#D4A63A] tracking-wider bg-[#D4A63A]/10 border border-[#D4A63A]/20 px-2.5 py-0.5 rounded-full inline-block"
+            >
+              {bannerSlides[activeSlide].badge}
+            </motion.span>
             
-            <h2 className="text-sm sm:text-base font-extrabold tracking-tight leading-snug w-full text-white text-right">
-              ابدأ رحلتك التعليمية معنا <br /> وتحقق أهدافك
-            </h2>
+            <motion.h2 
+              key={`title-${activeSlide}`}
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              className="text-sm sm:text-base font-extrabold tracking-tight leading-snug w-full text-white text-right"
+            >
+              {bannerSlides[activeSlide].title}
+            </motion.h2>
 
-            <div className="pt-1.5">
+            <motion.p 
+              key={`subtitle-${activeSlide}`}
+              initial={{ y: 5, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              className="text-[10px] text-gray-300 w-full text-right leading-tight max-w-[240px] truncate"
+            >
+              {bannerSlides[activeSlide].subtitle}
+            </motion.p>
+
+            <div className="pt-1.5 font-black">
               <motion.button 
                 whileTap={{ scale: 0.95 }}
-                onClick={() => onNavigateToTab('subjects')}
+                onClick={() => {
+                  if (activeSlide === 0) onNavigateToTab('subjects');
+                  else if (activeSlide === 1) onNavigateToTab('subjects');
+                  else if (activeSlide === 2) onNavigateToTab('exams');
+                }}
                 className="py-1.5 px-5 bg-[#D4A63A] hover:bg-[#D4A63A]/90 text-[#031737] font-black rounded-full text-[10px] transition-all hover:shadow-lg shadow-[#D4A63A]/20 cursor-pointer"
               >
-                ابدأ الآن
+                {bannerSlides[activeSlide].actionText}
               </motion.button>
             </div>
           </div>
@@ -552,6 +578,29 @@ export default function DashboardView({
             ))}
           </div>
 
+        </div>
+
+        {/* Academic Student Quick Achievements and Wallet Stats Row */}
+        <div className="grid grid-cols-3 gap-3 pt-1">
+          {/* Active Registered Subjects */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-2.5 text-center shadow-sm flex flex-col justify-center items-center">
+            <span className="text-[14px] font-black text-[#031737]">{subjects.length}</span>
+            <span className="text-[8.5px] font-bold text-[#6B7280] mt-0.5">مواد مفعّلة</span>
+          </div>
+
+          {/* Wallet Balance (RUB currency matching platform standard) */}
+          <div className="bg-white border border-gray-150 rounded-2xl p-2.5 text-center shadow-sm flex flex-col justify-center items-center">
+            <span className="text-[13px] font-black text-[#D4A63A]">{user.balance !== undefined ? `${user.balance}` : "0"} <span className="text-[8.5px] font-extrabold text-[#031737]">RUB</span></span>
+            <span className="text-[8.5px] font-bold text-[#6B7280] mt-0.5">رصيد المحفظة</span>
+          </div>
+
+          {/* My Academic Student ID file number */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-2.5 text-center shadow-sm flex flex-col justify-center items-center">
+            <span className="text-[11px] font-mono font-black text-[#031737] truncate w-full" dir="ltr">
+              {user.studentId ? user.studentId : "تحت الإجراء"}
+            </span>
+            <span className="text-[8.5px] font-bold text-[#6B7280] mt-0.5">الملف الأكاديمي</span>
+          </div>
         </div>
 
         {/* 4 Quick Services Grid Cards (الخدمات السريعة - 4 Columns) matches reference picture */}
