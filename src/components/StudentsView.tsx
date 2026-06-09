@@ -73,6 +73,7 @@ interface PrivateMessage {
   senderName: string;
   content: string;
   timestamp: number;
+  status?: string;
 }
 
 interface ActiveCall {
@@ -170,6 +171,9 @@ export default function StudentsView({
     }
   };
 
+  // Chats map state holding unread counts and last message details keyed by partner Uid
+  const [chatsMap, setChatsMap] = useState<Record<string, { unreadCount: number; lastMessage?: string; lastMessageAt?: number }>>({});
+
   // 1. Fetch Students/Users in Real-time from Firestore
   useEffect(() => {
     setLoading(true);
@@ -179,20 +183,25 @@ export default function StudentsView({
         const dat = docSnap.data() as User;
         const uid = docSnap.id;
         
-        const binId = dat.studentId || getBinStudentId(uid);
-        list.push({
-          ...dat,
-          uid,
-          binId
-        });
+        // Exclude system admins, instructors, and owner accounts unless explicitly a student role
+        const roleLower = (dat.role || 'student').toLowerCase();
+        const isAdminRole = ['admin', 'owner', 'مشرف المنصة', 'instructor'].includes(roleLower);
+        if (!isAdminRole || roleLower === 'student') {
+          const binId = dat.studentId || getBinStudentId(uid);
+          list.push({
+            ...dat,
+            uid,
+            binId
+          });
 
-        // Check if this student in Firestore doesn't have studentId saved yet, and write it
-        if (!dat.studentId && uid !== 'anonymous') {
-          const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
-          const computedBinId = `bin_${randomDigits}`;
-          updateDoc(doc(db, 'users', uid), {
-            studentId: computedBinId
-          }).catch(() => {});
+          // Check if this student in Firestore doesn't have studentId saved yet, and write it
+          if (!dat.studentId && uid !== 'anonymous') {
+            const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+            const computedBinId = `bin_${randomDigits}`;
+            updateDoc(doc(db, 'users', uid), {
+              studentId: computedBinId
+            }).catch(() => {});
+          }
         }
       });
       setStudents(list);
@@ -205,6 +214,37 @@ export default function StudentsView({
     return () => unsub();
   }, [currentUid]);
 
+  // Real-time listener for direct chats to get unread counts & last messages
+  useEffect(() => {
+    if (currentUid === 'anonymous') return;
+
+    const q = query(
+      collection(db, 'chats'), 
+      where('participants', 'array-contains', currentUid)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const map: Record<string, { unreadCount: number; lastMessage?: string; lastMessageAt?: number }> = {};
+      snapshot.forEach((docSnap) => {
+        const chatData = docSnap.data();
+        const partnerUid = chatData.participants?.find((uid: string) => uid !== currentUid);
+        if (partnerUid) {
+          const unreads = chatData.unreadCount?.[currentUid] || 0;
+          map[partnerUid] = {
+            unreadCount: unreads,
+            lastMessage: chatData.lastMessage,
+            lastMessageAt: chatData.lastMessageAt
+          };
+        }
+      });
+      setChatsMap(map);
+    }, (err) => {
+      console.warn("Unable to listen to chats records:", err);
+    });
+
+    return () => unsub();
+  }, [currentUid]);
+
   // 2. Load and listen to private chat messages when selectedChatUser changes
   useEffect(() => {
     if (!selectedChatUser) {
@@ -212,25 +252,54 @@ export default function StudentsView({
       return;
     }
 
-    // Determine unique chat ID (alphabetically sorted user UIDs to avoid double entry)
     const chatDocId = [currentUid, selectedChatUser.uid].sort().join('_');
-    const messagesColl = collection(db, 'private_chats', chatDocId, 'messages');
-    
-    // Sort messages by timestamp ascending
-    const q = query(messagesColl, orderBy('timestamp', 'asc'), limit(150));
+    const messagesColl = collection(db, 'chats', chatDocId, 'messages');
+    const q = query(messagesColl, orderBy('createdAt', 'asc'), limit(150));
 
     const unsub = onSnapshot(q, (snapshot) => {
       const msgs: PrivateMessage[] = [];
       snapshot.forEach((docSnap) => {
-        msgs.push(docSnap.data() as PrivateMessage);
+        const msg = docSnap.data();
+        msgs.push({
+          id: msg.id || docSnap.id,
+          senderUid: msg.senderId || msg.senderUid,
+          senderName: msg.senderId === currentUid ? currentUserName : selectedChatUser.username,
+          content: msg.text || msg.content || '',
+          timestamp: msg.createdAt || msg.timestamp || Date.now(),
+          status: msg.status || 'sent',
+          readBy: msg.readBy || []
+        } as any);
+
+        // Mark incoming messages as read both locally and in firestore
+        if (msg.senderId === selectedChatUser.uid && msg.status !== 'read') {
+          const msgRef = doc(db, 'chats', chatDocId, 'messages', docSnap.id);
+          updateDoc(msgRef, {
+            status: 'read',
+            readBy: [...(msg.readBy || []), currentUid]
+          }).catch(() => {});
+        }
       });
       setChatMessages(msgs);
     }, (err) => {
-      console.warn("Permission restricted or failed fetching private messages:", err);
+      console.warn("Permission restricted or failed fetching message records:", err);
     });
 
     return () => unsub();
-  }, [selectedChatUser, currentUid]);
+  }, [selectedChatUser, currentUid, currentUserName]);
+
+  // Mark all unread counts when viewing chat
+  useEffect(() => {
+    if (!selectedChatUser || currentUid === 'anonymous') return;
+
+    const chatDocId = [currentUid, selectedChatUser.uid].sort().join('_');
+    const chatDocRef = doc(db, 'chats', chatDocId);
+    
+    // Explicitly reset our unreadCount counter to 0 inside chats doc
+    updateDoc(chatDocRef, {
+      [`unreadCount.${currentUid}`]: 0
+    }).catch(() => {});
+
+  }, [selectedChatUser, chatMessages.length, currentUid]);
 
   // Scroll to bottom of chat automatically on new message
   useEffect(() => {
@@ -245,7 +314,7 @@ export default function StudentsView({
     unlockAudioEngine();
 
     const chatDocId = [currentUid, selectedChatUser.uid].sort().join('_');
-    const chatDocRef = doc(db, 'private_chats', chatDocId);
+    const chatDocRef = doc(db, 'chats', chatDocId);
     const messagesColl = collection(chatDocRef, 'messages');
     const msgId = `msg_${Date.now()}__${Math.floor(Math.random() * 1000)}`;
 
@@ -253,21 +322,43 @@ export default function StudentsView({
     setNewMessageText('');
 
     try {
+      const timestamp = Date.now();
+      
+      // Calculate recipient increment
+      const chatSnap = await getDoc(chatDocRef);
+      let currentPartnerUnread = 1;
+      if (chatSnap.exists()) {
+        const dat = chatSnap.data();
+        currentPartnerUnread = (dat.unreadCount?.[selectedChatUser.uid] || 0) + 1;
+      }
+
       // 1. Write the message document
       await setDoc(doc(messagesColl, msgId), {
         id: msgId,
-        senderUid: currentUid,
-        senderName: currentUserName,
-        content: text,
-        timestamp: Date.now()
+        senderId: currentUid,
+        receiverId: selectedChatUser.uid,
+        text: text,
+        createdAt: timestamp,
+        readBy: [currentUid],
+        status: 'sent'
       });
 
-      // 2. Update chat header metadata for sorting or notifications
+      // 2. Update chat parent metadata securely with incremental tracking
       await setDoc(chatDocRef, {
-        id: chatDocId,
         participants: [currentUid, selectedChatUser.uid],
+        participantIds: {
+          [currentUid]: true,
+          [selectedChatUser.uid]: true
+        },
         lastMessage: text,
-        lastMessageAt: Date.now()
+        lastMessageAt: timestamp,
+        lastMessageBy: currentUid,
+        unreadCount: {
+          [currentUid]: 0,
+          [selectedChatUser.uid]: currentPartnerUnread
+        },
+        createdAt: chatSnap.exists() ? chatSnap.data().createdAt || timestamp : timestamp,
+        updatedAt: timestamp
       }, { merge: true });
 
     } catch (err) {
@@ -598,23 +689,37 @@ export default function StudentsView({
     return () => unsub();
   }, [currentUid, activeCall?.id]);
 
-  // Search filtering
+  // Search filtering & dynamic inbox sorting
   const filteredStudents = students.filter(student => {
     const queryLower = searchQuery.toLowerCase().trim();
-    const numericQuery = queryLower.replace(/[^0-9]/g, '');
-    const cleanBinId = student.binId?.toLowerCase() || '';
+    if (!queryLower) return true;
     
-    const matchesId = cleanBinId.includes(queryLower) || 
-                      (numericQuery !== '' && cleanBinId.includes(numericQuery)) ||
-                      (student.studentId?.toLowerCase() || '').includes(queryLower);
+    const cleanBinId = student.binId?.toLowerCase() || '';
+    const cleanStudentId = student.studentId?.toLowerCase() || '';
+    const cleanUsername = student.username?.toLowerCase() || '';
+    const cleanFullName = (student.fullName || '').toLowerCase();
+    
+    const matchesId = cleanBinId.includes(queryLower) || cleanStudentId.includes(queryLower);
+    const matchesName = cleanUsername.includes(queryLower) || cleanFullName.includes(queryLower);
+    const matchesAcademic = (student.academicStage?.toLowerCase() || '').includes(queryLower) || 
+                            (student.academicYear?.toLowerCase() || '').includes(queryLower) ||
+                            (student.academicTrack?.toLowerCase() || '').includes(queryLower);
 
-    return (
-      student.username?.toLowerCase().includes(queryLower) ||
-      student.email?.toLowerCase().includes(queryLower) ||
-      matchesId ||
-      student.academicStage?.toLowerCase().includes(queryLower) ||
-      student.academicYear?.toLowerCase().includes(queryLower)
-    );
+    return matchesId || matchesName || matchesAcademic;
+  }).sort((a, b) => {
+    const aChat = chatsMap[a.uid];
+    const bChat = chatsMap[b.uid];
+    
+    const aUnread = aChat?.unreadCount || 0;
+    const bUnread = bChat?.unreadCount || 0;
+    
+    if (aUnread !== bUnread) {
+      return bUnread - aUnread; // Priority to chats with unread messages
+    }
+    
+    const aTime = aChat?.lastMessageAt || 0;
+    const bTime = bChat?.lastMessageAt || 0;
+    return bTime - aTime; // Sort by latest message
   });
 
   // Utility to format seconds to MM:SS
@@ -655,7 +760,7 @@ export default function StudentsView({
             </span>
             <input 
               type="text"
-              placeholder="ابحث باسم الطالب، البريد، أو رمز ID الخاص (bin_...)"
+              placeholder="ابحث باسم الطالب، أو رمز ID الخاص (bin_...)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full text-right pr-9.5 pl-4 py-3 bg-slate-50 border border-slate-150 rounded-2xl text-xs placeholder:text-gray-400 text-gray-800 font-extrabold focus:outline-none focus:ring-1 focus:ring-brand-gold focus:bg-white transition-all"
@@ -698,7 +803,7 @@ export default function StudentsView({
                     </div>
 
                     <div className="min-w-0 text-right">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-extrabold text-xs text-gray-800 truncate group-hover:text-brand-dark transition-colors">
                           {st.username}
                         </span>
@@ -707,6 +812,13 @@ export default function StudentsView({
                         <span className="text-[9px] bg-brand-gold/10 text-brand-dark font-black px-2 py-0.5 rounded-full shrink-0">
                           {st.academicStage || 'بكالوريوس'}
                         </span>
+
+                        {/* Unread messaging badge count */}
+                        {chatsMap[st.uid]?.unreadCount > 0 && (
+                          <span className="text-[9px] bg-red-500 text-white font-black px-1.5 py-0.5 rounded-full shrink-0 animate-pulse">
+                            {chatsMap[st.uid].unreadCount} رسالة جديدة
+                          </span>
+                        )}
                       </div>
 
                       {/* Displaying Student Code bin_48291 */}
@@ -741,10 +853,13 @@ export default function StudentsView({
                           e.stopPropagation();
                           setGlobalChatUser(st);
                         }}
-                        className="p-2 bg-brand-gold/15 hover:bg-brand-gold hover:text-white text-brand-dark rounded-xl transition-all cursor-pointer"
+                        className="p-2 bg-brand-gold/15 hover:bg-brand-gold hover:text-white text-brand-dark rounded-xl transition-all cursor-pointer relative"
                         title="مراسلة سريعة"
                       >
                         <MessageSquare size={14} className="stroke-[2.5]" />
+                        {chatsMap[st.uid]?.unreadCount > 0 && (
+                          <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                        )}
                       </button>
                     </div>
                   ) : (
@@ -860,10 +975,17 @@ export default function StudentsView({
                       
                       <p className="leading-relaxed font-bold whitespace-pre-wrap">{msg.content}</p>
                       
-                      {/* Message formatted timestamps */}
-                      <p className={`text-[9px] mt-2 block text-left font-mono ${isMe ? 'text-slate-300' : 'text-gray-400'}`}>
-                        {new Date(msg.timestamp).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                      {/* Message formatted timestamps and state ticks */}
+                      <div className="flex items-center justify-end gap-1.5 mt-1.5 font-mono text-[9px]">
+                        <span className={isMe ? 'text-slate-300' : 'text-gray-400'}>
+                          {new Date(msg.timestamp).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {isMe && (
+                          <span className={`font-black ${msg.status === 'read' ? 'text-sky-305 text-amber-300' : 'text-slate-400'}`} title={msg.status === 'read' ? 'قُرئت الرسالة' : 'أُرسلت'}>
+                            {msg.status === 'read' ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

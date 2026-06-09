@@ -251,30 +251,35 @@
       },
       "required": ["lectures"]
     },
-    "PrivateChat": {
-      "title": "PrivateChat",
-      "description": "Private direct chat channel between two students.",
+    "Chat": {
+      "title": "Chat",
+      "description": "Private direct chat channel between two students with read/unread tracking.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "participants": { "type": "array" },
+        "participants": { "type": "array", "description": "Array of participant UIDs" },
+        "participantIds": { "type": "object", "description": "Map of key UIDs pointing to booleans" },
         "lastMessage": { "type": "string" },
-        "lastMessageAt": { "type": "integer" }
+        "lastMessageAt": { "type": "integer" },
+        "lastMessageBy": { "type": "string" },
+        "unreadCount": { "type": "object" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
       },
-      "required": ["id", "participants"]
+      "required": ["participants", "participantIds", "createdAt", "updatedAt"]
     },
-    "PrivateMessage": {
-      "title": "PrivateMessage",
-      "description": "A single private text message sent between students.",
+    "ChatDirectMessage": {
+      "title": "ChatDirectMessage",
+      "description": "A single private text message sent in direct student chats.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "senderUid": { "type": "string" },
-        "senderName": { "type": "string" },
-        "content": { "type": "string" },
-        "timestamp": { "type": "integer" }
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "readBy": { "type": "array" },
+        "status": { "type": "string", "enum": ["sent", "read"] }
       },
-      "required": ["id", "senderUid", "senderName", "content", "timestamp"]
+      "required": ["senderId", "receiverId", "text", "createdAt", "status"]
     },
     "PrivateCall": {
       "title": "PrivateCall",
@@ -430,12 +435,12 @@
       "schema": "User",
       "description": "User profiles database."
     },
-    "private_chats/{chatId}": {
-      "schema": "PrivateChat",
+    "chats/{chatId}": {
+      "schema": "Chat",
       "description": "Private direct chat collections between students."
     },
-    "private_chats/{chatId}/messages/{messageId}": {
-      "schema": "PrivateMessage",
+    "chats/{chatId}/messages/{messageId}": {
+      "schema": "ChatDirectMessage",
       "description": "Subcollection containing private messages sent inside a private chat."
     },
     "private_calls/{callId}": {

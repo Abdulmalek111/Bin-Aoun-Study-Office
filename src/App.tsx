@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield, Users, PhoneIncoming, X, Check } from 'lucide-react';
+import { Home, Calendar, LayoutGrid, User as UserIcon, BookOpen, Smartphone, ShieldCheck, Award, MessageSquare, Shield, Users, PhoneIncoming, X, Check, MoreHorizontal } from 'lucide-react';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { collection, onSnapshot, doc, setDoc, getDoc, getDocs, query, where, limit, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
@@ -32,6 +32,7 @@ export default function App() {
     const saved = localStorage.getItem('school_dark_mode');
     return saved !== 'false';
   });
+  const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
 
   // Students Private Chat and Call session states
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
@@ -1334,75 +1335,190 @@ export default function App() {
 
         {/* BOTTOM NAVIGATION DOCK (Fully responsive: visible on mobiles, hidden on desktop/computers screens `lg:hidden`) */}
         {user && !activeExamId && (
-          <nav className="lg:hidden bg-white border-t border-gray-150 px-2 sm:px-3 py-2.5 sm:py-3.5 flex justify-around items-center text-gray-400 shadow-md z-30 select-none rounded-t-2xl shrink-0">
-            
-            {/* Home tab button */}
-            <button
-              onClick={() => setActiveTab('home')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                activeTab === 'home' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
-              }`}
-            >
-              <Home size={20} className={activeTab === 'home' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-              <span className="text-[10px]">الرئيسية</span>
-            </button>
+          <>
+            <nav className="lg:hidden bg-white/95 backdrop-blur-md border-t border-gray-150 px-2 sm:px-3 py-1.5 flex justify-around items-end text-gray-400 shadow-xl z-30 select-none rounded-t-3xl shrink-0" dir="rtl">
+              
+              {/* 5. الملف الشخصي (Leftmost in RTL) */}
+              <button
+                onClick={() => {
+                  setActiveTab('profile');
+                  setShowMoreMenu(false);
+                }}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
+                  activeTab === 'profile' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                }`}
+              >
+                <UserIcon size={22} className={activeTab === 'profile' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <span className="text-[9px] font-bold">الملف الشخصي</span>
+              </button>
 
-            {/* Subjects tab button */}
-            <button
-              onClick={() => setActiveTab('subjects')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                activeTab === 'subjects' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
-              }`}
-            >
-              <LayoutGrid size={20} className={activeTab === 'subjects' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-              <span className="text-[10px]">المواد</span>
-            </button>
+              {/* 4. المحادثات (Second from left, with gorgeous badge 2) */}
+              <button
+                onClick={() => {
+                  setActiveTab('discussions');
+                  setShowMoreMenu(false);
+                }}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 relative ${
+                  activeTab === 'discussions' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                }`}
+              >
+                <div className="relative">
+                  <MessageSquare size={22} className={activeTab === 'discussions' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                  {/* Matching gold badge with '2' from the mockup */}
+                  <span className="absolute -top-1 -right-2.5 w-4 h-4 bg-[#D4A63A] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white">
+                    2
+                  </span>
+                </div>
+                <span className="text-[9px] font-bold">المحادثات</span>
+              </button>
 
-            {/* Discussions tab button */}
-            <button
-              onClick={() => setActiveTab('discussions')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                activeTab === 'discussions' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
-              }`}
-            >
-              <MessageSquare size={20} className={activeTab === 'discussions' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-              <span className="text-[10px]">المناقشات</span>
-            </button>
+              {/* 3. الرئيسية (Center highlighted) */}
+              <button
+                onClick={() => {
+                  setActiveTab('home');
+                  setShowMoreMenu(false);
+                }}
+                className="flex flex-col items-center gap-0.5 cursor-pointer transition-all -mt-3.5"
+              >
+                <div className="w-13 h-13 rounded-full bg-[#071B3B] border-4 border-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95">
+                  <Home size={22} className="text-[#D4A63A] stroke-[2.5]" />
+                </div>
+                <span className={`text-[10px] font-black ${activeTab === 'home' && !showMoreMenu ? 'text-[#071B3B]' : 'text-[#6B7280]'}`}>الرئيسية</span>
+              </button>
 
-            {/* Students tab button */}
-            <button
-              onClick={() => setActiveTab('students')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                activeTab === 'students' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
-              }`}
-            >
-              <Users size={20} className={activeTab === 'students' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-              <span className="text-[10px]">الزملاء</span>
-            </button>
+              {/* 2. المواد */}
+              <button
+                onClick={() => {
+                  setActiveTab('subjects');
+                  setShowMoreMenu(false);
+                }}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
+                  activeTab === 'subjects' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                }`}
+              >
+                <BookOpen size={22} className={activeTab === 'subjects' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <span className="text-[9px] font-bold">المواد</span>
+              </button>
 
-            {/* Exams tab button */}
-            <button
-              onClick={() => setActiveTab('exams')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                activeTab === 'exams' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
-              }`}
-            >
-              <Calendar size={20} className={activeTab === 'exams' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-              <span className="text-[10px]">الاختبارات</span>
-            </button>
+              {/* 1. المزيد (Rightmost in RTL) */}
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
+                  showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                }`}
+              >
+                <LayoutGrid size={22} className={showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <span className="text-[9px] font-bold">المزيد</span>
+              </button>
 
-            {/* Profile tab button */}
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                activeTab === 'profile' ? 'text-brand-dark scale-105 font-extrabold' : 'hover:text-brand-blue'
-              }`}
-            >
-              <UserIcon size={20} className={activeTab === 'profile' ? 'text-brand-gold stroke-[2.2]' : 'stroke-[1.8]'} />
-              <span className="text-[10px]">حسابي</span>
-            </button>
+            </nav>
 
-          </nav>
+            {/* Slide-up custom Bottom sheet for More Options */}
+            {showMoreMenu && (
+              <div 
+                className="fixed inset-0 bg-[#071B3B]/40 backdrop-blur-sm z-45 lg:hidden flex flex-col justify-end" 
+                onClick={() => setShowMoreMenu(false)}
+              >
+                <div 
+                  className="bg-white rounded-t-3xl p-5 pb-8 space-y-4 shadow-2xl border-t border-gray-150 animate-fade-in text-right"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                    <h3 className="font-extrabold text-sm text-[#071B3B] flex items-center gap-1.5">
+                      <MoreHorizontal size={18} className="text-[#D4A63A]" />
+                      <span>المزيد من الخدمات والأدوات</span>
+                    </h3>
+                    <button 
+                      onClick={() => setShowMoreMenu(false)} 
+                      className="p-1.5 hover:bg-gray-100 rounded-full transition text-gray-400 hover:text-gray-700"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    {/* Students page / الزملاء */}
+                    <button
+                      onClick={() => {
+                        setActiveTab('students');
+                        setShowMoreMenu(false);
+                      }}
+                      className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
+                    >
+                      <div className="p-2 bg-[#071B3B]/5 text-[#071B3B] rounded-xl mb-1">
+                        <Users size={16} />
+                      </div>
+                      <h4 className="font-extrabold text-xs text-[#071B3B]">الزملاء بالمنصة</h4>
+                      <p className="text-[8px] text-[#6B7280]">الدردشة والاتصال المباشر</p>
+                    </button>
+
+                    {/* Exams / الاختبارات */}
+                    <button
+                      onClick={() => {
+                        setActiveTab('exams');
+                        setShowMoreMenu(false);
+                      }}
+                      className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
+                    >
+                      <div className="p-2 bg-[#D4A63A]/10 text-[#D4A63A] rounded-xl mb-1">
+                        <Calendar size={16} />
+                      </div>
+                      <h4 className="font-extrabold text-xs text-[#071B3B]">دليل الاختبارات</h4>
+                      <p className="text-[8px] text-[#6B7280]">الامتحانات والتسريبات والدرجات</p>
+                    </button>
+
+                    {/* Technical support */}
+                    <button
+                      onClick={() => {
+                        setActiveTab('profile');
+                        setShowMoreMenu(false);
+                      }}
+                      className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
+                    >
+                      <div className="p-2 bg-[#071B3B]/5 text-[#071B3B] rounded-xl mb-1">
+                        <Smartphone size={16} />
+                      </div>
+                      <h4 className="font-extrabold text-xs text-[#071B3B]">الدعم الفني</h4>
+                      <p className="text-[8px] text-[#6B7280]">إرسال ومتابعة تذاكر المساعدة</p>
+                    </button>
+
+                    {/* Admin dashboard link */}
+                    {user?.email === 'abdulmlikoog@gmail.com' && (
+                      <button
+                        onClick={() => {
+                          setActiveTab('admin');
+                          setShowMoreMenu(false);
+                        }}
+                        className="p-3 bg-[#D4A63A]/5 border border-[#D4A63A]/20 hover:bg-[#D4A63A]/10 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
+                      >
+                        <div className="p-2 bg-[#D4A63A]/10 text-[#D4A63A] rounded-xl mb-1">
+                          <Shield size={16} />
+                        </div>
+                        <h4 className="font-extrabold text-xs text-[#071B3B]">لوحة الإدارة</h4>
+                        <p className="text-[8px] text-[#D4A63A] font-bold">إصدار الإعلانات والتحكم</p>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dark Mode Slide selector */}
+                  <div className="flex items-center justify-between p-3.5 bg-[#F8FAFC] rounded-2xl border border-gray-100 mt-2">
+                    <span className="text-xs font-bold text-[#12233D]">المظهر الليلي الداكن</span>
+                    <button 
+                      onClick={() => setDarkMode(!darkMode)}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${
+                        darkMode ? 'bg-[#D4A63A]' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-300 ${
+                        darkMode ? '-translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Global Passive Ringing floating notifier */}

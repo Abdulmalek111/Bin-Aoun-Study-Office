@@ -91,7 +91,7 @@ export default function VoiceUserList({
                         ? 'border-emerald-500 scale-95'
                         : 'border-gray-200'
                     }`}
-                    referrerPolicy="referrer"
+                    referrerPolicy="no-referrer"
                   />
                   
                   {/* Speaking micro soundwave particles indicators */}
@@ -120,10 +120,10 @@ export default function VoiceUserList({
                     {/* Tiny responsive mute/deafen status icons */}
                     <div className="flex gap-1">
                       {member.isMuted && (
-                        <MicOff size={11} className="text-red-400" title="مكتوم الصوت" />
+                        <span title="مكتوم الصوت"><MicOff size={11} className="text-red-400" /></span>
                       )}
                       {member.isDeafened && (
-                        <VolumeX size={11} className="text-red-400" title="معطل السماع لتجنب الضوضاء" />
+                        <span title="معطل السماع لتجنب الضوضاء"><VolumeX size={11} className="text-red-400" /></span>
                       )}
                     </div>
                   </div>

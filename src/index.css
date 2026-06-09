@@ -4,11 +4,11 @@
 @theme {
   --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
   
-  /* Brand color palette from the image specs */
-  --color-brand-dark: #0f2544;
-  --color-brand-blue: #16325b;
-  --color-brand-gold: #c59c4b;
-  --color-brand-gray: #f9f9fa;
+  /* Brand color palette from the premium image specs */
+  --color-brand-dark: #071B3B;
+  --color-brand-blue: #0D2A57;
+  --color-brand-gold: #D4A63A;
+  --color-brand-gray: #F8FAFC;
 }
 
 html {

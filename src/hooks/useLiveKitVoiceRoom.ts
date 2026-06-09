@@ -429,7 +429,7 @@ export function useLiveKitVoiceRoom(roomId: string | undefined) {
 
     if (roomRef.current) {
       roomRef.current.remoteParticipants.forEach((participant) => {
-        participant.audioTracks.forEach((trackPublication) => {
+        (participant as any).audioTracks.forEach((trackPublication: any) => {
           if (trackPublication.track && 'setVolume' in trackPublication.track) {
             try {
               (trackPublication.track as any).setVolume(nextDeafened ? 0 : 100);
