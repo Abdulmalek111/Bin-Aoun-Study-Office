@@ -5,10 +5,10 @@
   --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
   
   /* Brand color palette from the premium image specs */
-  --color-brand-dark: #071B3B;
-  --color-brand-blue: #0D2A57;
-  --color-brand-gold: #D4A63A;
-  --color-brand-gray: #F8FAFC;
+  --color-brand-dark: #041B4D;
+  --color-brand-blue: #041B4D;
+  --color-brand-gold: #D4A63D;
+  --color-brand-gray: #F7F8FA;
 }
 
 html {

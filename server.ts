@@ -5,9 +5,20 @@ import { fileURLToPath } from 'url';
 import { admin, firebaseAdminEnabled } from './src/lib/firebase-admin.ts';
 import { AccessToken } from 'livekit-server-sdk';
 
-// Recreate CJS variables in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Recreate CJS variables safely so it does not crash when bundled to CommonJS
+let _filename = '';
+try {
+  _filename = fileURLToPath(import.meta.url);
+} catch (e) {
+  _filename = typeof __filename !== 'undefined' ? __filename : '';
+}
+
+let _dirname = '';
+try {
+  _dirname = path.dirname(_filename);
+} catch (e) {
+  _dirname = typeof __dirname !== 'undefined' ? __dirname : '';
+}
 
 // Initialize Express app & HTTP Server
 const app = express();

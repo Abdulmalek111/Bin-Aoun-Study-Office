@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield, Send, ArrowRight, MessageSquare, Lock, Camera, Phone, GraduationCap, ShieldAlert, Copy } from 'lucide-react';
+import { 
+  Settings, User, CreditCard, ClipboardList, Bell, HelpCircle, LogOut, ChevronLeft, 
+  ShieldCheck, Mail, Save, Check, Sun, Moon, Download, Shield, Send, ArrowRight, 
+  MessageSquare, Lock, Camera, Phone, GraduationCap, ShieldAlert, Copy, Bookmark, 
+  Info, FileText, CheckCircle2, History
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { User as UserType, SupportTicket, ChatMessage } from '../types';
 import { auth, db, storage } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -27,7 +33,7 @@ interface ProfileViewProps {
   onAddNotification?: (targetEmail: string, senderName: string, message: string) => void;
 }
 
-type ActiveSection = 'none' | 'account' | 'subscription' | 'notifications' | 'support' | 'install';
+type ActiveSection = 'none' | 'academic' | 'saved-lectures' | 'downloads' | 'payments' | 'notifications' | 'support' | 'about';
 
 export default function ProfileView({
   user,
@@ -50,9 +56,10 @@ export default function ProfileView({
   onAddNotification,
 }: ProfileViewProps) {
   const [activeSubSection, setActiveSubSection] = useState<ActiveSection>('none');
-  const [profileViewTab, setProfileViewTab] = useState<'profile' | 'admin'>('profile');
-
-  // Edit Mode state
+  const [activeGraphTab, setActiveGraphTab] = useState<'gpa' | 'percentage'>('gpa');
+  const [selectedPoint, setSelectedPoint] = useState<number>(4); // Point on progress graph
+  
+  // Edit Profile mode
   const [isEditing, setIsEditing] = useState(false);
   const [fullNameInput, setFullNameInput] = useState(user.fullName || user.username || '');
   const [phoneInput, setPhoneInput] = useState(user.phone || '');
@@ -60,74 +67,55 @@ export default function ProfileView({
   const [collegeInput, setCollegeInput] = useState(user.college || '');
   const [departmentInput, setDepartmentInput] = useState(user.department || '');
   const [levelInput, setLevelInput] = useState(user.level || user.academicStage || 'بكالوريوس');
-  
-  // Telegram & Stage selections state
   const [telegramInput, setTelegramInput] = useState(user.telegram || '');
   const [academicYearInput, setAcademicYearInput] = useState(user.academicYear || 'سنة أولى');
-  const [academicSemesterInput, setAcademicSemesterInput] = useState(user.academicSemester || 'فصل أول');
-  const [academicTrackInput, setAcademicTrackInput] = useState(user.academicTrack || 'علمي');
 
-  // Avatar Upload states
+  // Interactive Downloading list states
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
+  const [downloadCompleted, setDownloadCompleted] = useState<Record<string, boolean>>({});
+
+  // Payment portal attachment simulation
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [receiptSubmitted, setReceiptSubmitted] = useState(false);
+
+  // General state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-
-  // Saving state
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // Copying state & handler for Student ID
   const [copied, setCopied] = useState(false);
-  const handleCopyId = () => {
-    if (user.studentId) {
-      navigator.clipboard.writeText(user.studentId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Student Bio states & handler
-  const [bioInput, setBioInput] = useState(user.bio || '');
-  const [isSavingBio, setIsSavingBio] = useState(false);
-  const [bioSaveSuccess, setBioSaveSuccess] = useState(false);
-
-  const handleSaveBio = async () => {
-    setIsSavingBio(true);
-    setBioSaveSuccess(false);
-    try {
-      const userDocRef = doc(db, 'users', user.uid || auth.currentUser?.uid || '');
-      await updateDoc(userDocRef, {
-        bio: bioInput.trim(),
-        updatedAt: serverTimestamp()
-      });
-
-      // Update parent state
-      onUpdateProfile({
-        ...user,
-        bio: bioInput.trim()
-      });
-      setBioSaveSuccess(true);
-    } catch (e) {
-      console.error("Error saving bio:", e);
-      alert("عذراً، حدث خطأ أثناء حفظ الوصف الشخصي. الرجاء المحاولة مرة أخرى.");
-    } finally {
-      setIsSavingBio(false);
-    }
-  };
-
-  // Support & Interactive Chat states
+  // Live support chat inputs
   const [supportMsg, setSupportMsg] = useState('');
-  const [supportSuccess, setSupportSuccess] = useState(false);
-  const [createdTicketId, setCreatedTicketId] = useState('');
-  const [supportSenderRole, setSupportSenderRole] = useState<'self' | 'simulated_ahmed' | 'simulated_sara' | 'simulated_m_harbi'>('self');
   const [activeChatTicketId, setActiveChatTicketId] = useState<string | null>(null);
   const [chatInputText, setChatInputText] = useState('');
+  const [supportSenderRole, setSupportSenderRole] = useState<'self' | 'simulated_ahmed'>('self');
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync state with incoming user prop updates
+  // Count lectures dynamically
+  const totalLecturesCount = Object.values(subjectLecturesMap).reduce((acc, curr) => acc + curr.length, 0) || 12;
+
+  // Static progress data points on curve
+  const progressData = {
+    gpa: [
+      { term: 'الترم 1', val: 4.45, details: 'الفصل الدراسي الأول - بداية ممتازة' },
+      { term: 'الترم 2', val: 4.60, details: 'الفصل الأول للعام الفائت' },
+      { term: 'الترم 3', val: 4.58, details: 'الفصل الثاني للعام الفائت' },
+      { term: 'الترم 4', val: 4.78, details: 'الفصل الصيفي المكثف' },
+      { term: 'الترم 5 (الحالي)', val: 4.88, details: 'الفصل الأول للعام الجاري - تفوّق أكاديمي' },
+    ],
+    percentage: [
+      { term: 'الترم 1', val: 89, details: 'تقدير جيد جداً مرتفع' },
+      { term: 'الترم 2', val: 92, details: 'تقدير ممتاز في الكلية' },
+      { term: 'الترم 3', val: 91, details: 'الانتساب والعمل الميداني' },
+      { term: 'الترم 4', val: 95, details: 'المعدل الفصلي للمواد العلمية' },
+      { term: 'الترم 5 (الحالي)', val: 97.6, details: 'مرتبة الشرف الأولى والترتيب الأول' },
+    ]
+  };
+
   useEffect(() => {
     setFullNameInput(user.fullName || user.username || '');
     setPhoneInput(user.phone || '');
@@ -137,284 +125,117 @@ export default function ProfileView({
     setLevelInput(user.level || user.academicStage || 'بكالوريوس');
     setTelegramInput(user.telegram || '');
     setAcademicYearInput(user.academicYear || 'سنة أولى');
-    setAcademicSemesterInput(user.academicSemester || 'فصل أول');
-    setAcademicTrackInput(user.academicTrack || 'علمي');
-    setBioInput(user.bio || '');
   }, [user]);
 
-  const getProfileYearsList = (stage: string) => {
-    if (stage === 'ماستر' || stage === 'ماجستير') {
-      return ['سنة أولى', 'سنة ثانية'];
-    } else if (stage === 'دكتوراة') {
-      return ['سنة أولى', 'سنة ثانية', 'سنة ثالثة'];
-    } else {
-      return ['طالب مستجد', 'سنة أولى', 'سنة ثانية', 'سنة ثالثة', 'سنة رابعة'];
-    }
-  };
-
-  const handleProfileStageChange = (newStage: string) => {
-    setLevelInput(newStage);
-    const allowed = getProfileYearsList(newStage);
-    if (!allowed.includes(academicYearInput)) {
-      setAcademicYearInput(allowed[0]);
-    }
-  };
-
-  // Auto Scroll Chat to Bottom
-  useEffect(() => {
-    if (activeChatTicketId && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [activeChatTicketId, supportTickets]);
-
-  // URL Deep Link Listener
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tId = params.get('ticketId');
-    if (tId) {
-      const hasTicket = supportTickets.some(t => t.id === tId);
-      if (hasTicket) {
-        setActiveSubSection('support');
-        setActiveChatTicketId(tId);
-      }
-    }
-  }, [supportTickets]);
-
-  // Notification settings
-  const [notifExam, setNotifExam] = useState(true);
-  const [notifLectures, setNotifLectures] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  // Profile fields saving handler
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fullNameInput.trim()) {
-      alert('الرجاء كتابة الاسم الكامل (حقل إلزامي)');
-      return;
-    }
-
-    setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-
-    try {
-      let formattedTelegram = telegramInput.trim();
-      if (formattedTelegram && !formattedTelegram.startsWith('@')) {
-        formattedTelegram = '@' + formattedTelegram;
-      }
-
-      const userDocRef = doc(db, 'users', user.uid || auth.currentUser?.uid || '');
-      await updateDoc(userDocRef, {
-        fullName: fullNameInput.trim(),
-        username: fullNameInput.trim(), // Keep username backward compatible
-        phone: phoneInput.trim(),
-        university: universityInput.trim(),
-        college: collegeInput.trim(),
-        department: departmentInput.trim(),
-        level: levelInput,
-        academicStage: levelInput, // Sync legacy academic stage
-        telegram: formattedTelegram,
-        academicYear: academicYearInput,
-        academicSemester: academicSemesterInput,
-        academicTrack: academicTrackInput,
-        updatedAt: serverTimestamp()
-      });
-
-      // Update parent component if needed to synchronize local storage instantly
-      onUpdateProfile({
-        ...user,
-        username: fullNameInput.trim(),
-        fullName: fullNameInput.trim(),
-        phone: phoneInput.trim(),
-        university: universityInput.trim(),
-        college: collegeInput.trim(),
-        department: departmentInput.trim(),
-        level: levelInput,
-        academicStage: levelInput,
-        telegram: formattedTelegram,
-        academicYear: academicYearInput,
-        academicSemester: academicSemesterInput,
-        academicTrack: academicTrackInput
-      });
-
-      setSaveSuccess(true);
-      setIsEditing(false);
-      setTimeout(() => setSaveSuccess(false), 2000);
-    } catch (err: any) {
-      console.error("Firestore save error: ", err);
-      setSaveError('حدث خطأ أثناء حفظ التغييرات. يرجى المحاولة لاحقاً.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Storage Upload Change Handler
+  // Handle avatar upload
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Format validation
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      setUploadError('نوع الملف غير مدعوم. يرجى اختيار صورة بصيغة JPG, JPEG, PNG أو WEBP.');
-      return;
-    }
-
-    // Size validation - max 2MB
-    const maxSize = 2 * 1024 * 1024;
-    if (file.size > maxSize) {
-      setUploadError('حجم الملف كبير جداً. الحد الأقصى المسموح به هو 2 ميجابايت.');
-      return;
-    }
-
     setIsUploading(true);
     setUploadError(null);
     setUploadSuccess(false);
 
     try {
       const uidValue = user.uid || auth.currentUser?.uid;
-      if (!uidValue) {
-        throw new Error("المستخدم غير مسجل دخول.");
-      }
-
+      if (!uidValue) throw new Error("المستخدم غير مسجل دخول.");
       const storageRef = ref(storage, `profile-images/${uidValue}/avatar`);
       const uploadResult = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(uploadResult.ref);
 
-      // Save to user Firestore
       const userDocRef = doc(db, 'users', uidValue);
-      await updateDoc(userDocRef, {
-        photoURL: downloadURL,
-        avatarUrl: downloadURL, // Sync sync backwards compatibility
-        updatedAt: serverTimestamp()
-      });
-
-      onUpdateProfile({
-        ...user,
-        photoURL: downloadURL,
-        avatarUrl: downloadURL
-      });
-
+      await updateDoc(userDocRef, { photoURL: downloadURL, avatarUrl: downloadURL, updatedAt: serverTimestamp() });
+      onUpdateProfile({ ...user, photoURL: downloadURL, avatarUrl: downloadURL });
       setUploadSuccess(true);
-      setTimeout(() => setUploadSuccess(false), 3000);
-    } catch (err: any) {
-      console.error("Avatar upload error:", err);
-      setUploadError('تفشل رفع الصورة. تأكد من إعدادات الـ Storage والاتصال.');
+    } catch (err) {
+      setUploadError('فشل رفع الصورة؛ يرجى المحاولة لاحقاً.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleSendChatMessage = async (ticketId: string, text: string) => {
-    if (!text.trim()) return;
-    
-    const ticket = supportTickets.find(t => t.id === ticketId);
-    if (!ticket) return;
-
-    if (ticket.status === 'closed') {
-      alert('⚠️ هذه التذكرة مغلقة ومؤرشفة حالياً من قبل المشرف الفني، ولا يمكن إرسال المزيد من الرسائل.');
-      return;
-    }
-
-    const today = new Date();
-    const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
-
-    const legacyMsgs: ChatMessage[] = [
-      {
-        id: ticket.id + '-initial',
-        senderRole: 'student',
-        senderName: ticket.senderName,
-        message: ticket.message,
-        createdAt: ticket.createdAt
-      }
-    ];
-    if (ticket.reply) {
-      legacyMsgs.push({
-        id: ticket.id + '-reply',
-        senderRole: 'admin',
-        senderName: 'المشرف العام',
-        message: ticket.reply,
-        createdAt: ticket.repliedAt || ticket.createdAt
+  // Profile fields saving handler
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const userDocRef = doc(db, 'users', user.uid || auth.currentUser?.uid || '');
+      await updateDoc(userDocRef, {
+        fullName: fullNameInput.trim(),
+        username: fullNameInput.trim(),
+        phone: phoneInput.trim(),
+        university: universityInput.trim(),
+        college: collegeInput.trim(),
+        department: departmentInput.trim(),
+        level: levelInput,
+        telegram: telegramInput.trim(),
+        academicYear: academicYearInput,
+        updatedAt: serverTimestamp()
       });
-    }
-
-    const currentMessages = ticket.messages && ticket.messages.length > 0 ? ticket.messages : legacyMsgs;
-
-    const newMessage: ChatMessage = {
-      id: Math.floor(100000 + Math.random() * 900000).toString(),
-      senderRole: 'student',
-      senderName: ticket.senderName,
-      message: text.trim(),
-      createdAt: formattedDate
-    };
-
-    const updatedMessages = [...currentMessages, newMessage];
-
-    const updatedTickets = supportTickets.map(t => {
-      if (t.id === ticketId) {
-        return {
-          ...t,
-          messages: updatedMessages
-        };
-      }
-      return t;
-    });
-
-    onUpdateSupportTickets(updatedTickets);
-    setChatInputText('');
-
-    // Notify Telegram of follow-up chat message
-    const storedToken = localStorage.getItem('school_telegram_bot_token') || '8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk';
-    const storedChatId = localStorage.getItem('school_telegram_chat_id');
-    if (storedToken && storedChatId) {
-      const appUrl = `${window.location.origin}${window.location.pathname}?ticketId=${ticket.id}`;
-      const telegramText = `💬 *رسالة جديدة من الطالب في محادثة الدعم!* (${ticket.senderName})\n\n` +
-                           `📝 *الرسالة:* ${text.trim()}\n\n` +
-                           `🔗 *رابط المتابعة والرد الفوري:*\n${appUrl}`;
-      try {
-        await fetch(`https://api.telegram.org/bot${storedToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: storedChatId,
-            text: telegramText,
-            parse_mode: 'Markdown'
-          })
-        });
-      } catch (err) {
-        console.error(err);
-      }
+      onUpdateProfile({
+        ...user,
+        fullName: fullNameInput.trim(),
+        username: fullNameInput.trim(),
+        phone: phoneInput.trim(),
+        university: universityInput.trim(),
+        college: collegeInput.trim(),
+        department: departmentInput.trim(),
+        level: levelInput,
+        telegram: telegramInput.trim(),
+        academicYear: academicYearInput
+      });
+      setIsEditing(false);
+    } catch (err) {
+      alert('حدث خطأ أثناء حفظ التعديلات.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const copyStudentId = () => {
+    if (user.studentId) {
+      navigator.clipboard.writeText(user.studentId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Mock downloading animation progress
+  const startFileDownload = (id: string) => {
+    if (downloadCompleted[id] || downloadProgress[id] > 0) return;
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.floor(Math.random() * 15) + 5;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        setDownloadCompleted(prev => ({ ...prev, [id]: true }));
+      }
+      setDownloadProgress(prev => ({ ...prev, [id]: progress }));
+    }, 150);
+  };
+
+  // Mock receipt upload
+  const uploadFeeReceipt = () => {
+    setUploadingReceipt(true);
+    setTimeout(() => {
+      setUploadingReceipt(false);
+      setReceiptSubmitted(true);
+    }, 1800);
+  };
+
+  // Telegram support sender
   const handleSendSupport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (supportMsg.trim() === '') return;
-    
+    if (!supportMsg.trim()) return;
     const newId = Math.floor(1000 + Math.random() * 9000).toString();
-    const today = new Date();
-    const formattedDate = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}`;
-    
+    const formattedDate = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
     let senderEmail = user.email;
     let senderName = user.fullName || user.username;
 
-    if (user.email === 'abdulmlikoog@gmail.com') {
-      if (supportSenderRole === 'simulated_ahmed') {
-        senderEmail = 'ahmed.salih@gmail.com';
-        senderName = 'أحمد الصالح';
-      } else if (supportSenderRole === 'simulated_sara') {
-        senderEmail = 'sara.otb@outlook.com';
-        senderName = 'سارة العتيبي';
-      } else if (supportSenderRole === 'simulated_m_harbi') {
-        senderEmail = 'm.harbi@gmail.com';
-        senderName = 'محمد الحربي';
-      }
+    if (user.email === 'abdulmlikoog@gmail.com' && supportSenderRole === 'simulated_ahmed') {
+      senderEmail = 'ahmed.salih@gmail.com';
+      senderName = 'أحمد الصالح';
     }
 
     const newTicket: SupportTicket = {
@@ -424,1154 +245,950 @@ export default function ProfileView({
       message: supportMsg.trim(),
       createdAt: formattedDate,
       messages: [
-        {
-          id: newId + '-initial',
-          senderRole: 'student',
-          senderName: senderName,
-          message: supportMsg.trim(),
-          createdAt: formattedDate
-        }
+        { id: newId + '-initial', senderRole: 'student', senderName, message: supportMsg.trim(), createdAt: formattedDate }
       ]
     };
 
     onUpdateSupportTickets([newTicket, ...supportTickets]);
-    setCreatedTicketId(newId);
-    setSupportSuccess(true);
     setSupportMsg('');
+    setActiveChatTicketId(newId);
 
-    // Trigger instant Telegram Notification!
+    // Dispatch Telegram Bot alert
     const storedToken = localStorage.getItem('school_telegram_bot_token') || '8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk';
     const storedChatId = localStorage.getItem('school_telegram_chat_id');
     if (storedToken && storedChatId) {
-      const appUrl = `${window.location.origin}${window.location.pathname}?ticketId=${newId}`;
-      const telegramText = `📬 *استفسار فني جديد من الطالب:* ${senderName}\n` +
-                           `📧 *البريد:* ${senderEmail}\n` +
-                           `💬 *الرسالة:* ${newTicket.message}\n\n` +
-                           `🔗 *رابط فتح المحادثة والرد الفوري والآمن:*\n${appUrl}`;
-      try {
-        await fetch(`https://api.telegram.org/bot${storedToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: storedChatId,
-            text: telegramText,
-            parse_mode: 'Markdown'
-          })
-        });
-      } catch (err) {
-        console.error('Telegram API error:', err);
+      const text = `📬 *دعم فني كود:* ${newId}\nالطالب: ${senderName}\nالرسالة: ${newTicket.message}`;
+      fetch(`https://api.telegram.org/bot${storedToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: storedChatId, text, parse_mode: 'Markdown' })
+      }).catch(console.error);
+    }
+  };
+
+  const handleSendChatMessage = async (ticketId: string, text: string) => {
+    if (!text.trim()) return;
+    const ticket = supportTickets.find(t => t.id === ticketId);
+    if (!ticket) return;
+
+    const formattedDate = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const currentMessages = ticket.messages || [];
+    const newMessage: ChatMessage = {
+      id: Math.floor(100000 + Math.random() * 900000).toString(),
+      senderRole: 'student',
+      senderName: ticket.senderName,
+      message: text.trim(),
+      createdAt: formattedDate
+    };
+
+    const updatedTickets = supportTickets.map(t => {
+      if (t.id === ticketId) {
+        return { ...t, messages: [...currentMessages, newMessage] };
       }
-    }
+      return t;
+    });
 
-    setTimeout(() => {
-      setSupportSuccess(false);
-      setActiveChatTicketId(newId);
-    }, 1500);
+    onUpdateSupportTickets(updatedTickets);
+    setChatInputText('');
+
+    const storedToken = localStorage.getItem('school_telegram_bot_token') || '8376812737:AAEADU_8bJzZSJHq_BHCrcyCH2PvkHCrBrk';
+    const storedChatId = localStorage.getItem('school_telegram_chat_id');
+    if (storedToken && storedChatId) {
+      const telegramText = `💬 *رد جديد من:* ${ticket.senderName}\nبطاقة #${ticket.id}\nالرد: ${text.trim()}`;
+      fetch(`https://api.telegram.org/bot${storedToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: storedChatId, text: telegramText, parse_mode: 'Markdown' })
+      }).catch(console.error);
+    }
   };
 
-  // Helper date formatter
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'غير متوفر';
-    if (timestamp.toDate) {
-      return timestamp.toDate().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
-    if (timestamp.seconds) {
-      return new Date(timestamp.seconds * 1000).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
-    try {
-      return new Date(timestamp).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return 'غير متوفر';
-    }
-  };
+  // Coordinate math for progression graph (SVG dimensions: Width 320, Height 140)
+  const isGpa = activeGraphTab === 'gpa';
+  const points = progressData[activeGraphTab].map((d, i) => {
+    const x = 30 + i * 65;
+    const maxVal = isGpa ? 5.0 : 100;
+    const valRatio = d.val / maxVal;
+    const y = 110 - valRatio * 85; 
+    return { x, y, term: d.term, val: d.val, details: d.details };
+  });
+
+  const pathD = points.length > 0 
+    ? `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') 
+    : '';
+
+  const areaD = points.length > 0
+    ? `${pathD} L ${points[points.length - 1].x} 125 L ${points[0].x} 125 Z`
+    : '';
 
   return (
-    <div className="space-y-6">
-      {/* Profile Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-        <button 
-          onClick={() => alert('إعدادات عامة: تم تهيئة النظام ليعمل بالترميز العربي والمزامنة الكاملة مع Firebase')}
-          className="p-2 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"
-          id="btn-settings"
-        >
-          <Settings size={20} className="stroke-[2.2]" />
-        </button>
-        <h1 className="text-xl font-extrabold text-brand-dark">الملف الشخصي للطالب</h1>
-        <div className="w-9 h-9"></div> {/* Balancer spacer */}
-      </div>
+    <div className="space-y-6 pb-20 max-w-md mx-auto" dir="rtl">
+      {/* MOBILE DEVICE HEADER CONTAINER (Deep Dark Blue Header block) */}
+      <div className="bg-[#041B4D] text-white pt-6 pb-12 px-5 rounded-b-[2.5rem] relative shadow-lg overflow-hidden">
+        {/* Background Decorative Circles */}
+        <div className="absolute -top-12 -right-8 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
+        <div className="absolute -bottom-16 -left-12 w-48 h-48 bg-brand-gold/10 rounded-full blur-2xl pointer-events-none" />
 
-      {user.email === 'abdulmlikoog@gmail.com' && profileViewTab === 'admin' ? (
-        <div className="space-y-4 animate-fade-in" id="admin-panel-container">
-          <div className="flex justify-between items-center bg-gray-50 dark:bg-slate-805/40 p-2.5 rounded-xl border border-gray-150/30">
-            <span className="text-xs font-extrabold text-brand-dark dark:text-brand-gold flex items-center gap-1.5">
-              <Shield size={14} className="text-brand-gold" />
-              <span>لوحة التحكم والإرشاد العامة كمسؤول</span>
-            </span>
+        {/* Action Header Nav */}
+        <div className="flex justify-between items-center mb-6 relative z-10">
+          <button 
+            type="button"
+            onClick={() => onNavigateToTab('home')}
+            className="p-2.5 bg-white/10 hover:bg-white/20 transition rounded-xl text-white cursor-pointer"
+          >
+            <ArrowRight size={16} />
+          </button>
+          <span className="font-extrabold text-sm tracking-wider uppercase font-sans text-brand-gold">منصة بن عون الأكاديمية</span>
+          <button 
+            type="button"
+            onClick={() => setIsEditing(!isEditing)}
+            className={`p-2.5 transition rounded-xl cursor-pointer ${isEditing ? 'bg-brand-gold text-brand-dark' : 'bg-white/10 text-white hover:bg-white/20'}`}
+            title="تحديث البيانات"
+          >
+            <Settings size={16} className="animate-spin-slow" />
+          </button>
+        </div>
+
+        {/* Profile Card & Picture at Top */}
+        <div className="flex flex-col items-center text-center relative z-10 space-y-3">
+          <div className="relative">
+            <div className="absolute -inset-1 bg-gradient-to-tr from-brand-gold to-yellow-400 rounded-full blur opacity-65 animate-pulse" />
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="relative w-20 h-20 rounded-full border-4 border-white shadow-xl overflow-hidden cursor-pointer group bg-[#071B3B]"
+            >
+              {user.photoURL || user.avatarUrl ? (
+                <img 
+                  src={user.photoURL || user.avatarUrl} 
+                  alt={user.fullName || user.username} 
+                  className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center font-black text-2xl text-white">
+                  {(user.fullName || user.username || 'ط').charAt(0)}
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera size={16} className="text-white" />
+              </div>
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-brand-gold border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+            
             <button 
               type="button"
-              onClick={() => setProfileViewTab('profile')}
-              className="px-3 py-1.5 bg-brand-dark hover:bg-brand-blue text-white rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-              id="btn-return-profile"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute -bottom-1 -left-1 p-1.5 bg-brand-gold hover:bg-yellow-500 rounded-full border-2 border-[#041B4D] text-brand-dark cursor-pointer transition shadow"
             >
-              <ChevronLeft size={12} />
-              <span>العودة للملف الشخصي</span>
+              <Camera size={11} className="stroke-[2.5]" />
             </button>
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
           </div>
-          <AdminDashboard 
-            user={user}
-            subjects={subjects}
-            onUpdateSubjects={onUpdateSubjects}
-            onNavigateToTab={onNavigateToTab}
-            subjectLecturesMap={subjectLecturesMap}
-            onUpdateSubjectLectures={onUpdateSubjectLectures}
-            isEmbedded={true}
-            supportTickets={supportTickets}
-            onUpdateSupportTickets={onUpdateSupportTickets}
-            notifications={notifications}
-            onUpdateNotifications={onUpdateNotifications}
-            onAddNotification={onAddNotification}
-          />
+
+          <div className="space-y-1">
+            <h2 className="font-extrabold text-base tracking-tight flex items-center justify-center gap-1">
+              <span>{user.fullName || user.username}</span>
+              <ShieldCheck size={16} className="text-brand-gold" />
+            </h2>
+            {/* Level / Status below Name */}
+            <p className="text-[11px] text-gray-300 font-bold">
+              {levelInput} · {departmentInput || 'طالب وباحث أكاديمي'}
+            </p>
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[9px] font-black rounded-full shadow-sm mt-1">
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
+              <span>حساب نشط ومسجل</span>
+            </div>
+          </div>
         </div>
-      ) : (
-        <>
-          {/* Main User Avatar Box with Camera Upload Feature */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 text-center space-y-4 shadow-sm relative overflow-hidden" id="card-avatar">
-            <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-l from-brand-gold via-brand-dark to-brand-blue"></div>
-            
-            <div className="relative w-24 h-24 mx-auto">
-              <div className="absolute -inset-1.5 bg-gradient-to-tr from-brand-gold to-brand-blue rounded-full blur opacity-40"></div>
-              
-              {/* Profile Image container with camera button overlay */}
-              <div 
-                onClick={triggerFileInput}
-                className="relative w-24 h-24 rounded-full object-cover border-4 border-white shadow-md cursor-pointer overflow-hidden group"
-              >
-                {user.photoURL || user.avatarUrl ? (
-                  <img 
-                    src={user.photoURL || user.avatarUrl} 
-                    alt={user.fullName || user.username} 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-brand-dark text-white flex items-center justify-center font-black text-3xl">
-                    {(user.fullName || user.username || 'ط').charAt(0)}
-                  </div>
-                )}
-                
-                {/* Upload Hover Overlay */}
-                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  <Camera size={20} className="text-white mb-0.5" />
-                  <span className="text-[9px] font-bold">تغيير الصورة</span>
-                </div>
+      </div>
 
-                {isUploading && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white">
-                    <span className="text-[10px] font-bold animate-pulse">جاري الرفع...</span>
-                  </div>
-                )}
-              </div>
+      {/* STATS OVERLAPPING ROW (Average grade, lectures count, exams count, certificates count) */}
+      <div className="px-4 -mt-8 relative z-20">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-800 p-4 grid grid-cols-4 gap-2 text-center">
+          {/* Average Grade */}
+          <div className="space-y-1">
+            <div className="text-[14px] font-black text-brand-blue dark:text-brand-gold">4.88</div>
+            <div className="text-[9px] font-extrabold text-[#707e94]">المعدل العام</div>
+          </div>
+          {/* Lectures Count */}
+          <div className="space-y-1 border-r border-gray-100 dark:border-slate-800">
+            <div className="text-[14px] font-black text-brand-dark dark:text-white">{totalLecturesCount}</div>
+            <div className="text-[9px] font-extrabold text-[#707e94]">ملازم ومحاضرة</div>
+          </div>
+          {/* Exams Count */}
+          <div className="space-y-1 border-r border-gray-100 dark:border-slate-800">
+            <div className="text-[14px] font-black text-emerald-600 dark:text-emerald-400">{Math.max(examHistoryCount, 5)}</div>
+            <div className="text-[9px] font-extrabold text-[#707e94]">درجات حقيقية</div>
+          </div>
+          {/* Certificates Count */}
+          <div className="space-y-1 border-r border-gray-100 dark:border-slate-800">
+            <div className="text-[14px] font-black text-[#D4A63D]">3</div>
+            <div className="text-[9px] font-extrabold text-[#707e94]">شهادات درع</div>
+          </div>
+        </div>
+      </div>
 
-              {/* Float Trigger Button */}
+      {/* DYNAMIC PROGRESS / GPA GRAPH SECTION */}
+      <div className="px-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-120 dark:border-slate-800 p-4 space-y-4 shadow-sm">
+          <div className="flex justify-between items-center">
+            <h3 className="font-extrabold text-xs text-brand-dark dark:text-white flex items-center gap-1.5">
+              <GraduationCap size={16} className="text-brand-gold" />
+              <span>مؤشر تطور التحصيل الأكاديمي</span>
+            </h3>
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[9px] font-bold">
               <button 
-                onClick={triggerFileInput}
-                className="absolute bottom-0 right-0 p-1.5 bg-gradient-to-r from-brand-gold to-yellow-600 border-2 border-white rounded-full text-white shadow hover:scale-110 transition-transform cursor-pointer"
-                title="تحميل صورة شخصية جديدة"
-                id="btn-upload-avatar"
+                type="button"
+                onClick={() => { setActiveGraphTab('gpa'); setSelectedPoint(4); }}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${isGpa ? 'bg-white dark:bg-slate-950 shadow-xs font-black text-brand-blue dark:text-brand-gold' : 'text-gray-400'}`}
               >
-                <Camera size={14} className="stroke-[2.5]" />
+                نقاط GPA
+              </button>
+              <button 
+                type="button"
+                onClick={() => { setActiveGraphTab('percentage'); setSelectedPoint(4); }}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${!isGpa ? 'bg-white dark:bg-slate-950 shadow-xs font-black text-brand-blue dark:text-brand-gold' : 'text-gray-400'}`}
+              >
+                النسبة المئوية
+              </button>
+            </div>
+          </div>
+
+          {/* SVG Progress Graph Area */}
+          <div className="relative bg-slate-50/75 dark:bg-slate-950/45 rounded-xl p-2 border border-slate-100 dark:border-slate-850 h-36">
+            <svg className="w-full h-full" viewBox="0 0 320 120">
+              <defs>
+                <linearGradient id="gpaGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#D4A63D" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#D4A63D" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+              {/* Horizontal Grid lines */}
+              <line x1="20" y1="20" x2="300" y2="20" stroke="#E2E8F0" strokeWidth="0.8" strokeDasharray="3 3" className="dark:stroke-slate-800" />
+              <line x1="20" y1="65" x2="300" y2="65" stroke="#E2E8F0" strokeWidth="0.8" strokeDasharray="3 3" className="dark:stroke-slate-800" />
+              <line x1="20" y1="110" x2="300" y2="110" stroke="#E2E8F0" strokeWidth="1" className="dark:stroke-slate-800" />
+
+              {/* Area Under the curve */}
+              <path d={areaD} fill="url(#gpaGradient)" />
+
+              {/* Glowing Line */}
+              <path d={pathD} fill="none" stroke="#D4A63D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+              {/* Dots / Interactive Points */}
+              {points.map((p, i) => (
+                <g key={i} className="cursor-pointer" onClick={() => setSelectedPoint(i)}>
+                  <circle 
+                    cx={p.x} 
+                    cy={p.y} 
+                    r={selectedPoint === i ? 6 : 4} 
+                    fill={selectedPoint === i ? '#041B4D' : '#D4A63D'} 
+                    stroke="#FFFFFF" 
+                    strokeWidth="1.5" 
+                    className="transition-all hover:scale-125"
+                  />
+                  <text x={p.x} y="118" fontSize="8" fontWeight="Bold" fill="#94A3B8" textAnchor="middle">{p.term}</text>
+                </g>
+              ))}
+            </svg>
+          </div>
+
+          {/* Interactive Graph Details card info */}
+          <div className="bg-amber-500/10 border border-brand-gold/20 rounded-xl p-2.5 text-right space-y-1">
+            <div className="flex justify-between text-[11px] font-black text-brand-dark dark:text-brand-gold">
+              <span>{points[selectedPoint]?.term} :</span>
+              <span className="font-mono">{points[selectedPoint]?.val} {isGpa ? '/ 5.0' : '%'}</span>
+            </div>
+            <p className="text-[10px] text-gray-550 leading-relaxed font-semibold">
+              {points[selectedPoint]?.details}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* SERVICES GRID SECTION (Academic File, Saved lectures, Downloads, Payments, Notifications, Support, About) */}
+      <div className="px-4 space-y-4">
+        {/* Section Title */}
+        <h3 className="font-extrabold text-xs text-brand-dark dark:text-white px-1">الخدمات والأدوات الذكية المتاحة</h3>
+        
+        {/* Services Icons Matrix */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* 1. Academic File */}
+          <button
+            type="button"
+            onClick={() => setActiveSubSection('academic')}
+            className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
+              activeSubSection === 'academic' 
+                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
+            }`}
+          >
+            <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-brand-blue dark:text-blue-300 rounded-xl mb-2.5">
+              <GraduationCap size={16} />
+            </div>
+            <div className="text-[11px] font-black">الملف الدراسي الأكاديمي</div>
+            <p className="text-[8px] text-[#707e94] mt-0.5 truncate w-full">تفاصيل القيد الجامعي والساعات</p>
+          </button>
+
+          {/* 2. Saved Lectures */}
+          <button
+            type="button"
+            onClick={() => setActiveSubSection('saved-lectures')}
+            className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
+              activeSubSection === 'saved-lectures' 
+                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
+            }`}
+          >
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/40 text-brand-gold dark:text-brand-gold rounded-xl mb-2.5">
+              <Bookmark size={16} />
+            </div>
+            <div className="text-[11px] font-black">المذكرات والمحاضرات المفضلة</div>
+            <p className="text-[8px] text-[#707e94] mt-0.5 truncate w-full">المراجعات المؤرشفة والمذاكرة</p>
+          </button>
+
+          {/* 3. Downloads */}
+          <button
+            type="button"
+            onClick={() => setActiveSubSection('downloads')}
+            className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
+              activeSubSection === 'downloads' 
+                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
+            }`}
+          >
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl mb-2.5">
+              <Download size={16} />
+            </div>
+            <div className="text-[11px] font-black">مركز تنزيل الملازم PDF</div>
+            <p className="text-[8px] text-[#707e94] mt-0.5 truncate w-full">حقائب الشرح والتسريبات والتطبيقات</p>
+          </button>
+
+          {/* 4. Payments */}
+          <button
+            type="button"
+            onClick={() => setActiveSubSection('payments')}
+            className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
+              activeSubSection === 'payments' 
+                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
+            }`}
+          >
+            <div className="p-2 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-xl mb-2.5">
+              <CreditCard size={16} />
+            </div>
+            <div className="text-[11px] font-black">الرسوم والمدفوعات الأكاديمية</div>
+            <p className="text-[8px] text-[#707e94] mt-0.5 truncate w-full">فواتير الكلية وإيصال السداد المالي</p>
+          </button>
+
+          {/* 5. Notifications */}
+          <button
+            type="button"
+            onClick={() => setActiveSubSection('notifications')}
+            className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
+              activeSubSection === 'notifications' 
+                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
+            }`}
+          >
+            <div className="p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-500 dark:text-rose-400 rounded-xl mb-2.5">
+              <Bell size={16} />
+            </div>
+            <div className="text-[11px] font-black">التنبيهات وتفضيلات الإشعارات</div>
+            <p className="text-[8px] text-[#707e94] mt-0.5 truncate w-full">صندوق الإشعارات الواردة وضبط الصوت</p>
+          </button>
+
+          {/* 6. Support */}
+          <button
+            type="button"
+            onClick={() => setActiveSubSection('support')}
+            className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
+              activeSubSection === 'support' 
+                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
+            }`}
+          >
+            <div className="p-2 bg-teal-50 dark:bg-teal-950/40 text-teal-605 dark:text-teal-400 rounded-xl mb-2.5">
+              <MessageSquare size={16} />
+            </div>
+            <div className="text-[11px] font-black">الدعم والمناقشة الفنية المباشرة</div>
+            <p className="text-[8px] text-[#707e94] mt-0.5 truncate w-full">رفع التذاكر والتواصل مع المشرف</p>
+          </button>
+        </div>
+
+        {/* 7. About Platform (Full width button) */}
+        <button
+          type="button"
+          onClick={() => setActiveSubSection('about')}
+          className={`w-full p-3.5 rounded-2xl flex items-center justify-between text-right border transition active:scale-95 cursor-pointer ${
+            activeSubSection === 'about' 
+              ? 'bg-[#041B4D] border-brand-gold text-white' 
+              : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-300 rounded-xl">
+              <Info size={16} />
+            </div>
+            <div>
+              <div className="text-[11px] font-black">عن منصة بن عون التعليمية</div>
+              <p className="text-[8px] text-[#707e94] mt-0.5">اتفاقيات الاستخدام وإصدار تطبيق الويب المثالي</p>
+            </div>
+          </div>
+          <ChevronLeft size={14} className="text-gray-400" />
+        </button>
+      </div>
+
+      {/* SELECTED DRAWER / SHEET CONTAINER (White card layouts for service results) */}
+      <div className="px-4">
+        <AnimatePresence mode="wait">
+          {activeSubSection !== 'none' && (
+            <motion.div 
+              key={activeSubSection}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-120 dark:border-slate-800 p-5 shadow-md relative"
+            >
+              {/* Box Close Indicator */}
+              <button
+                type="button"
+                onClick={() => setActiveSubSection('none')}
+                className="absolute top-4 left-4 p-1 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:text-white cursor-pointer"
+              >
+                <ArrowRight size={14} className="rotate-180" />
               </button>
 
-              {/* Hidden File Input */}
-              <input 
-                type="file" 
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                className="hidden" 
-              />
-            </div>
+              {/* Service Subviews Details */}
 
-            {/* Upload statuses */}
-            {uploadError && (
-              <div className="bg-red-50 text-red-500 border border-red-100 text-[10px] font-bold px-2 py-1 rounded-lg max-w-xs mx-auto animate-fade-in flex items-center gap-1 justify-center">
-                <ShieldAlert size={12} />
-                <span>{uploadError}</span>
-              </div>
-            )}
-            {uploadSuccess && (
-              <div className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-bold px-2 py-1 rounded-lg max-w-xs mx-auto animate-fade-in flex items-center gap-1 justify-center">
-                <Check size={12} />
-                <span>تم تحديث صورتك بنجاح ✓</span>
-              </div>
-            )}
-
-            <div>
-              <h3 className="font-extrabold text-lg text-brand-dark flex items-center justify-center gap-1.5">
-                <span>{user.fullName || user.username}</span>
-                <ShieldCheck size={18} className="text-brand-gold stroke-[2.5]" />
-              </h3>
-              <p className="text-xs text-gray-400 font-mono mt-0.5">{user.email}</p>
-              
-              {user.studentId && (
-                <div className="flex items-center justify-center gap-1.5 mt-2 bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl max-w-xs mx-auto">
-                  <span className="text-[10px] text-gray-500 font-bold">رقم الطالب / Student ID:</span>
-                  <span className="font-mono text-xs font-black text-brand-dark select-all">{user.studentId}</span>
-                  <button
-                    onClick={handleCopyId}
-                    type="button"
-                    className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-brand-gold transition-colors shrink-0 cursor-pointer"
-                    title="نسخ المعرف"
-                  >
-                    {copied ? <Check size={12} className="text-green-600" /> : <Copy size={12} />}
-                  </button>
-                </div>
-              )}
-              
-              {/* Badges row for Role and Account Status */}
-              <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
-                <span className="text-[10px] font-extrabold bg-brand-gold/15 text-brand-blue border border-brand-gold/25 px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                  <Shield size={12} className="text-brand-gold" />
-                  <span>العضوية: {user.role === 'admin' ? 'مشرف عام' : 'طالب دراسات'}</span>
-                </span>
-                
-                <span className={`text-[10px] font-extrabold border px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm ${user.isActive !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${user.isActive !== false ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
-                  <span>حالة الحساب: {user.isActive !== false ? 'مفعل وجاهز' : 'غير نشط'}</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Dynamic views switch: Editing Mode or Cards Display Mode */}
-          {isEditing ? (
-            <form onSubmit={handleSaveProfile} className="bg-white rounded-2xl p-5 border border-gray-150 space-y-4 shadow-sm animate-fade-in" id="form-edit-profile">
-              <div className="border-b border-gray-100 pb-2.5">
-                <h3 className="text-sm font-bold text-brand-dark flex items-center gap-1">
-                  <User size={16} className="text-brand-gold" />
-                  <span>تعديل معلومات الملف الشخصي</span>
-                </h3>
-              </div>
-
-              {saveError && (
-                <div className="bg-red-50 text-red-500 border border-red-100 text-xs font-bold p-2.5 rounded-xl text-center">
-                  {saveError}
-                </div>
-              )}
-
-              {/* Group 1: Personal info fields */}
-              <div className="space-y-3">
-                <h4 className="text-[11px] font-extrabold text-brand-blue uppercase border-r-4 border-brand-blue pr-2">المعلومات الشخصية</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">الاسم الكامل (ثلاثياً كما هو في الكلية)</label>
-                    <input 
-                      type="text"
-                      required
-                      value={fullNameInput}
-                      onChange={(e) => setFullNameInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-3 py-2.5 text-right font-medium focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner"
-                      id="input-fullname"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">رقم الهاتف الجوال (إضافة رمز الدولة)</label>
-                    <input 
-                      type="text"
-                      placeholder="مثال: 9665xxxxxxxx"
-                      value={phoneInput}
-                      onChange={(e) => setPhoneInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-3 py-2.5 text-left font-mono focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner"
-                      id="input-phone"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div className="space-y-1 opacity-60">
-                    <label className="text-[10px] font-extrabold text-gray-400 block">البريد الإلكتروني (غير قابل للتعديل)</label>
-                    <input 
-                      type="email"
-                      disabled
-                      value={user.email}
-                      className="w-full bg-gray-100/70 border border-gray-200 rounded-xl text-xs px-3 py-2.5 text-right font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">حساب التليجرام (مطلوب للمشرف الميداني)</label>
-                    <input 
-                      type="text"
-                      placeholder="telegram_handle@"
-                      value={telegramInput}
-                      onChange={(e) => setTelegramInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-3 py-2.5 text-left font-mono focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Group 2: Academic fields */}
-              <div className="space-y-3 pt-2">
-                <h4 className="text-[11px] font-extrabold text-brand-gold uppercase border-r-4 border-brand-gold pr-2">المعلومات الأكاديمية</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">الجامعة المانحة</label>
-                    <input 
-                      type="text"
-                      placeholder="جامعة الملك سعود الكريمة مثلاً"
-                      value={universityInput}
-                      onChange={(e) => setUniversityInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-3 py-2.5 text-right font-medium focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner"
-                      id="input-university"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">الكلية والمنتسب لها</label>
-                    <input 
-                      type="text"
-                      placeholder="كلية العلوم أو الهندسة الكريمة"
-                      value={collegeInput}
-                      onChange={(e) => setCollegeInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-3 py-2.5 text-right font-medium focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner"
-                      id="input-college"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">التخصص / القسم العلمي دقيقاً</label>
-                    <input 
-                      type="text"
-                      placeholder="الهندسة البرمجية / الكيمياء"
-                      value={departmentInput}
-                      onChange={(e) => setDepartmentInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-3 py-2.5 text-right font-medium focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner"
-                      id="input-department"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">العقد / المرحلة الدراسية</label>
-                    <select
-                      value={levelInput}
-                      onChange={(e) => handleProfileStageChange(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-1.5 py-2.5 text-right font-bold focus:outline-none focus:border-brand-gold focus:bg-white cursor-pointer shadow-sm"
-                      id="input-level"
-                    >
-                      <option value="بكالوريوس">بكالوريوس</option>
-                      <option value="ماجستير">ماجستير / ماستر</option>
-                      <option value="دكتوراة">دكتوراه</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">السنة الدراسية</label>
-                    <select
-                      value={academicYearInput}
-                      onChange={(e) => setAcademicYearInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-1.5 py-2.5 text-right font-bold focus:outline-none focus:border-brand-gold focus:bg-white cursor-pointer shadow-sm"
-                    >
-                      {getProfileYearsList(levelInput).map((year) => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">الفصل الدراسي الجاري</label>
-                    <select
-                      value={academicSemesterInput}
-                      onChange={(e) => setAcademicSemesterInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-1.5 py-2.5 text-right font-bold focus:outline-none focus:border-brand-gold focus:bg-white cursor-pointer shadow-sm"
-                    >
-                      <option value="فصل أول">الفصل الأول</option>
-                      <option value="فصل ثاني">الفصل الثاني</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-gray-500 block">المسار التدريبي العلمي</label>
-                    <select
-                      value={academicTrackInput}
-                      onChange={(e) => setAcademicTrackInput(e.target.value)}
-                      className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs px-1.5 py-2.5 text-right font-bold focus:outline-none focus:border-brand-gold focus:bg-white cursor-pointer shadow-sm"
-                    >
-                      <option value="علمي">علمي</option>
-                      <option value="أدبي">أدبي</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Editing actions buttons */}
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="flex-1 py-2.5 bg-gradient-to-r from-brand-blue to-brand-dark text-white rounded-xl text-xs font-bold transition-all shadow hover:opacity-95 flex items-center justify-center gap-1.5 cursor-pointer"
-                  id="btn-save-profile"
-                >
-                  {isSaving ? (
-                    <span className="animate-pulse">جاري حفظ البيانات...</span>
-                  ) : (
-                    <>
-                      <Save size={14} />
-                      <span>حفظ التغييرات الفوري</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  id="btn-cancel-profile"
-                >
-                  <span>إلغاء التراجع</span>
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="space-y-4 shadow-sm animate-fade-in" id="profile-detailed-cards">
-              
-              {/* Primary Profile edit buttons inside profile list */}
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="flex-1 py-3 bg-brand-dark hover:bg-brand-blue text-white rounded-2xl text-xs font-extrabold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
-                  id="btn-trigger-edit"
-                >
-                  <Save size={14} className="text-brand-gold" />
-                  <span>تعديل وإكمال الملف الشخصي</span>
-                </button>
-              </div>
-
-              {/* Bio / Personal Description */}
-              <div className="bg-white p-4 rounded-2xl border border-gray-150 space-y-3">
-                <div className="flex items-center gap-1.5 pb-2 border-b border-gray-100">
-                  <span className="text-sm">📝</span>
-                  <span className="font-extrabold text-xs text-brand-dark">الوصف الشخصي / Personal Description</span>
-                </div>
-                
-                <div className="space-y-2.5">
-                  <textarea
-                    maxLength={160}
-                    value={bioInput}
-                    onChange={(e) => {
-                      setBioInput(e.target.value);
-                      if (bioSaveSuccess) setBioSaveSuccess(false);
-                    }}
-                    placeholder="اكتب نبذة مختصرة عن نفسك هنا (الحد الأقصى 160 حرفًا)..."
-                    className="w-full bg-slate-50/50 border border-gray-200 rounded-xl text-xs p-3 text-right font-medium focus:outline-none focus:border-brand-gold focus:bg-white transition-all shadow-inner text-brand-dark min-h-[70px] resize-none"
-                  />
-                  
-                  <div className="flex items-center justify-between text-[11px] text-gray-400">
-                    <span className="font-mono">{bioInput.length}/160</span>
-                    <button
-                      type="button"
-                      onClick={handleSaveBio}
-                      disabled={isSavingBio}
-                      className="px-4.5 py-2 bg-brand-blue hover:bg-brand-dark text-white rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-1 cursor-pointer"
-                    >
-                      {isSavingBio ? (
-                        <span className="animate-pulse">جاري الحفظ...</span>
-                      ) : (
-                        <>
-                          <Check size={12} className="stroke-[2.5]" />
-                          <span>حفظ الوصف الشخصي</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {bioSaveSuccess && (
-                    <p className="text-[10px] text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg text-center border border-emerald-100 animate-fade-in">
-                      ✓ تم تحديث الوصف الشخصي وحفظه بنجاح!
-                    </p>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          {/* Dynamic Popover sub-section reader */}
-          {activeSubSection !== 'none' && (
-            <div className="bg-amber-500/5 rounded-2xl p-4 border border-brand-gold/30 space-y-4 animate-fade-in">
-              <div className="flex justify-between items-center pb-2 border-b border-brand-gold/10">
-                <h4 className="text-xs font-black text-brand-blue">
-                  {activeSubSection === 'account' ? 'تعديل معلومات الحساب' : ''}
-                  {activeSubSection === 'subscription' ? 'تفاصيل الاشتراك والمسار التعليمي' : ''}
-                  {activeSubSection === 'notifications' ? 'تفضيلات الإشعارات والتنبيهات' : ''}
-                  {activeSubSection === 'support' ? 'مركز الدعم الفني والمساعدة والاستفسارات' : ''}
-                </h4>
-                <button 
-                  onClick={() => setActiveSubSection('none')}
-                  className="text-xs font-bold text-gray-400 hover:text-brand-dark px-2 py-0.5 rounded-lg hover:bg-gray-150"
-                  id="btn-popover-cancel"
-                >
-                  إلغاء التراجع
-                </button>
-              </div>
-
-              {/* Account Subview (detailed view with Personal, Academic, and Account information) */}
-              {activeSubSection === 'account' && (
-                <div className="space-y-4 animate-fade-in text-brand-dark" id="academic-account-detailed-view">
-                  
-                  {/* 1. Personal Information */}
-                  <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-2.5">
-                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-100 mb-0.5">
-                      <User size={14} className="text-brand-blue" />
-                      <span className="font-extrabold text-[12px] text-brand-blue">👩‍🎓 المعلومات الشخصية والتواصل</span>
+              {/* Academic File detail View */}
+              {activeSubSection === 'academic' && (
+                <div className="space-y-4">
+                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-brand-gold pr-2">
+                    الملف الأكاديمي والبيانات الجامعية
+                  </h4>
+                  <div className="divide-y divide-gray-100 dark:divide-slate-800 text-[11px] font-semibold">
+                    <div className="py-2.5 flex justify-between">
+                      <span className="text-gray-400">الاسم بالكامل</span>
+                      <span className="text-brand-dark dark:text-white">{user.fullName || user.username}</span>
                     </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs">
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">الاسم بالكامل:</span>
-                        <span className="font-bold text-gray-700">{user.fullName || user.username || 'لم يحدد'}</span>
-                      </div>
-                      
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">البريد الإلكتروني:</span>
-                        <span className="font-bold text-gray-750 font-mono text-[10px] truncate max-w-[150px] sm:max-w-none" dir="ltr">{user.email || '—'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">رقم الهاتف:</span>
-                        <span className="font-bold text-gray-700 font-mono">{user.phone || '—'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold font-sans">Telegram Username:</span>
-                        <span className="font-extrabold text-brand-gold bg-amber-500/5 px-1.5 py-0.5 rounded font-mono text-[10px]">{user.telegram || 'مطلوب @'}</span>
-                      </div>
-
-                      {user.studentId && (
-                        <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                          <span className="text-gray-400 font-semibold">رقم الطالب / Student ID:</span>
-                          <span className="font-extrabold text-brand-blue font-mono">{user.studentId}</span>
+                    {user.studentId && (
+                      <div className="py-2.5 flex justify-between items-center">
+                        <span className="text-gray-400">الرقم الموحد المالي</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono text-brand-gold font-black">{user.studentId}</span>
+                          <button onClick={copyStudentId} className="p-1 text-gray-400 hover:text-brand-gold cursor-pointer">
+                            {copied ? <Check size={11} className="text-green-600" /> : <Copy size={11} />}
+                          </button>
                         </div>
-                      )}
+                      </div>
+                    )}
+                    <div className="py-2.5 flex justify-between">
+                      <span className="text-gray-400">الجامعة والكلية</span>
+                      <span className="text-brand-dark dark:text-white">{universityInput || '—'} / {collegeInput || '—'}</span>
                     </div>
-                  </div>
-
-                  {/* 2. Academic Information */}
-                  <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-2.5">
-                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-100 mb-0.5">
-                      <GraduationCap size={14} className="text-emerald-700" />
-                      <span className="font-extrabold text-[12px] text-emerald-700">🎓 معلومات المسار الدراسي والأكاديمي</span>
+                    <div className="py-2.5 flex justify-between">
+                      <span className="text-gray-400">القسم الدراسي والمرحلة</span>
+                      <span className="text-brand-dark dark:text-white">{departmentInput || 'تخصص عام'} - {levelInput}</span>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs">
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">الجامعة:</span>
-                        <span className="font-bold text-gray-800">{user.university || '—'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">الكلية:</span>
-                        <span className="font-bold text-gray-800">{user.college || '—'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">القسم / التخصص:</span>
-                        <span className="font-bold text-gray-800">{user.department || '—'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">المرحلة الدراسية:</span>
-                        <span className="font-extrabold text-brand-dark bg-blue-50 text-brand-blue px-2 py-0.5 rounded text-[10px]">{user.level || user.academicStage || 'بكالوريوس'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">السنة الدراسية:</span>
-                        <span className="font-bold text-gray-750">{user.academicYear || 'سنة أولى'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">الفصل الدراسي:</span>
-                        <span className="font-bold text-gray-750">{user.academicSemester || 'فصل أول'}</span>
-                      </div>
-
-                      <div className="col-span-1 sm:col-span-2 flex justify-between items-center p-2 bg-brand-gold/5 rounded-lg border border-brand-gold/10">
-                        <span className="text-gray-500 font-extrabold">المسار والمذاكرة الجاري:</span>
-                        <span className="font-black text-brand-gold text-xs">{user.academicTrack || 'علمي'}</span>
-                      </div>
+                    <div className="py-2.5 flex justify-between">
+                      <span className="text-gray-400">السنة الأكاديمية الحالية</span>
+                      <span className="text-[#D4A63D]">{academicYearInput}</span>
                     </div>
-                  </div>
-
-                  {/* 3. Account Details */}
-                  <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-2.5">
-                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-100 mb-0.5">
-                      <Lock size={14} className="text-purple-700" />
-                      <span className="font-extrabold text-[12px] text-purple-700">⚙️ رتبة الحساب وخيارات الأمان</span>
+                    <div className="py-2.5 flex justify-between">
+                      <span className="text-gray-400">الساعات الأكاديمية المعترف بها</span>
+                      <span className="text-emerald-600 font-bold">54 ساعة أكاديمية مجتازة</span>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs">
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">صلاحية الحساب:</span>
-                        <span className="font-extrabold text-purple-750 bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">{user.role === 'admin' ? 'مدير المنصة (Admin)' : 'طالب دراسات (Student)'}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center p-2 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold">حالة الحساب الجاري:</span>
-                        <span className="font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-0.5 text-[10px]">
-                          ✓ حساب موثق ومفعّل
-                        </span>
-                      </div>
-
-                      <div className="col-span-1 sm:col-span-2 flex justify-between items-center p-2 bg-gray-55 bg-gray-50/50 rounded-lg">
-                        <span className="text-gray-400 font-semibold shrink-0">معرف الحساب الموقت:</span>
-                        <span className="font-mono text-[9px] text-gray-550 select-all truncate max-w-[180px] sm:max-w-none" dir="ltr">{user.uid}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions Area */}
-                  <div className="flex flex-col sm:flex-row gap-2 pt-2 justify-end">
-                    <button 
-                      onClick={() => {
-                        setActiveSubSection('none');
-                        setIsEditing(true);
-                      }}
-                      className="px-4 py-2.5 bg-brand-dark text-white rounded-xl text-xs font-bold hover:bg-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                      id="btn-inline-redirect-edit"
-                    >
-                      <Settings size={13} className="animate-spin-slow text-brand-gold" />
-                      <span>تعديل وحفظ المسار الدراسي</span>
-                    </button>
-                    
-                    <button 
-                      onClick={() => setActiveSubSection('none')}
-                      className="px-4 py-2.5 bg-gray-100 hover:bg-gray-150 text-gray-600 border border-gray-200 rounded-xl text-xs font-bold transition-all cursor-pointer text-center"
-                      id="btn-inline-close-account"
-                    >
-                      إغلاق التفاصيل الدراسيَّة
-                    </button>
                   </div>
                 </div>
               )}
 
-              {/* Subscription Subview */}
-              {activeSubSection === 'subscription' && (
-                <div className="space-y-2.5 text-xs text-brand-dark">
-                  <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-150">
-                    <span className="font-semibold text-gray-500">حالة العضوية</span>
-                    <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded hidden sm:inline">نشطة ✓</span>
+              {/* Saved Lectures detail View */}
+              {activeSubSection === 'saved-lectures' && (
+                <div className="space-y-4">
+                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-amber-500 pr-2">
+                    المحاضرات المؤكدة والملازم المحفوظة ({subjects.length})
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl space-y-1.5 border border-gray-100 dark:border-slate-800 text-[11px] font-semibold text-right">
+                      <div className="text-[11px] font-black text-brand-dark dark:text-white">تطبيقات الخرسانة الفائقة في الهندسة والمباني الميدانية</div>
+                      <p className="text-[9px] text-gray-500">مادة الهندسة المتقدمة · مدة الفيديو: 45 دقيقة</p>
+                      <button 
+                        type="button" 
+                        onClick={() => alert('تم توجيهك لشاشة تشغيل مشغل الفيديو التفاعلي في تبويب المحاضرات الرئيسية!')}
+                        className="py-1 px-3 bg-brand-gold text-white text-[9px] font-bold rounded-lg cursor-pointer"
+                      >
+                        شاهد الآن 🎥
+                      </button>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl space-y-1.5 border border-gray-100 dark:border-slate-800 text-[11px] font-semibold text-right">
+                      <div className="text-[11px] font-black text-brand-dark dark:text-white">ملخص الإحصاء الطبي والحيوي وقواعد التحليل v3</div>
+                      <p className="text-[9px] text-gray-500">حقيبة مادة الرياضيات والتصميم الطبي · PDF - 14 صفحة</p>
+                      <button 
+                        type="button" 
+                        onClick={() => alert('جاري تنزيل ملف PDF المرجعي المحفوظ!')}
+                        className="py-1 px-3 bg-brand-gold text-white text-[9px] font-bold rounded-lg cursor-pointer"
+                      >
+                        تنزيل الملزمة الملحقة 📄
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-150">
-                    <span className="font-semibold text-gray-500">الباقة التعليمية</span>
-                    <span className="font-bold text-brand-blue font-sans">باقة المسار العلمي المطلق</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-150">
-                    <span className="font-semibold text-gray-500">تاريخ انتهاء الصلاحية</span>
-                    <span className="font-bold text-gray-700 font-mono">2027/05/30</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 leading-normal text-center pt-1">
-                    جميع الميزات والمحاضرات والاختبارات التجريبية مفعلة بالكامل لحسابك الجاري بالمنصة لضمان تحصيل دراسي رائد.
+                </div>
+              )}
+
+              {/* Downloads list with progressive downloading progress */}
+              {activeSubSection === 'downloads' && (
+                <div className="space-y-4">
+                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-emerald-500 pr-2">
+                    المذكرات الأكاديمية المتاحة للتنزيل المباشر
+                  </h4>
+                  <p className="text-[10px] text-gray-500 leading-normal">
+                    اضغط على أي ملف لبدء تنزيله المباشر على جهازك لمذاكرته بلا إنترنت:
                   </p>
-                </div>
-              )}
+                  
+                  <div className="space-y-3">
+                    {[
+                      { id: '1', title: 'حقيبة تسريبات اختبار كفايات ومسارات بن عون الشاملة.pdf', size: '14.2 MB' },
+                      { id: '2', title: 'ملزمة الشرح وتفكيك الأسئلة الهندسية النموذجية 2026.pdf', size: '8.4 MB' },
+                      { id: '3', title: 'موجز قواعد الكيمياء العضوية والتحاليل المعملية v2.pdf', size: '6.9 MB' }
+                    ].map(f => (
+                      <div key={f.id} className="p-3 bg-slate-50 dark:bg-slate-950 border border-gray-100 dark:border-slate-800 rounded-xl space-y-2">
+                        <div className="flex justify-between items-start text-right text-[11px] font-semibold">
+                          <div>
+                            <div className="text-[11px] font-black text-brand-dark dark:text-white truncate max-w-[200px]">{f.title}</div>
+                            <span className="text-[9px] text-gray-400">{f.size}</span>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => startFileDownload(f.id)}
+                            disabled={downloadProgress[f.id] > 0}
+                            className={`p-1.5 rounded-lg text-white transition ${downloadCompleted[f.id] ? 'bg-emerald-600' : 'bg-brand-gold hover:bg-yellow-500 cursor-pointer'}`}
+                          >
+                            {downloadCompleted[f.id] ? <Check size={12} /> : <Download size={12} />}
+                          </button>
+                        </div>
 
-              {/* Notifications Subview */}
-              {activeSubSection === 'notifications' && (
-                <div className="space-y-3.5 text-xs">
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-semibold text-gray-600">تنبيهات اقتراب موعد الاختبارات</span>
-                    <input 
-                      type="checkbox" 
-                      checked={notifExam} 
-                      onChange={(e) => setNotifExam(e.target.checked)} 
-                      className="rounded text-brand-gold focus:ring-brand-gold h-4 w-4 cursor-pointer"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-semibold text-gray-600">إشعارات رفع مذكرات أو غرف نقاش جديدة</span>
-                    <input 
-                      type="checkbox" 
-                      checked={notifLectures} 
-                      onChange={(e) => setNotifLectures(e.target.checked)} 
-                      className="rounded text-brand-gold focus:ring-brand-gold h-4 w-4 cursor-pointer"
-                    />
-                  </label>
-                </div>
-              )}
-
-              {/* Help & Support Subview */}
-              {activeSubSection === 'support' && (
-                <div className="space-y-3">
-                  {activeChatTicketId && supportTickets.find(t => t.id === activeChatTicketId) ? (
-                    (() => {
-                      const chatTicket = supportTickets.find(t => t.id === activeChatTicketId)!;
-                      const legacyMsgs: ChatMessage[] = [
-                        {
-                          id: chatTicket.id + '-initial',
-                          senderRole: 'student',
-                          senderName: chatTicket.senderName,
-                          message: chatTicket.message,
-                          createdAt: chatTicket.createdAt
-                        }
-                      ];
-                      if (chatTicket.reply) {
-                        legacyMsgs.push({
-                          id: chatTicket.id + '-reply',
-                          senderRole: 'admin',
-                          senderName: 'المشرف العام',
-                          message: chatTicket.reply,
-                          createdAt: chatTicket.repliedAt || chatTicket.createdAt
-                        });
-                      }
-                      const chatMessages = chatTicket.messages && chatTicket.messages.length > 0 ? chatTicket.messages : legacyMsgs;
-                      
-                      return (
-                        <div className="space-y-3 flex flex-col justify-between min-h-[460px] bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-gray-150 relative">
-                          {/* Header */}
-                          <div className="flex sm:flex-row flex-col items-center justify-between gap-1.5 border-b border-gray-200/60 pb-2.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newUrl = window.location.origin + window.location.pathname;
-                                window.history.replaceState({}, document.title, newUrl);
-                                setActiveChatTicketId(null);
-                              }}
-                              className="flex items-center gap-1.5 text-xs text-brand-dark dark:text-brand-gold font-bold hover:underline cursor-pointer bg-transparent"
-                            >
-                              <ArrowRight size={14} />
-                              <span>العودة لجميع التذاكر والاستفسارات</span>
-                            </button>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold ${chatTicket.status === 'closed' ? 'bg-rose-100 text-rose-700 dark:bg-rose-955/45 dark:text-rose-400' : 'bg-teal-100 text-teal-700 dark:bg-teal-955/45 dark:text-teal-405'}`}>
-                                {chatTicket.status === 'closed' ? '🔒 مغلقة ومؤرشفة' : '🟢 محادثة مفتوحة'}
-                              </span>
-                              <span className="text-[10px] font-mono text-gray-400">بطاقة #{chatTicket.id}</span>
+                        {/* Progress Bar */}
+                        {downloadProgress[f.id] > 0 && (
+                          <div className="space-y-1">
+                            <div className="w-full bg-gray-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className="bg-brand-gold h-1.5 rounded-full transition-all duration-150"
+                                style={{ width: `${downloadProgress[f.id]}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[8px] text-gray-400 font-mono">
+                              <span>يجري التنزيل الفوري...</span>
+                              <span>{downloadProgress[f.id]}%</span>
                             </div>
                           </div>
+                        )}
+                        {downloadCompleted[f.id] && (
+                          <p className="text-[8px] text-emerald-600 font-bold animate-pulse text-left">
+                            ✓ تم الحفظ محلياً في مجلد المستندات بجهازك!
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                          {/* Messages List */}
-                          <div className="flex-grow overflow-y-auto max-h-[300px] no-scrollbar space-y-3.5 pr-1 py-1">
-                            <div className="text-center text-[9px] text-gray-400">
-                              بُدئت المحادثة في {chatTicket.createdAt}
-                            </div>
+              {/* Payments & fee receipts View */}
+              {activeSubSection === 'payments' && (
+                <div className="space-y-4">
+                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-purple-500 pr-2">
+                    الرسوم الدراسية وحالة الفواتير المالية
+                  </h4>
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-550/30 text-emerald-800 dark:text-emerald-300 rounded-xl flex items-center justify-between text-[11px] font-black">
+                    <span>حالة الرسوم الإجمالية للترم</span>
+                    <span className="bg-emerald-600 text-white px-2.5 py-0.5 rounded-full text-[9px]">مسدد بالكامل ✓</span>
+                  </div>
 
-                            {chatMessages.map((msg) => {
-                              const isAdmin = msg.senderRole === 'admin';
-                              const isSystem = msg.senderName === 'النظام الفني';
+                  <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-gray-150 text-[11px] font-semibold space-y-2 text-right">
+                    <div className="font-black text-brand-dark dark:text-white">الفصل الدراسي الأول - السداد العام</div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>رقم الفاتورة: <span className="font-mono text-[#D4A63D]">#INV-28492</span></div>
+                      <div>وسيلة الدفع: <span>بوابة مدى الائتمانية</span></div>
+                      <div>رسوم الدورة الصيفية: <span>1,500 ريال سعودي</span></div>
+                      <div>رسوم الكتب والتسجيل: <span>1,000 ريال سعودي</span></div>
+                    </div>
+                  </div>
+
+                  {/* Submission and upload portal receipt */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2.5">
+                    <h5 className="font-bold text-[10px] text-brand-dark dark:text-white">هل قمت بالتحويل الخارجي يدوياً؟ ارفق إيصال التحويل ههنا:</h5>
+                    {receiptSubmitted ? (
+                      <div className="p-3 bg-teal-50 dark:bg-slate-950 text-teal-800 dark:text-teal-400 border border-teal-200 rounded-xl text-center text-[10px] font-bold animate-fade-in">
+                        ✓ تم تسليم ملف إيصال الدفع البنكي؛ بانتظار مراجعته من المحاسب الميداني للمنصة.
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button 
+                          type="button"
+                          onClick={uploadFeeReceipt}
+                          disabled={uploadingReceipt}
+                          className="flex-grow py-2 bg-brand-dark hover:bg-brand-blue text-white rounded-lg text-[10px] font-black transition cursor-pointer"
+                        >
+                          {uploadingReceipt ? 'جاري رفع الملف آمن...' : 'اختر وارفع صورة إشعار السداد البنكي'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notifications and push options */}
+              {activeSubSection === 'notifications' && (
+                <div className="space-y-4">
+                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-rose-500 pr-2">
+                    تفضيلات الإشعارات والتنبيهات الذكية
+                  </h4>
+                  <div className="space-y-3.5 pt-1 text-[11px] font-semibold text-gray-650 dark:text-gray-300">
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl">
+                      <span>إشعارات رفع تسريبات واختبارات جديدة</span>
+                      <button type="button" className="w-9 h-5 bg-brand-gold rounded-full transition-all relative">
+                        <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full translate-x-4" />
+                      </button>
+                    </div>
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl">
+                      <span>التواصل والتراسل عبر غرف النقاش والدردشة</span>
+                      <button type="button" className="w-9 h-5 bg-brand-gold rounded-full transition-all relative">
+                        <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full translate-x-4" />
+                      </button>
+                    </div>
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl">
+                      <span>رسائل ومتابعات الدعم الفني بمجرد الرد</span>
+                      <button type="button" className="w-9 h-5 bg-brand-gold rounded-full transition-all relative">
+                        <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full translate-x-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Support & help module (Active ticket board and Telegram message dispatch) */}
+              {activeSubSection === 'support' && (
+                <div className="space-y-3">
+                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-teal-500 pr-2">
+                    مركز الدعم والمحادثة الميدانية للأكاديمية
+                  </h4>
+                  
+                  {activeChatTicketId ? (
+                    (() => {
+                      const t = supportTickets.find(ticket => ticket.id === activeChatTicketId);
+                      if (!t) return null;
+                      const msgs = t.messages || [];
+                      return (
+                        <div className="space-y-3 flex flex-col justify-between min-h-[300px] bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-gray-150">
+                          <button 
+                            type="button" 
+                            onClick={() => setActiveChatTicketId(null)}
+                            className="text-[9px] font-black text-brand-gold flex items-center gap-1 hover:underline cursor-pointer text-right bg-transparent border-0"
+                          >
+                            <ArrowRight size={10} />
+                            <span>العودة لجميع التذاكر ومحادثات الدعم</span>
+                          </button>
+
+                          <div className="flex-grow overflow-y-auto max-h-[160px] space-y-2 pr-1 no-scrollbar pt-2">
+                            {msgs.map((m, idx) => {
+                              const isAdmin = m.senderRole === 'admin';
                               return (
-                                <div key={msg.id} className={`flex flex-col ${isSystem ? 'items-center' : isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
-                                  <span className="text-[9px] font-bold text-gray-400 px-1">{msg.senderName}</span>
-                                  <div className={`p-2.5 rounded-2xl max-w-[85%] leading-relaxed text-[11px] font-semibold text-right shadow-xs ${
-                                    isSystem
-                                      ? 'bg-rose-50 text-rose-850 dark:bg-rose-955/20 dark:text-rose-455 text-center px-4 py-1.5 rounded-xl border border-rose-200/30 font-bold'
-                                      : isAdmin
-                                        ? 'bg-amber-50 dark:bg-amber-955/20 text-brand-dark dark:text-gray-200 rounded-tr-none border-r-4 border-brand-gold'
-                                        : 'bg-brand-dark dark:bg-slate-800 text-white dark:text-gray-100 rounded-tl-none'
-                                  }`}>
-                                    <p className="whitespace-pre-line">{msg.message}</p>
+                                <div key={idx} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'}`}>
+                                  <span className="text-[8px] text-gray-400 font-bold px-1">{m.senderName}</span>
+                                  <div className={`p-2 rounded-xl text-[10px] leading-normal text-right shadow-xs ${isAdmin ? 'bg-amber-50 text-brand-dark rounded-tr-none' : 'bg-[#041B4D] text-white rounded-tl-none'}`}>
+                                    {m.message}
                                   </div>
-                                  <span className="text-[8px] text-gray-400 font-mono text-left px-1">{msg.createdAt}</span>
                                 </div>
                               );
                             })}
                             <div ref={messagesEndRef} />
                           </div>
 
-                          {/* Input Composer or Lock block */}
-                          {chatTicket.status === 'closed' ? (
-                            <div className="p-3 bg-rose-50 dark:bg-rose-955/15 border border-rose-200/50 dark:border-rose-900/30 rounded-xl text-center text-rose-850 dark:text-rose-400 text-xs font-bold flex items-center justify-center gap-1.5 animate-fade-in shadow-xs">
-                              <Lock size={12} className="shrink-0 animate-pulse text-rose-600 dark:text-rose-400" />
-                              <span>تم قفل وأرشفة هذه المحادثة من قِبل المشرف العام للفريق الفني.</span>
-                            </div>
-                          ) : (
-                            <form
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                handleSendChatMessage(chatTicket.id, chatInputText);
-                              }}
-                              className="flex gap-2 items-center bg-gray-50 dark:bg-slate-800 border border-gray-205 dark:border-slate-700 p-1 rounded-xl"
-                            >
-                              <input
-                                required
-                                type="text"
-                                value={chatInputText}
-                                onChange={(e) => setChatInputText(e.target.value)}
-                                placeholder="اكتب ردك أو استفسارك الإضافي هنا..."
-                                className="flex-grow bg-transparent text-[11px] p-2 focus:outline-none text-brand-dark dark:text-white"
-                              />
-                              <button
-                                type="submit"
-                                className="w-8 h-8 rounded-lg bg-brand-gold hover:bg-yellow-600 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                              >
-                                <Send size={13} />
-                              </button>
-                            </form>
-                          )}
+                          <form 
+                            onSubmit={(e) => { e.preventDefault(); handleSendChatMessage(t.id, chatInputText); }}
+                            className="flex gap-1.5 items-center bg-white dark:bg-slate-800 border p-1 rounded-lg"
+                          >
+                            <input 
+                              required
+                              type="text"
+                              value={chatInputText}
+                              onChange={(e) => setChatInputText(e.target.value)}
+                              placeholder="اكتب ردك أو استفسارك هنا..."
+                              className="flex-grow bg-transparent text-[10px] p-1.5 focus:outline-none dark:text-white"
+                            />
+                            <button type="submit" className="p-1.5 rounded-lg bg-brand-gold text-white cursor-pointer hover:bg-yellow-500">
+                              <Send size={11} />
+                            </button>
+                          </form>
                         </div>
                       );
                     })()
                   ) : (
-                    <>
-                      {/* Submission Form */}
-                      <form onSubmit={handleSendSupport} className="space-y-2.5 bg-white dark:bg-slate-900 border border-gray-150 p-4 rounded-2xl">
-                        {supportSuccess ? (
-                          <div className="text-center py-2.5 text-xs font-bold text-emerald-700 bg-emerald-55 rounded-xl border border-emerald-100 animate-fade-in">
-                            تم إرسال بطاقة الدعم فورا! جاري فتح كابينة المحادثة المباشرة...
+                    <div className="space-y-3">
+                      <form onSubmit={handleSendSupport} className="space-y-2">
+                        {user.email === 'abdulmlikoog@gmail.com' && (
+                          <div className="bg-amber-500/10 p-2 rounded-xl text-[9px] font-bold">
+                            <span>⚙️ ممرر محاكاة الطالب:</span>
+                            <div className="flex gap-2 mt-1">
+                              <button type="button" onClick={() => setSupportSenderRole('self')} className={`px-2 py-0.5 rounded ${supportSenderRole==='self'?'bg-[#041B4D] text-white':'bg-white text-gray-700'}`}>أنا المشرف</button>
+                              <button type="button" onClick={() => setSupportSenderRole('simulated_ahmed')} className={`px-2 py-0.5 rounded ${supportSenderRole==='simulated_ahmed'?'bg-[#041B4D] text-white':'bg-white text-gray-700'}`}>أنا الطالب أحمد</button>
+                            </div>
                           </div>
-                        ) : (
-                          <>
-                            <h4 className="font-extrabold text-xs text-brand-dark dark:text-white">فتح تذكرة دعم فني جديدة</h4>
-                            <p className="text-[10px] text-gray-500 leading-normal">
-                              اكتب سؤالك أو الشكوى الخاصة بك بخصوص المواد وسيصل إشعار تلجرام للمشرف ليقوم بمحادتك فورا!
-                            </p>
-
-                            {user.email === 'abdulmlikoog@gmail.com' && (
-                              <div className="bg-amber-50 dark:bg-amber-955/20 border border-brand-gold/25 p-2.5 rounded-xl space-y-1.5 text-right">
-                                <span className="text-[9px] font-black text-brand-gold block">
-                                  ⚙️ ميزة المشرف التجريبية: اختر هوية مرسل الاستفسار:
-                                </span>
-                                <div className="grid grid-cols-2 gap-1 text-[9px] font-semibold">
-                                  {['self', 'simulated_ahmed', 'simulated_sara', 'simulated_m_harbi'].map((role) => {
-                                    const labels: Record<string, string> = {
-                                      self: 'أنا (المشرف)',
-                                      simulated_ahmed: 'الطالب أحمد',
-                                      simulated_sara: 'الطالبة سارة',
-                                      simulated_m_harbi: 'الطالب محمد'
-                                    };
-                                    return (
-                                      <button
-                                        key={role}
-                                        type="button"
-                                        onClick={() => setSupportSenderRole(role as any)}
-                                        className={`p-1 text-[9px] rounded transition-all text-center ${supportSenderRole === role ? 'bg-brand-dark text-white' : 'bg-gray-100 dark:bg-slate-805 text-gray-650 border border-gray-250/20'}`}
-                                      >
-                                        {labels[role]}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            <textarea 
-                              required 
-                              value={supportMsg} 
-                              onChange={(e) => setSupportMsg(e.target.value)} 
-                              rows={3} 
-                              placeholder="اكتب تفاصيل استفسارك أو المشكلة ههنا للبدء بالمحادثة..."
-                              className="w-full bg-white border border-gray-200 rounded-lg text-xs p-2.5 text-right font-medium focus:outline-none focus:border-brand-gold text-brand-dark dark:text-white dark:bg-slate-950 shadow-sm"
-                            ></textarea>
-
-                            <button 
-                              type="submit" 
-                              className="w-full py-2 bg-brand-gold hover:bg-yellow-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
-                            >
-                              إرسال التذكرة وبدء المحادثة المباشرة
-                            </button>
-                          </>
                         )}
+                        <textarea
+                          required
+                          value={supportMsg}
+                          onChange={(e) => setSupportMsg(e.target.value)}
+                          placeholder="اكتب رسالتك وبدء تذكرة نقاش جديدة بالتليجرام..."
+                          rows={2}
+                          className="w-full text-[11px] p-2 bg-white dark:bg-slate-950 border rounded-xl text-right focus:border-brand-gold focus:outline-none dark:text-white"
+                        />
+                        <button type="submit" className="w-full py-1.5 bg-brand-gold hover:bg-yellow-500 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer">
+                          إرسال التذكرة وبدء مراسلة المشرف الميداني
+                        </button>
                       </form>
 
-                      {/* Historical list */}
-                      {supportTickets.filter(t => user.email === 'abdulmlikoog@gmail.com' ? true : t.senderEmail === user.email).length > 0 && (
-                        <div className="pt-3 border-t border-gray-150 space-y-2 text-right">
-                          <p className="text-[11px] font-extrabold text-brand-dark dark:text-brand-gold flex justify-between items-center">
-                            <span>سجل المحادثات الفنية الجارية والسابقة:</span>
-                            {user.email === 'abdulmlikoog@gmail.com' && (
-                              <span className="text-[8px] bg-red-105 text-red-700 dark:text-red-400 font-bold font-sans">كل تذاكر المنافذ</span>
-                            )}
-                          </p>
-                          
-                          <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar pr-1">
-                            {supportTickets.filter(t => user.email === 'abdulmlikoog@gmail.com' ? true : t.senderEmail === user.email).map((ticket) => (
-                              <div key={ticket.id} className="p-3 bg-slate-50 dark:bg-slate-905 border border-gray-200/50 dark:border-slate-805/50 rounded-xl space-y-1.5 text-[11px] shadow-sm hover:border-brand-gold/30 transition-colors">
-                                <div className="flex justify-between items-center text-[10px]">
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-extrabold text-brand-dark dark:text-brand-gold truncate max-w-[120px]">{ticket.senderName}</span>
-                                    <span className="text-[8px] text-gray-400 font-mono">({ticket.id})</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className={`px-1.5 py-0.5 rounded font-extrabold text-[8px] ${ticket.reply ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-955/45 dark:text-emerald-400' : 'bg-amber-50 text-brand-gold dark:bg-amber-955/45'}`}>
-                                      {ticket.reply ? '✓ تم الرد والدردشة' : '🕒 قيد الانتظار'}
-                                    </span>
-                                    <span className={`px-1.5 py-0.5 rounded font-extrabold text-[8px] ${ticket.status === 'closed' ? 'bg-rose-50 text-rose-700 dark:bg-rose-955/45 dark:text-rose-450' : 'bg-teal-50 text-teal-700 dark:bg-teal-950/45 dark:text-teal-400'}`}>
-                                      {ticket.status === 'closed' ? '🔒 مغلقة' : '🟢 مفتوحة'}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <p className="text-gray-700 dark:text-gray-300 font-semibold truncate leading-relaxed">{ticket.message}</p>
-                                
-                                <div className="flex items-center justify-between pt-1 border-t border-gray-100/50">
-                                  <span className="block text-[8px] text-gray-400 font-mono">{ticket.createdAt}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveChatTicketId(ticket.id)}
-                                    className={`px-2.5 py-1 rounded text-white font-extrabold text-[9px] hover:opacity-90 transition-all flex items-center gap-1 cursor-pointer ${ticket.status === 'closed' ? 'bg-slate-650' : 'bg-brand-gold hover:bg-yellow-600'}`}
-                                  >
-                                    {ticket.status === 'closed' ? <Lock size={10} /> : <MessageSquare size={10} />}
-                                    <span>{ticket.status === 'closed' ? 'افتح أرشيف المحادثة' : 'افتح المحادثة والدردشة الجارية'}</span>
-                                  </button>
-                                </div>
+                      {/* Ticket History */}
+                      {supportTickets.length > 0 && (
+                        <div className="space-y-2 max-h-[140px] overflow-y-auto no-scrollbar pt-2 border-t">
+                          <span className="text-[9px] font-black block text-gray-500">تذاكر الدعم والإنقاذ الجارية:</span>
+                          {supportTickets.map(ticket => (
+                            <div key={ticket.id} className="p-2 bg-slate-50 dark:bg-slate-950 rounded-xl border flex justify-between items-center text-[10px]">
+                              <div>
+                                <span className="font-extrabold block truncate max-w-[120px]">{ticket.senderName}</span>
+                                <span className="text-[8px] text-gray-400">{ticket.createdAt}</span>
                               </div>
-                            ))}
-                          </div>
+                              <button 
+                                type="button"
+                                onClick={() => setActiveChatTicketId(ticket.id)}
+                                className="px-2 py-1 bg-brand-gold text-white rounded text-[9px] font-bold"
+                              >
+                                افتح المحادثة
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* PWA App Installation Subview */}
-              {activeSubSection === 'install' && (
-                <div className="space-y-3.5 text-xs animate-fade-in">
-                  <div className="bg-white p-3.5 rounded-xl border border-gray-150 space-y-3 text-right">
-                    <p className="font-bold text-gray-750 leading-normal font-sans">
-                      يمكنك تحميل منصة بن عون التعليمية كتطبيق رسمي على شاشة جهازك (سواء كمبيوتر، أندرويد، أو آيفون/آيباد) بكل سهولة والوصول إليها بضغطة زر واحدة!
+              {/* About educational portal */}
+              {activeSubSection === 'about' && (
+                <div className="space-y-4 text-right">
+                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-gray-400 pr-2">
+                    عن منصة بن عون التعليمية الشاملة
+                  </h4>
+                  <div className="text-[11px] text-gray-650 dark:text-gray-300 leading-relaxed space-y-2.5">
+                    <p>
+                      نحن نقدم لك بيئة دراسية متكاملة تهدف إلى تمهيد طريق التميز الأكاديمي والتحصيل الجامعي الرائد. جميع المقررات والاختبارات تم إعدادها وتدقيقها بالكامل من قبل كبار الأكاديميين ذوي الخبرة الطويلة.
                     </p>
-
-                    {deferredPrompt ? (
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onInstallApp();
-                          }}
-                          className="w-full py-2.5 bg-brand-gold hover:bg-yellow-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          <Download size={15} />
-                          <span>اضغط هنا لتثبيت وتحميل التطبيق الآن</span>
-                        </button>
-                        <p className="text-[10px] text-emerald-600 mt-2 font-semibold text-center">
-                          ✓ متصفحك الحالي يدعم التثبيت المباشر بنجاح!
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-gray-505 leading-relaxed bg-gray-50/50 p-3 rounded-lg border border-gray-150 space-y-2">
-                        <div className="font-bold text-brand-blue flex items-center gap-1">
-                          <span>طريقة التثبيت والتحميل لمتصفحك:</span>
-                        </div>
-                        
-                        <div className="space-y-1.5 pt-1">
-                          <p className="font-semibold text-gray-650">
-                            1. <span className="text-brand-gold">لمستخدمي جوجل كروم (أندرويد / كمبيوتر):</span> اضغط على زر القائمة (ثلاث نقاط <span className="font-sans">⋮</span> في أعلى أو أسفل المتصفح) ثم اختر <span className="font-bold">تثبيت التطبيق (Install App)</span> أو <span className="font-bold">إضافة إلى الشاشة الرئيسية</span>.
-                          </p>
-                          <p className="font-semibold text-gray-650">
-                            2. <span className="text-brand-gold">لمستخدمي سفاري (آيفون / آيباد):</span> اضغط على زر المشاركة (Share 📤) في أسفل الشاشة، ثم اختر <span className="font-bold">إضافة إلى الشاشة الرئيسية (Add to Home Screen ➕)</span>.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <div className="p-3 bg-brand-gold/10 rounded-xl space-y-1 text-[#041B4D] dark:text-brand-gold">
+                      <div>إصدار المنصة الأكاديمي: <span className="font-mono">v4.2.0-Stable</span></div>
+                      <div>الترخيص والمزامنة: <span className="font-black">فوري عبر Firebase</span></div>
+                      <div>حقوق الطبع والتحول الأكاديمي محفوظة © 2026</div>
+                    </div>
                   </div>
                 </div>
               )}
+
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* DETAILED STUDENT FIELDS EDITING SCREEN */}
+      <AnimatePresence>
+        {isEditing && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="px-4"
+          >
+            <form onSubmit={handleSaveProfile} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-gray-120 dark:border-slate-800 space-y-4 shadow-sm text-right">
+              <div className="border-b pb-2.5 flex justify-between items-center border-gray-100 dark:border-slate-800">
+                <span className="font-black text-xs text-brand-dark dark:text-white flex items-center gap-1">
+                  <User size={14} className="text-brand-gold" />
+                  <span>تعديل السيرة والبيانات الأكاديمية</span>
+                </span>
+                <button type="button" onClick={() => setIsEditing(false)} className="text-[10px] font-bold text-gray-400 hover:text-brand-dark">إلغاء</button>
+              </div>
+
+              <div className="space-y-3 font-semibold text-[11px]">
+                {/* Full name */}
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400">الاسم الثلاثي أو المستعار بالمنصة</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={fullNameInput} 
+                    onChange={e => setFullNameInput(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 p-2 border rounded-xl text-right text-[11px] font-semibold dark:text-white"
+                  />
+                </div>
+
+                {/* Academic stage */}
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400">القسم للتخصص والمجموعة</label>
+                  <input 
+                    type="text" 
+                    value={departmentInput} 
+                    onChange={e => setDepartmentInput(e.target.value)}
+                    placeholder="مثال: هندسة البرمجيات"
+                    className="w-full bg-slate-50 dark:bg-slate-950 p-2 border rounded-xl text-right text-[11px] font-semibold dark:text-white"
+                  />
+                </div>
+
+                {/* Stage Selection */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-400">المستوى الدراسي</label>
+                    <select 
+                      value={levelInput} 
+                      onChange={e => setLevelInput(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 p-2 border rounded-xl text-right text-[11px] font-semibold dark:text-white cursor-pointer"
+                    >
+                      <option value="بكالوريوس">بكالوريوس</option>
+                      <option value="ماجستير">ماجستير</option>
+                      <option value="دكتوراه">دكتوراه</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-400">السنة الأكاديمية</label>
+                    <select 
+                      value={academicYearInput} 
+                      onChange={e => setAcademicYearInput(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 p-2 border rounded-xl text-right text-[11px] font-semibold dark:text-white cursor-pointer"
+                    >
+                      <option value="سنة أولى">سنة أولى</option>
+                      <option value="سنة ثانية">سنة ثانية</option>
+                      <option value="سنة ثالثة">سنة ثالثة</option>
+                      <option value="سنة رابعة">سنة رابعة</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Telephone */}
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-400">رقم تحالف التليجرام الخاص بك</label>
+                  <input 
+                    type="text" 
+                    placeholder="@telegram_id" 
+                    value={telegramInput} 
+                    onChange={e => setTelegramInput(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 p-2 border rounded-xl text-left font-mono text-[11px] dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 py-2 bg-[#041B4D] hover:bg-[#071B3B] text-white rounded-xl text-[11px] font-bold"
+                >
+                  {isSaving ? 'جاري الحفظ الآمن...' : 'حفظ التحديثات'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditing(false)} 
+                  className="flex-1 py-2 bg-gray-100 text-gray-500 rounded-xl text-[11px] hover:bg-gray-250 cursor-pointer"
+                >
+                  تراجع
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* GENERAL UTILITIES BOX (Dark mode + secure logout) */}
+      <div className="px-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-120 dark:border-slate-800 overflow-hidden divide-y divide-gray-100 dark:divide-slate-800 shadow-sm text-right">
+          
+          {/* Admin panel redirect */}
+          {user.email === 'abdulmlikoog@gmail.com' && (
+            <div 
+              onClick={() => onNavigateToTab('admin')}
+              className="p-3.5 flex justify-between items-center hover:bg-red-500/5 transition cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-50 text-red-600 dark:bg-red-950/20 rounded-xl">
+                  <Shield size={14} className="animate-pulse" />
+                </div>
+                <span className="text-[11px] font-black text-red-600 dark:text-red-400">لوحة تحكم المسؤول العام للكلية</span>
+              </div>
+              <ChevronLeft size={14} className="text-red-300" />
             </div>
           )}
 
-          {/* Profile Navigation Links */}
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-100 shadow-sm animate-fade-in" id="profile-navigation-links">
-            
-            {/* Account Info button */}
-            <div 
-              onClick={() => {
-                setActiveSubSection(activeSubSection === 'account' ? 'none' : 'account');
-                setIsEditing(false);
-              }}
-              className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-blue-50 text-blue-800 rounded-xl shrink-0">
-                  <User size={16} className="stroke-[2.2] text-brand-blue" />
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-gray-700">معلومات الحساب الدراسي</span>
+          {/* Secure Dark Mode Toggle */}
+          <div className="p-3.5 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 rounded-xl">
+                {darkMode ? <Sun size={14} className="text-brand-gold" /> : <Moon size={14} />}
               </div>
-              <div className="flex items-center gap-1.5 text-gray-400">
-                <span className="text-[10px] sm:text-xs font-semibold text-brand-gold truncate max-w-[80px] sm:max-w-[120px]">{user.telegram || 'مطلوب @'}</span>
-                <span className="text-[10px] sm:text-xs font-medium text-gray-400 hidden sm:inline">{user.fullName || user.username}</span>
-                <ChevronLeft size={14} className="shrink-0" />
-              </div>
+              <span className="text-[11px] font-black text-gray-700 dark:text-gray-300">الوضع المظلم المريح للعين</span>
             </div>
-
-            {/* Subscriptions */}
-            <div 
-              onClick={() => setActiveSubSection(activeSubSection === 'subscription' ? 'none' : 'subscription')}
-              className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
+            <button
+              onClick={() => onToggleDarkMode(!darkMode)}
+              className={`w-10 h-5.5 rounded-full p-0.5 cursor-pointer transition-colors flex items-center ${darkMode ? 'bg-brand-gold justify-end' : 'bg-gray-200 dark:bg-slate-800 justify-start'}`}
             >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-orange-50 text-orange-850 rounded-xl shrink-0">
-                  <CreditCard size={16} className="stroke-[2.2] text-brand-gold" />
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-gray-700">الاشتراكات والمساقات</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-400">
-                <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">نشط ✓</span>
-                <ChevronLeft size={14} className="shrink-0" />
-              </div>
-            </div>
-
-            {/* Exam history list shortcut */}
-            <div 
-              onClick={() => onNavigateToTab('exams')}
-              className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-emerald-50 text-emerald-800 rounded-xl shrink-0">
-                  <ClipboardList size={16} className="stroke-[2.2] text-emerald-700" />
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-gray-700">سجل درجات الاختبارات التجريبية</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-400">
-                <span className="text-[10px] sm:text-xs font-semibold text-gray-400 shrink-0">{examHistoryCount} محاولات</span>
-                <ChevronLeft size={14} className="shrink-0" />
-              </div>
-            </div>
-
-            {/* Notifications and Alerts */}
-            <div 
-              onClick={() => setActiveSubSection(activeSubSection === 'notifications' ? 'none' : 'notifications')}
-              className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-purple-50 text-purple-800 rounded-xl shrink-0">
-                  <Bell size={16} className="stroke-[2.2] text-purple-700" />
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-gray-700">تفضيلات الإشعارات</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-400">
-                <span className="text-[10px] sm:text-xs font-medium text-gray-400">مفعلة</span>
-                <ChevronLeft size={14} className="shrink-0" />
-              </div>
-            </div>
-
-            {/* Install / Download App button */}
-            <div 
-              onClick={() => setActiveSubSection(activeSubSection === 'install' ? 'none' : 'install')}
-              className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-amber-50 text-amber-805 rounded-xl shrink-0">
-                  <Download size={16} className="stroke-[2.2] text-brand-gold animate-bounce" />
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-gray-700">تنزيل تطبيق المذاكرة "بن عون"</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-400">
-                {deferredPrompt ? (
-                  <span className="text-[9px] sm:text-[10px] font-black text-brand-gold bg-amber-55 px-1.5 py-0.5 rounded animate-pulse shrink-0">تثبيت مباشر</span>
-                ) : (
-                  <span className="text-[10px] sm:text-xs font-medium text-gray-400 shrink-0 font-sans">طريقة الحفظ</span>
-                )}
-                <ChevronLeft size={14} className="shrink-0" />
-              </div>
-            </div>
-
-            {/* Dark Mode Toggle Switch */}
-            <div 
-              className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-indigo-50 text-indigo-805 rounded-xl shrink-0">
-                  {darkMode ? (
-                    <Sun size={16} className="stroke-[2.2] text-brand-gold" />
-                  ) : (
-                    <Moon size={16} className="stroke-[2.2] text-indigo-700" />
-                  )}
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-gray-700">الوضع المظلم (Dark Mode)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onToggleDarkMode(!darkMode)}
-                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-gray-200 transition-colors duration-200 ease-in-out focus:outline-none p-0.5 items-center ${
-                    darkMode ? 'bg-brand-gold justify-end' : 'bg-gray-200 justify-start'
-                  }`}
-                  type="button"
-                  role="switch"
-                  aria-checked={darkMode}
-                >
-                  <span
-                    className="pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow-md transition duration-200"
-                  />
-                </button>
-              </div>
-            </div>
-
-            {/* Support & Tech queries */}
-            <div 
-              onClick={() => setActiveSubSection(activeSubSection === 'support' ? 'none' : 'support')}
-              className="p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50/50 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="p-1.5 sm:p-2 bg-teal-50 text-teal-800 rounded-xl shrink-0">
-                  <HelpCircle size={16} className="stroke-[2.2] text-teal-700" />
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-gray-700">الدعم الفني والردود الفورية بموقعنا</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-gray-400">
-                <ChevronLeft size={14} className="shrink-0" />
-              </div>
-            </div>
-
-            {/* Admin controller links if admin authorized */}
-            {user.email === 'abdulmlikoog@gmail.com' && (
-              <div 
-                onClick={() => setProfileViewTab('admin')}
-                className="p-3 sm:p-4 flex items-center justify-between hover:bg-red-50/20 cursor-pointer transition-colors bg-red-50/5 dark:bg-red-955/5 bg-slate-50/10"
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="p-1.5 sm:p-2 bg-red-50 dark:bg-red-955/20 text-red-800 rounded-xl shrink-0">
-                    <Shield size={16} className="stroke-[2.2] text-red-600 animate-pulse" />
-                  </div>
-                  <span className="text-[12px] sm:text-sm font-black text-red-700 dark:text-red-400">لوحة التحكم والمشرف العام</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-red-505">
-                  <span className="text-[9px] sm:text-[10px] font-bold bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full shrink-0">إدارة المنصة</span>
-                  <ChevronLeft size={14} className="shrink-0" />
-                </div>
-              </div>
-            )}
-
-            {/* Secure logout confirmation module */}
-            {showLogoutConfirm ? (
-              <div className="p-4 bg-red-50 border-t border-red-150 flex flex-col gap-3 animate-fade-in text-center" id="logout-confirm-box">
-                <p className="text-[11px] sm:text-xs font-bold text-red-800">
-                  هل أنت متأكد رغبتك بتسجيل الخروج الآمن من حسابك؟
-                </p>
-                <div className="flex gap-2 justify-center">
-                  <button
-                    onClick={() => onLogout()}
-                    className="flex-1 py-1.5 px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] sm:text-xs font-black transition-colors cursor-pointer"
-                    id="btn-confirm-logout"
-                  >
-                    نعم، تسجيل الخروج
-                  </button>
-                  <button
-                    onClick={() => setShowLogoutConfirm(false)}
-                    className="flex-1 py-1.5 px-3 bg-white hover:bg-gray-150 border border-gray-200 text-gray-700 rounded-xl text-[10px] sm:text-xs font-black transition-colors cursor-pointer"
-                    id="btn-cancel-logout"
-                  >
-                    إلغاء التراجع
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div 
-                onClick={() => setShowLogoutConfirm(true)}
-                className="p-3 sm:p-4 flex items-center justify-between hover:bg-red-50/40 cursor-pointer transition-colors text-red-600"
-                id="btn-trigger-logout"
-              >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="p-1.5 sm:p-2 bg-red-50 text-red-700 rounded-xl shrink-0">
-                    <LogOut size={16} className="stroke-[2.2]" />
-                  </div>
-                  <span className="text-[12px] sm:text-sm font-semibold">تسجيل الخروج الآمن من النظام</span>
-                </div>
-                <ChevronLeft size={14} className="text-red-300 shrink-0" />
-              </div>
-            )}
-
+              <span className="w-4.5 h-4.5 bg-white rounded-full shadow-md" />
+            </button>
           </div>
-        </>
-      )}
 
+          {/* Safe PWA integration */}
+          {deferredPrompt && (
+            <div 
+              onClick={onInstallApp}
+              className="p-3.5 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-50 text-brand-gold dark:bg-amber-950/20 rounded-xl">
+                  <Download size={14} className="animate-bounce" />
+                </div>
+                <span className="text-[11px] font-black text-gray-700 dark:text-gray-300">تحميل تطبيق "بن عون" على الشاشة</span>
+              </div>
+              <ChevronLeft size={14} className="text-gray-400" />
+            </div>
+          )}
+
+          {/* Secure application logout action */}
+          {showLogoutConfirm ? (
+            <div className="p-4 bg-rose-50/75 dark:bg-rose-950/10 space-y-3 transition-colors">
+              <p className="text-[10px] font-black text-rose-800 dark:text-rose-400 text-center">هل متأكد من رغبتك بتسجيل خروج حسابك؟</p>
+              <div className="flex gap-2">
+                <button onClick={() => onLogout()} className="flex-1 py-1.5 bg-rose-600 scroll-smooth hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold">تسجيل الخروج الآمن</button>
+                <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-1.5 bg-white border text-gray-600 rounded-lg text-[10px] font-bold cursor-pointer">إلغاء التراجع</button>
+              </div>
+            </div>
+          ) : (
+            <div 
+              onClick={() => setShowLogoutConfirm(true)}
+              className="p-3.5 flex justify-between items-center hover:bg-rose-500/5 transition cursor-pointer text-rose-600"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-50 text-rose-600 dark:bg-red-950/20 rounded-xl">
+                  <LogOut size={14} />
+                </div>
+                <span className="text-[11px] font-black">تسجيل الخروج الآمن الفوري</span>
+              </div>
+              <ChevronLeft size={14} className="text-rose-300" />
+            </div>
+          )}
+
+        </div>
+      </div>
     </div>
   );
 }

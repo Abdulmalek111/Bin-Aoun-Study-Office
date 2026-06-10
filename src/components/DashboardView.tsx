@@ -215,20 +215,20 @@ export default function DashboardView({
   const subjectsToRender = firebaseSubjects.length > 0 ? firebaseSubjects : defaultMockSubjects;
 
   return (
-    <main dir="rtl" className="w-full min-h-screen bg-white text-[#071B3A] pb-32 relative select-none">
+    <main dir="rtl" className="w-full min-h-screen bg-[#F8F9FB] text-[#041B4D] pb-32 relative select-none">
       
       {/* 1. Dark Header curved banner from mockup pattern */}
-      <section className="relative rounded-b-[36px] bg-[#071B3A] px-5 pt-7 pb-8 text-white shadow-xl">
-        <div className="flex items-center justify-between">
+      <section className="relative rounded-b-[36px] bg-[#041B4D] px-5 pt-3.5 pb-7 text-white shadow-xl">
+        <div className="flex items-start justify-between">
           
           {/* Interactive bell trigger tied to unread count in Firebase (Now on the right) */}
           <button 
             onClick={() => setShowNotifications(!showNotifications)} 
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 active:scale-95 transition-transform"
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 active:scale-95 transition-transform mt-1.5"
           >
             <Bell size={17} />
             {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#C9A24A] text-[8px] font-bold text-white shadow-md">
+              <span className="absolute -right-1 -top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#D4A63D] text-[8px] font-bold text-white shadow-md">
                 {unreadCount}
               </span>
             )}
@@ -247,7 +247,7 @@ export default function DashboardView({
           {/* Menu button toggles profile side tab (Now on the left) */}
           <button 
             onClick={() => onNavigateToTab('profile')} 
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 active:scale-95 transition-transform"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 active:scale-95 transition-transform mt-1.5"
           >
             <Menu size={17} />
           </button>
@@ -264,7 +264,7 @@ export default function DashboardView({
         </div>
 
         {/* Input Search trigger */}
-        <div className="mt-5 flex h-13 items-center rounded-[20px] bg-white px-4 text-[#071B3A] shadow-md">
+        <div className="mt-5 flex h-13 items-center rounded-[20px] bg-white px-4 text-[#041B4D] shadow-md">
           <Search className="ml-2 text-gray-400" size={20} />
           <input
             value={searchQuery}
@@ -287,8 +287,8 @@ export default function DashboardView({
       {showNotifications && (
         <div className="absolute top-28 left-4 right-4 bg-white border border-gray-150 p-5 rounded-[28px] shadow-2xl z-50 max-w-md mx-auto space-y-4 text-right animate-fade-in">
           <div className="flex items-center justify-between border-b pb-3 border-gray-100">
-            <h3 className="text-sm font-black text-[#071B3A] flex items-center gap-1.5">
-              <Bell size={18} className="text-[#C9A24A]" />
+            <h3 className="text-sm font-black text-[#041B4D] flex items-center gap-1.5">
+              <Bell size={18} className="text-[#D4A63D]" />
               <span>الإشعارات والرسائل التنظيمية ({userNotifications.length})</span>
             </h3>
             <button 
@@ -315,21 +315,21 @@ export default function DashboardView({
                     className={`p-3 rounded-2xl border transition-all text-right space-y-1 relative ${
                       readStatus 
                         ? 'bg-[#F8FAFC] border-gray-100 opacity-70' 
-                        : 'bg-[#C9A24A]/5 border-[#C9A24A]/25 shadow-xs cursor-pointer'
+                        : 'bg-[#D4A63D]/5 border-[#D4A63D]/25 shadow-xs cursor-pointer'
                     }`}
                   >
                     {!readStatus && (
-                      <span className="absolute top-3.5 left-3 w-2 h-2 bg-[#C9A24A] rounded-full animate-pulse"></span>
+                      <span className="absolute top-3.5 left-3 w-2 h-2 bg-[#D4A63D] rounded-full animate-pulse"></span>
                     )}
                     
                     <div className="flex justify-between items-start gap-2">
-                      <span className="text-[10px] font-black text-white bg-[#071B3A] px-2 py-0.5 rounded-lg leading-none shrink-0">
+                      <span className="text-[10px] font-black text-white bg-[#041B4D] px-2 py-0.5 rounded-lg leading-none shrink-0">
                         {noti.senderName}
                       </span>
                       <span className="text-[9px] text-gray-400 font-mono leading-none shrink-0">{noti.createdAt}</span>
                     </div>
 
-                    <p className="text-xs font-bold text-[#071B3A] leading-relaxed mt-1">
+                    <p className="text-xs font-bold text-[#041B4D] leading-relaxed mt-1">
                       {noti.message}
                     </p>
 
@@ -337,7 +337,7 @@ export default function DashboardView({
                       {!readStatus && (
                         <button
                           onClick={() => handleMarkAsRead(noti.id)}
-                          className="px-2.5 py-1 bg-[#C9A24A] text-white rounded-lg text-[9px] font-black cursor-pointer transition"
+                          className="px-2.5 py-1 bg-[#D4A63D] text-white rounded-lg text-[9px] font-black cursor-pointer transition"
                         >
                           تحديد كمقروء ✓
                         </button>
@@ -360,7 +360,7 @@ export default function DashboardView({
               <span className="text-[#6B7280] font-black">عدد غير المقروء: {unreadCount}</span>
               <button
                 onClick={handleMarkAllAsRead}
-                className="text-[#C9A24A] font-black hover:underline cursor-pointer text-xs"
+                className="text-[#D4A63D] font-black hover:underline cursor-pointer text-xs"
               >
                 تحديد الكل كمقروء
               </button>
@@ -373,7 +373,7 @@ export default function DashboardView({
       {searchQuery.trim() !== '' && (
         <div className="absolute top-56 left-4 right-4 bg-white border border-gray-150 p-5 rounded-[28px] shadow-2xl z-40 max-w-md mx-auto space-y-4 text-right animate-fade-in">
           <div className="flex items-center justify-between border-b pb-2 border-gray-100">
-            <h3 className="text-sm font-black text-[#071B3A] flex items-center gap-1.5">
+            <h3 className="text-sm font-black text-[#041B4D] flex items-center gap-1.5">
               <span>نتائج المطابقة للبحث:</span>
             </h3>
             <button 
@@ -396,7 +396,7 @@ export default function DashboardView({
                         setSearchQuery('');
                         onNavigateToTab('subjects');
                       }}
-                      className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 text-right w-full text-xs font-black text-[#071B3A]"
+                      className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 text-right w-full text-xs font-black text-[#041B4D]"
                     >
                       <span>{sub.nameAr}</span>
                       <BookOpen size={15} className="text-gray-400" />
@@ -417,10 +417,10 @@ export default function DashboardView({
                         setSearchQuery('');
                         onSelectExam(ex.id);
                       }}
-                      className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-amber-50/20 hover:bg-amber-50/50 text-right w-full text-xs font-black text-[#071B3A]"
+                      className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-[#D4A63D]/10 hover:bg-[#D4A63D]/20 text-right w-full text-xs font-black text-[#041B4D]"
                     >
                       <span>{ex.title}</span>
-                      <ClipboardCheck size={15} className="text-[#C9A24A]" />
+                      <ClipboardCheck size={15} className="text-[#D4A63D]" />
                     </button>
                   ))}
                 </div>
@@ -440,7 +440,7 @@ export default function DashboardView({
       <section className="px-5 pt-6 pb-28">
         
         {/* Dynamic sliding / static premium Hero Banner */}
-        <div className="relative overflow-hidden rounded-[28px] bg-[#071B3A] shadow-xl">
+        <div className="relative overflow-hidden rounded-[28px] bg-[#041B4D] shadow-xl">
           <img
             src="https://images.unsplash.com/photo-1519682337058-a94d519337bc?q=80&w=1200&auto=format&fit=crop"
             className="h-48 w-full object-cover opacity-55 pointer-events-none"
@@ -449,22 +449,22 @@ export default function DashboardView({
           />
 
           <div className="absolute inset-0 flex flex-col justify-center px-7 text-white text-right">
-            <h2 className="text-2xl font-extrabold text-[#E2B94B]">
+            <h2 className="text-2xl font-extrabold text-[#D4A63D]">
               طريقك نحو التفوق
             </h2>
-            <p className="mt-2 max-w-[220px] text-base leading-7 text-white">
+            <p className="mt-2 max-w-[220px] text-base leading-7 text-white font-black">
               ابدأ رحلتك التعليمية معنا وحقق أهدافك الأكاديمية
             </p>
             <button 
               onClick={() => onNavigateToTab('subjects')} 
-              className="mt-5 w-fit rounded-full bg-[#C9A24A] px-7 py-2.5 text-sm font-bold text-white shadow-md active:scale-95 transition-transform cursor-pointer"
+              className="mt-5 w-fit rounded-full bg-[#D4A63D] px-7 py-2.5 text-sm font-bold text-white shadow-md active:scale-95 transition-transform cursor-pointer"
             >
               ابدأ الآن
             </button>
           </div>
 
           <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
-            <span className="h-2 w-7 rounded-full bg-[#C9A24A]" />
+            <span className="h-2 w-7 rounded-full bg-[#D4A63D]" />
             <span className="h-2 w-2 rounded-full bg-white/60" />
             <span className="h-2 w-2 rounded-full bg-white/60" />
           </div>
@@ -520,73 +520,30 @@ export default function DashboardView({
         <SectionTitle title="جدولك القادم" onSeeAll={() => onNavigateToTab('subjects')} />
 
         {/* Schedule box matching layout exactly */}
-        <div className="mt-4 flex items-center gap-4 rounded-[24px] bg-white p-4 shadow-[0_8px_30px_rgba(7,27,58,0.12)]">
-          <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl bg-[#071B3A] text-white">
+        <div className="mt-4 flex items-center gap-4 rounded-[24px] bg-white p-4 shadow-[0_8px_30px_rgba(4,27,77,0.08)]">
+          <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl bg-[#041B4D] text-white">
             <span className="text-xl font-extrabold">10:00</span>
-            <span className="text-xs text-[#C9A24A] font-bold">صباحاً</span>
+            <span className="text-xs text-[#D4A63D] font-bold">صباحاً</span>
           </div>
 
           <div className="flex-1 text-right min-w-0">
-            <h3 className="text-sm sm:text-base font-extrabold text-[#071B3A] truncate leading-tight">
+            <h3 className="text-sm sm:text-base font-extrabold text-[#041B4D] truncate leading-tight">
               محاضرة الرياضيات المتقدمة
             </h3>
             <p className="mt-1 text-xs text-gray-500 font-bold">أ. محمد خالد</p>
-            <p className="mt-2 text-xs text-gray-400 font-medium">
+            <p className="mt-2 text-xs text-gray-400 font-medium font-bold">
               الأحد 25 مايو 2024
             </p>
           </div>
 
           <button 
             onClick={() => onNavigateToTab('subjects')}
-            className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#071B3A] text-white shadow-md hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+            className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#041B4D] text-white shadow-md hover:scale-105 active:scale-95 transition-transform cursor-pointer"
           >
-            <CalendarDays size={24} className="text-[#C9A24A]" />
+            <CalendarDays size={24} className="text-[#D4A63D]" />
           </button>
         </div>
       </section>
-
-      {/* Floating Bottom Navigation dock */}
-      <nav className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-full bg-white/95 backdrop-blur-md px-5 py-3 shadow-[0_12px_36px_rgba(7,27,58,0.20)]">
-        <div className="flex items-end justify-between text-gray-500">
-          
-          <NavItem 
-            icon={<UserIcon />} 
-            label="الملف الشخصي" 
-            onClick={() => onNavigateToTab('profile')} 
-          />
-          
-          <NavItem 
-            icon={<MessageCircle />} 
-            label="المحادثات" 
-            badge={discussionsCount > 0 ? discussionsCount.toString() : undefined} 
-            onClick={() => onNavigateToTab('discussions')} 
-          />
-
-          <div className="-mt-9 flex flex-col items-center">
-            <div 
-              onClick={() => onNavigateToTab('home')}
-              className="flex h-13 w-13 items-center justify-center rounded-full bg-[#071B3A] text-[#C9A24A] shadow-xl active:scale-95 transition-transform cursor-pointer"
-            >
-              <Home size={22} />
-            </div>
-            <span className="mt-1 text-[10px] font-extrabold text-[#071B3A]">
-              الرئيسية
-            </span>
-          </div>
-
-          <NavItem 
-            icon={<BookOpen />} 
-            label="المواد" 
-            onClick={() => onNavigateToTab('subjects')} 
-          />
-          
-          <NavItem 
-            icon={<Grid2X2 />} 
-            label="المزيد" 
-            onClick={() => onNavigateToTab('students')} 
-          />
-        </div>
-      </nav>
     </main>
   );
 }
@@ -595,10 +552,10 @@ function QuickCard({ icon, title, sub, onClick }: any) {
   return (
     <button 
       onClick={onClick}
-      className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl bg-white p-2 text-center shadow-[0_8px_24px_rgba(7,27,58,0.08)] active:scale-95 hover:scale-102 transition-transform cursor-pointer w-full select-none"
+      className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl bg-white p-2 text-center shadow-[0_8px_24px_rgba(4,27,77,0.06)] active:scale-95 hover:scale-102 transition-transform cursor-pointer w-full select-none"
     >
-      <div className="text-[#C9A24A]">{React.cloneElement(icon, { size: 22 })}</div>
-      <div className="mt-2 text-[10px] sm:text-[11px] font-extrabold text-[#071B3A]">{title}</div>
+      <div className="text-[#D4A63D]">{React.cloneElement(icon, { size: 22 })}</div>
+      <div className="mt-2 text-[10px] sm:text-[11px] font-extrabold text-[#041B4D]">{title}</div>
       <div className="mt-0.5 text-[9px] text-gray-400 font-bold">{sub}</div>
     </button>
   );
@@ -607,10 +564,10 @@ function QuickCard({ icon, title, sub, onClick }: any) {
 function SectionTitle({ title, onSeeAll }: { title: string; onSeeAll?: () => void }) {
   return (
     <div className="mt-6 flex items-center justify-between">
-      <h2 className="text-sm sm:text-base font-extrabold text-[#071B3A]">{title}</h2>
+      <h2 className="text-sm sm:text-base font-extrabold text-[#041B4D]">{title}</h2>
       <button 
         onClick={onSeeAll}
-        className="text-[11px] font-bold text-gray-400 hover:text-[#C9A24A] hover:underline cursor-pointer"
+        className="text-[11px] font-bold text-gray-400 hover:text-[#D4A63D] hover:underline cursor-pointer"
       >
         عرض الكل ‹
       </button>
@@ -622,7 +579,7 @@ function MaterialCard({ image, badge, title, teacher, count, onClick }: any) {
   return (
     <div 
       onClick={onClick}
-      className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_24px_rgba(7,27,58,0.08)] hover:scale-102 active:scale-98 transition-transform cursor-pointer flex flex-col justify-between"
+      className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_24px_rgba(4,27,77,0.06)] hover:scale-102 active:scale-98 transition-transform cursor-pointer flex flex-col justify-between"
     >
       <div className="relative">
         <img 
@@ -639,7 +596,7 @@ function MaterialCard({ image, badge, title, teacher, count, onClick }: any) {
       </div>
       <div className="p-2 text-right flex-1 flex flex-col justify-between">
         <div>
-          <h3 className="text-[10px] sm:text-[11px] font-extrabold text-[#071B3A] line-clamp-1 leading-tight">{title}</h3>
+          <h3 className="text-[10px] sm:text-[11px] font-extrabold text-[#041B4D] line-clamp-1 leading-tight">{title}</h3>
           <p className="mt-0.5 text-[8px] sm:text-[9px] text-gray-400 font-bold">{teacher}</p>
         </div>
         <p className="mt-2 text-[8px] sm:text-[9px] text-gray-500 font-bold pt-1 mt-auto shrink-0">{count}</p>
@@ -652,12 +609,12 @@ function NavItem({ icon, label, badge, onClick }: any) {
   return (
     <button 
       onClick={onClick}
-      className="relative flex flex-col items-center gap-1.5 text-[9px] text-gray-500 hover:text-[#071B3A] active:scale-95 transition-transform cursor-pointer font-extrabold shrink-0 min-w-[48px]"
+      className="relative flex flex-col items-center gap-1.5 text-[9px] text-gray-500 hover:text-[#041B4D] active:scale-95 transition-transform cursor-pointer font-extrabold shrink-0 min-w-[48px]"
     >
       <div className="relative">
         {React.cloneElement(icon, { size: 20 })}
         {badge && (
-          <span className="absolute -right-2 -top-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#C9A24A] text-[8px] font-bold text-white shadow-md leading-none">
+          <span className="absolute -right-2 -top-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#D4A63D] text-[8px] font-bold text-white shadow-md leading-none">
             {badge}
           </span>
         )}

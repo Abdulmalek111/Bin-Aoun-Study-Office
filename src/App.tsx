@@ -1071,7 +1071,7 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#071B3B] text-white flex flex-col items-center justify-center p-6 text-center" style={{ direction: 'rtl' }}>
+      <div className="min-h-screen bg-[#041B4D] text-white flex flex-col items-center justify-center p-6 text-center" style={{ direction: 'rtl' }}>
         <div className="space-y-4">
           <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="text-sm font-bold text-slate-300">جاري تحميل منصة بن عون التعليمية...</p>
@@ -1361,9 +1361,9 @@ export default function App() {
         </div>
 
         {/* BOTTOM NAVIGATION DOCK (Fully responsive: visible on mobiles, hidden on desktop/computers screens `lg:hidden`) */}
-        {user && !activeExamId && activeTab !== 'home' && (
+        {user && !activeExamId && (
           <>
-            <nav className="lg:hidden bg-white/95 backdrop-blur-md border-t border-gray-150 px-2 sm:px-3 py-1.5 flex justify-around items-end text-gray-400 shadow-xl z-30 select-none rounded-t-3xl shrink-0" dir="rtl">
+            <nav className="lg:hidden fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-full bg-white/95 backdrop-blur-md px-4 py-2 flex justify-around items-end text-gray-400 shadow-[0_12px_36px_rgba(4,27,77,0.15)] border border-gray-150/40 select-none" dir="rtl">
               
               {/* 5. الملف الشخصي (Leftmost in RTL) */}
               <button
@@ -1371,11 +1371,11 @@ export default function App() {
                   setActiveTab('profile');
                   setShowMoreMenu(false);
                 }}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
-                  activeTab === 'profile' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 min-w-[48px] ${
+                  activeTab === 'profile' && !showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
-                <UserIcon size={22} className={activeTab === 'profile' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <UserIcon size={20} className={activeTab === 'profile' && !showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                 <span className="text-[9px] font-bold">الملف الشخصي</span>
               </button>
 
@@ -1385,14 +1385,14 @@ export default function App() {
                   setActiveTab('discussions');
                   setShowMoreMenu(false);
                 }}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 relative ${
-                  activeTab === 'discussions' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 relative min-w-[48px] ${
+                  activeTab === 'discussions' && !showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
                 <div className="relative">
-                  <MessageSquare size={22} className={activeTab === 'discussions' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                  <MessageSquare size={20} className={activeTab === 'discussions' && !showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                   {/* Matching gold badge with '2' from the mockup */}
-                  <span className="absolute -top-1 -right-2.5 w-4 h-4 bg-[#D4A63A] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white">
+                  <span className="absolute -top-1.5 -right-2 w-4 h-4 bg-[#D4A63D] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white shadow-xs leading-none">
                     2
                   </span>
                 </div>
@@ -1405,12 +1405,12 @@ export default function App() {
                   setActiveTab('home');
                   setShowMoreMenu(false);
                 }}
-                className="flex flex-col items-center gap-0.5 cursor-pointer transition-all -mt-3.5"
+                className="flex flex-col items-center gap-1 cursor-pointer transition-all -mt-8 min-w-[48px]"
               >
-                <div className="w-13 h-13 rounded-full bg-[#071B3B] border-4 border-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95">
-                  <Home size={22} className="text-[#D4A63A] stroke-[2.5]" />
+                <div className="w-13 h-13 rounded-full bg-[#041B4D] border-4 border-white shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-95">
+                  <Home size={22} className="text-[#D4A63D] stroke-[2.5]" />
                 </div>
-                <span className={`text-[10px] font-black ${(activeTab as string) === 'home' && !showMoreMenu ? 'text-[#071B3B]' : 'text-[#6B7280]'}`}>الرئيسية</span>
+                <span className={`text-[10px] font-black ${activeTab === 'home' && !showMoreMenu ? 'text-[#041B4D]' : 'text-[#6B7280]'}`}>الرئيسية</span>
               </button>
 
               {/* 2. المواد */}
@@ -1419,22 +1419,22 @@ export default function App() {
                   setActiveTab('subjects');
                   setShowMoreMenu(false);
                 }}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
-                  activeTab === 'subjects' && !showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 min-w-[48px] ${
+                  activeTab === 'subjects' && !showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
-                <BookOpen size={22} className={activeTab === 'subjects' && !showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <BookOpen size={20} className={activeTab === 'subjects' && !showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                 <span className="text-[9px] font-bold">المواد</span>
               </button>
 
               {/* 1. المزيد (Rightmost in RTL) */}
               <button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 ${
-                  showMoreMenu ? 'text-[#071B3B] scale-105 font-black' : 'text-[#6B7280] hover:text-[#071B3B]'
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 min-w-[48px] ${
+                  showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
-                <LayoutGrid size={22} className={showMoreMenu ? 'text-[#071B3B] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <LayoutGrid size={20} className={showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                 <span className="text-[9px] font-bold">المزيد</span>
               </button>
 
@@ -1443,7 +1443,7 @@ export default function App() {
             {/* Slide-up custom Bottom sheet for More Options */}
             {showMoreMenu && (
               <div 
-                className="fixed inset-0 bg-[#071B3B]/40 backdrop-blur-sm z-45 lg:hidden flex flex-col justify-end" 
+                className="fixed inset-0 bg-[#041B4D]/40 backdrop-blur-sm z-45 lg:hidden flex flex-col justify-end" 
                 onClick={() => setShowMoreMenu(false)}
               >
                 <div 
@@ -1451,8 +1451,8 @@ export default function App() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex justify-between items-center border-b pb-3 border-gray-100">
-                    <h3 className="font-extrabold text-sm text-[#071B3B] flex items-center gap-1.5">
-                      <MoreHorizontal size={18} className="text-[#D4A63A]" />
+                    <h3 className="font-extrabold text-sm text-[#041B4D] flex items-center gap-1.5">
+                      <MoreHorizontal size={18} className="text-[#D4A63D]" />
                       <span>المزيد من الخدمات والأدوات</span>
                     </h3>
                     <button 
@@ -1472,10 +1472,10 @@ export default function App() {
                       }}
                       className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                     >
-                      <div className="p-2 bg-[#071B3B]/5 text-[#071B3B] rounded-xl mb-1">
+                      <div className="p-2 bg-[#041B4D]/5 text-[#041B4D] rounded-xl mb-1">
                         <Users size={16} />
                       </div>
-                      <h4 className="font-extrabold text-xs text-[#071B3B]">الزملاء بالمنصة</h4>
+                      <h4 className="font-extrabold text-xs text-[#041B4D]">الزملاء بالمنصة</h4>
                       <p className="text-[8px] text-[#6B7280]">الدردشة والاتصال المباشر</p>
                     </button>
 
@@ -1487,10 +1487,10 @@ export default function App() {
                       }}
                       className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                     >
-                      <div className="p-2 bg-[#D4A63A]/10 text-[#D4A63A] rounded-xl mb-1">
+                      <div className="p-2 bg-[#D4A63D]/10 text-[#D4A63D] rounded-xl mb-1">
                         <Calendar size={16} />
                       </div>
-                      <h4 className="font-extrabold text-xs text-[#071B3B]">دليل الاختبارات</h4>
+                      <h4 className="font-extrabold text-xs text-[#041B4D]">دليل الاختبارات</h4>
                       <p className="text-[8px] text-[#6B7280]">الامتحانات والتسريبات والدرجات</p>
                     </button>
 
@@ -1502,10 +1502,10 @@ export default function App() {
                       }}
                       className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                     >
-                      <div className="p-2 bg-[#071B3B]/5 text-[#071B3B] rounded-xl mb-1">
+                      <div className="p-2 bg-[#041B4D]/5 text-[#041B4D] rounded-xl mb-1">
                         <Smartphone size={16} />
                       </div>
-                      <h4 className="font-extrabold text-xs text-[#071B3B]">الدعم الفني</h4>
+                      <h4 className="font-extrabold text-xs text-[#041B4D]">الدعم الفني</h4>
                       <p className="text-[8px] text-[#6B7280]">إرسال ومتابعة تذاكر المساعدة</p>
                     </button>
 
@@ -1516,13 +1516,13 @@ export default function App() {
                           setActiveTab('admin');
                           setShowMoreMenu(false);
                         }}
-                        className="p-3 bg-[#D4A63A]/5 border border-[#D4A63A]/20 hover:bg-[#D4A63A]/10 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
+                        className="p-3 bg-[#D4A63D]/5 border border-[#D4A63D]/20 hover:bg-[#D4A63D]/10 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                       >
-                        <div className="p-2 bg-[#D4A63A]/10 text-[#D4A63A] rounded-xl mb-1">
+                        <div className="p-2 bg-[#D4A63D]/10 text-[#D4A63D] rounded-xl mb-1">
                           <Shield size={16} />
                         </div>
-                        <h4 className="font-extrabold text-xs text-[#071B3B]">لوحة الإدارة</h4>
-                        <p className="text-[8px] text-[#D4A63A] font-bold">إصدار الإعلانات والتحكم</p>
+                        <h4 className="font-extrabold text-xs text-[#041B4D]">لوحة الإدارة</h4>
+                        <p className="text-[8px] text-[#D4A63D] font-bold">إصدار الإعلانات والتحكم</p>
                       </button>
                     )}
                   </div>
@@ -1533,7 +1533,7 @@ export default function App() {
                     <button 
                       onClick={() => setDarkMode(!darkMode)}
                       className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${
-                        darkMode ? 'bg-[#D4A63A]' : 'bg-gray-300'
+                        darkMode ? 'bg-[#D4A63D]' : 'bg-gray-300'
                       }`}
                     >
                       <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-300 ${
