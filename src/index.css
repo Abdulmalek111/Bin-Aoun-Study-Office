@@ -4,11 +4,12 @@
 @theme {
   --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
   
-  /* Brand color palette from the premium image specs */
+  /* Brand color palette - Enhanced premium design */
   --color-brand-dark: #041B4D;
-  --color-brand-blue: #041B4D;
+  --color-brand-blue: #0F2555;
   --color-brand-gold: #D4A63D;
   --color-brand-gray: #F7F8FA;
+  --color-brand-light: #E8EEF5;
 }
 
 html {
@@ -219,30 +220,53 @@ body {
 
 /* --- Achievement Card Premium Styles --- */
 .achievement-card {
-  background-color: rgba(197, 156, 75, 0.05) !important; /* Soft brand-gold tint */
-  border-color: rgba(197, 156, 75, 0.2) !important;
+  background-color: rgba(212, 166, 61, 0.05) !important;
+  border-color: rgba(212, 166, 61, 0.2) !important;
 }
 .achievement-icon-wrapper {
-  background-color: rgba(197, 156, 75, 0.12) !important;
+  background-color: rgba(212, 166, 61, 0.12) !important;
 }
 .achievement-title {
-  color: #7c5e26 !important; /* Warm gold/bronze title */
+  color: #7c5e26 !important;
 }
 .achievement-desc {
-  color: #8c6e35 !important; /* Soft readable descriptor */
+  color: #8c6e35 !important;
 }
 
 /* --- Dark Mode specific overrides --- */
 .dark-mode .achievement-card {
-  background-color: rgba(197, 156, 75, 0.1) !important; /* Translucent gold on dark background */
-  border-color: rgba(197, 156, 75, 0.45) !important; /* Standout brand gold border */
+  background-color: rgba(212, 166, 61, 0.1) !important;
+  border-color: rgba(212, 166, 61, 0.45) !important;
 }
 .dark-mode .achievement-icon-wrapper {
-  background-color: rgba(197, 156, 75, 0.25) !important;
+  background-color: rgba(212, 166, 61, 0.25) !important;
 }
 .dark-mode .achievement-title {
-  color: #fde68a !important; /* Highly readable golden-cream in dark mode */
+  color: #fde68a !important;
 }
 .dark-mode .achievement-desc {
-  color: rgba(253, 230, 138, 0.85) !important; /* High contrast soft cream text */
+  color: rgba(253, 230, 138, 0.85) !important;
+}
+
+/* Enhanced animations */
+@keyframes fadeInSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-slide-up {
+  animation: fadeInSlideUp 0.5s ease-out;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
 }
