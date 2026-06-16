@@ -29,10 +29,7 @@ export default function App() {
   const [subjects, setSubjects] = useState<Subject[]>(initialSubjects);
   const [examHistory, setExamHistory] = useState<{ examTitle: string; scorePct: number; date: string; timeUsed: string }[]>([]);
   const [authScreen, setAuthScreen] = useState<'welcome' | 'login' | 'register'>('welcome');
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('school_dark_mode');
-    return saved !== 'false';
-  });
+  const [darkMode, setDarkMode] = useState<boolean>(false);
   const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
 
   // Students Private Chat and Call session states
@@ -243,17 +240,11 @@ export default function App() {
     localStorage.setItem('school_subject_lectures', JSON.stringify(subjectLectures));
   }, [subjectLectures]);
 
-  // Apply dark mode theme class
+  // Apply dark mode theme class (permanently clean to light theme)
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark-mode');
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('school_dark_mode', 'true');
-    } else {
-      document.documentElement.classList.remove('dark-mode');
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('school_dark_mode', 'false');
-    }
+    document.documentElement.classList.remove('dark-mode');
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('school_dark_mode', 'false');
   }, [darkMode]);
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
