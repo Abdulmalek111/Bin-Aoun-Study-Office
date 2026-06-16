@@ -1071,7 +1071,7 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#041B4D] text-white flex flex-col items-center justify-center p-6 text-center" style={{ direction: 'rtl' }}>
+      <div className="min-h-screen bg-[#0B1B3F] text-white flex flex-col items-center justify-center p-6 text-center" style={{ direction: 'rtl' }}>
         <div className="space-y-4">
           <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="text-sm font-bold text-slate-300">جاري تحميل منصة بن عون التعليمية...</p>
@@ -1372,10 +1372,10 @@ export default function App() {
                   setShowMoreMenu(false);
                 }}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 min-w-[48px] ${
-                  activeTab === 'profile' && !showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
+                  activeTab === 'profile' && !showMoreMenu ? 'text-[#0B1B3F] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
-                <UserIcon size={20} className={activeTab === 'profile' && !showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <UserIcon size={20} className={activeTab === 'profile' && !showMoreMenu ? 'text-[#0B1B3F] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                 <span className="text-[9px] font-bold">الملف الشخصي</span>
               </button>
 
@@ -1386,13 +1386,13 @@ export default function App() {
                   setShowMoreMenu(false);
                 }}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 relative min-w-[48px] ${
-                  activeTab === 'discussions' && !showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
+                  activeTab === 'discussions' && !showMoreMenu ? 'text-[#0B1B3F] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
                 <div className="relative">
-                  <MessageSquare size={20} className={activeTab === 'discussions' && !showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                  <MessageSquare size={20} className={activeTab === 'discussions' && !showMoreMenu ? 'text-[#0B1B3F] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                   {/* Matching gold badge with '2' from the mockup */}
-                  <span className="absolute -top-1.5 -right-2 w-4 h-4 bg-[#D4A63D] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white shadow-xs leading-none">
+                  <span className="absolute -top-1.5 -right-2 w-4 h-4 bg-[#D4A947] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white shadow-xs leading-none">
                     2
                   </span>
                 </div>
@@ -1407,10 +1407,10 @@ export default function App() {
                 }}
                 className="flex flex-col items-center gap-1 cursor-pointer transition-all -mt-8 min-w-[48px]"
               >
-                <div className="w-13 h-13 rounded-full bg-[#041B4D] border-4 border-white shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-95">
-                  <Home size={22} className="text-[#D4A63D] stroke-[2.5]" />
+                <div className="w-13 h-13 rounded-full bg-[#0B1B3F] border-4 border-white shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-95">
+                  <Home size={22} className="text-[#D4A947] stroke-[2.5]" />
                 </div>
-                <span className={`text-[10px] font-black ${activeTab === 'home' && !showMoreMenu ? 'text-[#041B4D]' : 'text-[#6B7280]'}`}>الرئيسية</span>
+                <span className={`text-[10px] font-black ${activeTab === 'home' && !showMoreMenu ? 'text-[#0B1B3F]' : 'text-[#6B7280]'}`}>الرئيسية</span>
               </button>
 
               {/* 2. المواد */}
@@ -1420,10 +1420,10 @@ export default function App() {
                   setShowMoreMenu(false);
                 }}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 min-w-[48px] ${
-                  activeTab === 'subjects' && !showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
+                  activeTab === 'subjects' && !showMoreMenu ? 'text-[#0B1B3F] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
-                <BookOpen size={20} className={activeTab === 'subjects' && !showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <BookOpen size={20} className={activeTab === 'subjects' && !showMoreMenu ? 'text-[#0B1B3F] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                 <span className="text-[9px] font-bold">المواد</span>
               </button>
 
@@ -1431,10 +1431,10 @@ export default function App() {
               <button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all pb-1.5 min-w-[48px] ${
-                  showMoreMenu ? 'text-[#041B4D] font-black scale-105' : 'text-[#6B7280]'
+                  showMoreMenu ? 'text-[#0B1B3F] font-black scale-105' : 'text-[#6B7280]'
                 }`}
               >
-                <LayoutGrid size={20} className={showMoreMenu ? 'text-[#041B4D] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
+                <LayoutGrid size={20} className={showMoreMenu ? 'text-[#0B1B3F] stroke-[2.3]' : 'stroke-[1.8] text-gray-400'} />
                 <span className="text-[9px] font-bold">المزيد</span>
               </button>
 
@@ -1443,7 +1443,7 @@ export default function App() {
             {/* Slide-up custom Bottom sheet for More Options */}
             {showMoreMenu && (
               <div 
-                className="fixed inset-0 bg-[#041B4D]/40 backdrop-blur-sm z-45 lg:hidden flex flex-col justify-end" 
+                className="fixed inset-0 bg-[#0B1B3F]/40 backdrop-blur-sm z-45 lg:hidden flex flex-col justify-end" 
                 onClick={() => setShowMoreMenu(false)}
               >
                 <div 
@@ -1451,8 +1451,8 @@ export default function App() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex justify-between items-center border-b pb-3 border-gray-100">
-                    <h3 className="font-extrabold text-sm text-[#041B4D] flex items-center gap-1.5">
-                      <MoreHorizontal size={18} className="text-[#D4A63D]" />
+                    <h3 className="font-extrabold text-sm text-[#0B1B3F] flex items-center gap-1.5">
+                      <MoreHorizontal size={18} className="text-[#D4A947]" />
                       <span>المزيد من الخدمات والأدوات</span>
                     </h3>
                     <button 
@@ -1472,10 +1472,10 @@ export default function App() {
                       }}
                       className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                     >
-                      <div className="p-2 bg-[#041B4D]/5 text-[#041B4D] rounded-xl mb-1">
+                      <div className="p-2 bg-[#0B1B3F]/5 text-[#0B1B3F] rounded-xl mb-1">
                         <Users size={16} />
                       </div>
-                      <h4 className="font-extrabold text-xs text-[#041B4D]">الزملاء بالمنصة</h4>
+                      <h4 className="font-extrabold text-xs text-[#0B1B3F]">الزملاء بالمنصة</h4>
                       <p className="text-[8px] text-[#6B7280]">الدردشة والاتصال المباشر</p>
                     </button>
 
@@ -1487,10 +1487,10 @@ export default function App() {
                       }}
                       className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                     >
-                      <div className="p-2 bg-[#D4A63D]/10 text-[#D4A63D] rounded-xl mb-1">
+                      <div className="p-2 bg-[#D4A947]/10 text-[#D4A947] rounded-xl mb-1">
                         <Calendar size={16} />
                       </div>
-                      <h4 className="font-extrabold text-xs text-[#041B4D]">دليل الاختبارات</h4>
+                      <h4 className="font-extrabold text-xs text-[#0B1B3F]">دليل الاختبارات</h4>
                       <p className="text-[8px] text-[#6B7280]">الامتحانات والتسريبات والدرجات</p>
                     </button>
 
@@ -1502,10 +1502,10 @@ export default function App() {
                       }}
                       className="p-3 bg-[#F8FAFC] border border-gray-100 hover:border-gray-200 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                     >
-                      <div className="p-2 bg-[#041B4D]/5 text-[#041B4D] rounded-xl mb-1">
+                      <div className="p-2 bg-[#0B1B3F]/5 text-[#0B1B3F] rounded-xl mb-1">
                         <Smartphone size={16} />
                       </div>
-                      <h4 className="font-extrabold text-xs text-[#041B4D]">الدعم الفني</h4>
+                      <h4 className="font-extrabold text-xs text-[#0B1B3F]">الدعم الفني</h4>
                       <p className="text-[8px] text-[#6B7280]">إرسال ومتابعة تذاكر المساعدة</p>
                     </button>
 
@@ -1516,13 +1516,13 @@ export default function App() {
                           setActiveTab('admin');
                           setShowMoreMenu(false);
                         }}
-                        className="p-3 bg-[#D4A63D]/5 border border-[#D4A63D]/20 hover:bg-[#D4A63D]/10 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
+                        className="p-3 bg-[#D4A947]/5 border border-[#D4A947]/20 hover:bg-[#D4A947]/10 rounded-2xl flex flex-col items-start gap-1 text-right transition active:scale-95 cursor-pointer"
                       >
-                        <div className="p-2 bg-[#D4A63D]/10 text-[#D4A63D] rounded-xl mb-1">
+                        <div className="p-2 bg-[#D4A947]/10 text-[#D4A947] rounded-xl mb-1">
                           <Shield size={16} />
                         </div>
-                        <h4 className="font-extrabold text-xs text-[#041B4D]">لوحة الإدارة</h4>
-                        <p className="text-[8px] text-[#D4A63D] font-bold">إصدار الإعلانات والتحكم</p>
+                        <h4 className="font-extrabold text-xs text-[#0B1B3F]">لوحة الإدارة</h4>
+                        <p className="text-[8px] text-[#D4A947] font-bold">إصدار الإعلانات والتحكم</p>
                       </button>
                     )}
                   </div>
@@ -1533,7 +1533,7 @@ export default function App() {
                     <button 
                       onClick={() => setDarkMode(!darkMode)}
                       className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${
-                        darkMode ? 'bg-[#D4A63D]' : 'bg-gray-300'
+                        darkMode ? 'bg-[#D4A947]' : 'bg-gray-300'
                       }`}
                     >
                       <div className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform duration-300 ${

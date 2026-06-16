@@ -4,19 +4,21 @@
 @theme {
   --font-sans: "Cairo", "Inter", system-ui, -apple-system, sans-serif;
   
-  /* Brand color palette - Enhanced premium design */
-  --color-brand-dark: #041B4D;
-  --color-brand-blue: #0F2555;
-  --color-brand-gold: #D4A63D;
-  --color-brand-gray: #F7F8FA;
-  --color-brand-light: #E8EEF5;
+  /* Brand color palette from high-fidelity image specs */
+  --color-brand-dark: #0B1B3F;
+  --color-brand-blue: #0B1B3F;
+  --color-brand-medium: #1B2A57;
+  --color-brand-gold: #D4A947;
+  --color-brand-green: #28A745;
+  --color-brand-lightblue: #3A69C3;
+  --color-brand-gray: #F8F9FB;
 }
 
 html {
   font-family: var(--font-sans);
   direction: rtl;
-  background-color: #f9f9fa;
-  color: #0f2544;
+  background-color: #F8F9FB;
+  color: #4B4B4B;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -40,22 +42,22 @@ body {
 /* --- Premium Dark Mode Custom Rules --- */
 .dark-mode {
   color-scheme: dark;
-  --color-brand-gray: #050d18;
-  --color-brand-dark: #0f2544;
+  --color-brand-gray: #0B1B3F;
+  --color-brand-dark: #0B1B3F;
 }
 
 /* Update baseline document colors */
 .dark-mode,
 .dark-mode html,
 .dark-mode body {
-  background-color: #050d18 !important;
-  color: #f9f9fa !important;
+  background-color: #0B1B3F !important;
+  color: #FFFFFF !important;
 }
 
 /* Standard cards and wrappers */
 .dark-mode .bg-white {
-  background-color: #0b1c33 !important;
-  color: #f9f9fa !important;
+  background-color: #1B2A57 !important;
+  color: #FFFFFF !important;
 }
 
 /* Text coloring overrides */
@@ -124,11 +126,11 @@ body {
 .dark-mode [class*="bg-gray-200"],
 .dark-mode [class*="bg-slate-50"],
 .dark-mode [class*="bg-slate-100"] {
-  background-color: #142844 !important;
+  background-color: #1B2A57 !important;
 }
 
 .dark-mode .bg-brand-gray {
-  background-color: #050d18 !important;
+  background-color: #0B1B3F !important;
 }
 
 /* Custom themed badges */
@@ -220,53 +222,30 @@ body {
 
 /* --- Achievement Card Premium Styles --- */
 .achievement-card {
-  background-color: rgba(212, 166, 61, 0.05) !important;
-  border-color: rgba(212, 166, 61, 0.2) !important;
+  background-color: rgba(197, 156, 75, 0.05) !important; /* Soft brand-gold tint */
+  border-color: rgba(197, 156, 75, 0.2) !important;
 }
 .achievement-icon-wrapper {
-  background-color: rgba(212, 166, 61, 0.12) !important;
+  background-color: rgba(197, 156, 75, 0.12) !important;
 }
 .achievement-title {
-  color: #7c5e26 !important;
+  color: #7c5e26 !important; /* Warm gold/bronze title */
 }
 .achievement-desc {
-  color: #8c6e35 !important;
+  color: #8c6e35 !important; /* Soft readable descriptor */
 }
 
 /* --- Dark Mode specific overrides --- */
 .dark-mode .achievement-card {
-  background-color: rgba(212, 166, 61, 0.1) !important;
-  border-color: rgba(212, 166, 61, 0.45) !important;
+  background-color: rgba(197, 156, 75, 0.1) !important; /* Translucent gold on dark background */
+  border-color: rgba(197, 156, 75, 0.45) !important; /* Standout brand gold border */
 }
 .dark-mode .achievement-icon-wrapper {
-  background-color: rgba(212, 166, 61, 0.25) !important;
+  background-color: rgba(197, 156, 75, 0.25) !important;
 }
 .dark-mode .achievement-title {
-  color: #fde68a !important;
+  color: #fde68a !important; /* Highly readable golden-cream in dark mode */
 }
 .dark-mode .achievement-desc {
-  color: rgba(253, 230, 138, 0.85) !important;
-}
-
-/* Enhanced animations */
-@keyframes fadeInSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in-slide-up {
-  animation: fadeInSlideUp 0.5s ease-out;
-}
-
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
+  color: rgba(253, 230, 138, 0.85) !important; /* High contrast soft cream text */
 }

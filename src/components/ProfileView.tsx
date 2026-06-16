@@ -324,7 +324,7 @@ export default function ProfileView({
   return (
     <div className="space-y-6 pb-20 max-w-md mx-auto" dir="rtl">
       {/* MOBILE DEVICE HEADER CONTAINER (Deep Dark Blue Header block) */}
-      <div className="bg-[#041B4D] text-white pt-6 pb-12 px-5 rounded-b-[2.5rem] relative shadow-lg overflow-hidden">
+      <div className="bg-[#0B1B3F] text-white pt-6 pb-12 px-5 rounded-b-[2.5rem] relative shadow-lg overflow-hidden">
         {/* Background Decorative Circles */}
         <div className="absolute -top-12 -right-8 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
         <div className="absolute -bottom-16 -left-12 w-48 h-48 bg-brand-gold/10 rounded-full blur-2xl pointer-events-none" />
@@ -382,7 +382,7 @@ export default function ProfileView({
             <button 
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="absolute -bottom-1 -left-1 p-1.5 bg-brand-gold hover:bg-yellow-500 rounded-full border-2 border-[#041B4D] text-brand-dark cursor-pointer transition shadow"
+              className="absolute -bottom-1 -left-1 p-1.5 bg-brand-gold hover:bg-yellow-500 rounded-full border-2 border-[#0B1B3F] text-brand-dark cursor-pointer transition shadow"
             >
               <Camera size={11} className="stroke-[2.5]" />
             </button>
@@ -426,7 +426,7 @@ export default function ProfileView({
           </div>
           {/* Certificates Count */}
           <div className="space-y-1 border-r border-gray-100 dark:border-slate-800">
-            <div className="text-[14px] font-black text-[#D4A63D]">3</div>
+            <div className="text-[14px] font-black text-[#D4A947]">3</div>
             <div className="text-[9px] font-extrabold text-[#707e94]">شهادات درع</div>
           </div>
         </div>
@@ -459,12 +459,12 @@ export default function ProfileView({
           </div>
 
           {/* SVG Progress Graph Area */}
-          <div className="relative bg-slate-50/75 dark:bg-slate-950/45 rounded-xl p-2 border border-slate-100 dark:border-slate-850 h-36">
+          <div className="relative bg-slate-50/75 dark:bg-slate-950/45 rounded-xl p-2 border border-slate-105 dark:border-slate-850 h-36">
             <svg className="w-full h-full" viewBox="0 0 320 120">
               <defs>
                 <linearGradient id="gpaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#D4A63D" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#D4A63D" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#D4A947" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#D4A947" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
               {/* Horizontal Grid lines */}
@@ -476,7 +476,7 @@ export default function ProfileView({
               <path d={areaD} fill="url(#gpaGradient)" />
 
               {/* Glowing Line */}
-              <path d={pathD} fill="none" stroke="#D4A63D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={pathD} fill="none" stroke="#D4A947" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
               {/* Dots / Interactive Points */}
               {points.map((p, i) => (
@@ -485,7 +485,7 @@ export default function ProfileView({
                     cx={p.x} 
                     cy={p.y} 
                     r={selectedPoint === i ? 6 : 4} 
-                    fill={selectedPoint === i ? '#041B4D' : '#D4A63D'} 
+                    fill={selectedPoint === i ? '#0B1B3F' : '#D4A947'} 
                     stroke="#FFFFFF" 
                     strokeWidth="1.5" 
                     className="transition-all hover:scale-125"
@@ -522,7 +522,7 @@ export default function ProfileView({
             onClick={() => setActiveSubSection('academic')}
             className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
               activeSubSection === 'academic' 
-                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                ? 'bg-[#0B1B3F] border-brand-gold text-white' 
                 : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
             }`}
           >
@@ -539,7 +539,7 @@ export default function ProfileView({
             onClick={() => setActiveSubSection('saved-lectures')}
             className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
               activeSubSection === 'saved-lectures' 
-                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                ? 'bg-[#0B1B3F] border-brand-gold text-white' 
                 : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
             }`}
           >
@@ -556,7 +556,7 @@ export default function ProfileView({
             onClick={() => setActiveSubSection('downloads')}
             className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
               activeSubSection === 'downloads' 
-                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                ? 'bg-[#0B1B3F] border-brand-gold text-white' 
                 : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
             }`}
           >
@@ -573,7 +573,7 @@ export default function ProfileView({
             onClick={() => setActiveSubSection('payments')}
             className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
               activeSubSection === 'payments' 
-                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                ? 'bg-[#0B1B3F] border-brand-gold text-white' 
                 : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
             }`}
           >
@@ -590,7 +590,7 @@ export default function ProfileView({
             onClick={() => setActiveSubSection('notifications')}
             className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
               activeSubSection === 'notifications' 
-                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                ? 'bg-[#0B1B3F] border-brand-gold text-white' 
                 : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
             }`}
           >
@@ -607,7 +607,7 @@ export default function ProfileView({
             onClick={() => setActiveSubSection('support')}
             className={`p-3 rounded-2xl flex flex-col items-start text-right border transition active:scale-95 cursor-pointer ${
               activeSubSection === 'support' 
-                ? 'bg-[#041B4D] border-brand-gold text-white' 
+                ? 'bg-[#0B1B3F] border-brand-gold text-white' 
                 : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
             }`}
           >
@@ -625,7 +625,7 @@ export default function ProfileView({
           onClick={() => setActiveSubSection('about')}
           className={`w-full p-3.5 rounded-2xl flex items-center justify-between text-right border transition active:scale-95 cursor-pointer ${
             activeSubSection === 'about' 
-              ? 'bg-[#041B4D] border-brand-gold text-white' 
+              ? 'bg-[#0B1B3F] border-brand-gold text-white' 
               : 'bg-white dark:bg-slate-900 border-gray-120 dark:border-slate-800 hover:border-brand-blue/30 text-brand-dark dark:text-white'
           }`}
         >
@@ -668,7 +668,7 @@ export default function ProfileView({
               {/* Academic File detail View */}
               {activeSubSection === 'academic' && (
                 <div className="space-y-4">
-                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-brand-gold pr-2">
+                  <h4 className="font-extrabold text-xs text-[#0B1B3F] dark:text-brand-gold border-r-4 border-brand-gold pr-2">
                     الملف الأكاديمي والبيانات الجامعية
                   </h4>
                   <div className="divide-y divide-gray-100 dark:divide-slate-800 text-[11px] font-semibold">
@@ -697,7 +697,7 @@ export default function ProfileView({
                     </div>
                     <div className="py-2.5 flex justify-between">
                       <span className="text-gray-400">السنة الأكاديمية الحالية</span>
-                      <span className="text-[#D4A63D]">{academicYearInput}</span>
+                      <span className="text-[#D4A947]">{academicYearInput}</span>
                     </div>
                     <div className="py-2.5 flex justify-between">
                       <span className="text-gray-400">الساعات الأكاديمية المعترف بها</span>
@@ -710,7 +710,7 @@ export default function ProfileView({
               {/* Saved Lectures detail View */}
               {activeSubSection === 'saved-lectures' && (
                 <div className="space-y-4">
-                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-amber-500 pr-2">
+                  <h4 className="font-extrabold text-xs text-[#0B1B3F] dark:text-brand-gold border-r-4 border-amber-500 pr-2">
                     المحاضرات المؤكدة والملازم المحفوظة ({subjects.length})
                   </h4>
                   <div className="space-y-3">
@@ -744,7 +744,7 @@ export default function ProfileView({
               {/* Downloads list with progressive downloading progress */}
               {activeSubSection === 'downloads' && (
                 <div className="space-y-4">
-                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-emerald-500 pr-2">
+                  <h4 className="font-extrabold text-xs text-[#0B1B3F] dark:text-brand-gold border-r-4 border-emerald-500 pr-2">
                     المذكرات الأكاديمية المتاحة للتنزيل المباشر
                   </h4>
                   <p className="text-[10px] text-gray-500 leading-normal">
@@ -803,7 +803,7 @@ export default function ProfileView({
               {/* Payments & fee receipts View */}
               {activeSubSection === 'payments' && (
                 <div className="space-y-4">
-                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-purple-500 pr-2">
+                  <h4 className="font-extrabold text-xs text-[#0B1B3F] dark:text-brand-gold border-r-4 border-purple-500 pr-2">
                     الرسوم الدراسية وحالة الفواتير المالية
                   </h4>
                   <div className="p-3 bg-emerald-500/10 border border-emerald-550/30 text-emerald-800 dark:text-emerald-300 rounded-xl flex items-center justify-between text-[11px] font-black">
@@ -814,7 +814,7 @@ export default function ProfileView({
                   <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-gray-150 text-[11px] font-semibold space-y-2 text-right">
                     <div className="font-black text-brand-dark dark:text-white">الفصل الدراسي الأول - السداد العام</div>
                     <div className="grid grid-cols-2 gap-2 text-[10px]">
-                      <div>رقم الفاتورة: <span className="font-mono text-[#D4A63D]">#INV-28492</span></div>
+                      <div>رقم الفاتورة: <span className="font-mono text-[#D4A947]">#INV-28492</span></div>
                       <div>وسيلة الدفع: <span>بوابة مدى الائتمانية</span></div>
                       <div>رسوم الدورة الصيفية: <span>1,500 ريال سعودي</span></div>
                       <div>رسوم الكتب والتسجيل: <span>1,000 ريال سعودي</span></div>
@@ -847,7 +847,7 @@ export default function ProfileView({
               {/* Notifications and push options */}
               {activeSubSection === 'notifications' && (
                 <div className="space-y-4">
-                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-rose-500 pr-2">
+                  <h4 className="font-extrabold text-xs text-[#0B1B3F] dark:text-brand-gold border-r-4 border-rose-500 pr-2">
                     تفضيلات الإشعارات والتنبيهات الذكية
                   </h4>
                   <div className="space-y-3.5 pt-1 text-[11px] font-semibold text-gray-650 dark:text-gray-300">
@@ -876,7 +876,7 @@ export default function ProfileView({
               {/* Support & help module (Active ticket board and Telegram message dispatch) */}
               {activeSubSection === 'support' && (
                 <div className="space-y-3">
-                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-teal-500 pr-2">
+                  <h4 className="font-extrabold text-xs text-[#0B1B3F] dark:text-brand-gold border-r-4 border-teal-500 pr-2">
                     مركز الدعم والمحادثة الميدانية للأكاديمية
                   </h4>
                   
@@ -902,7 +902,7 @@ export default function ProfileView({
                               return (
                                 <div key={idx} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'}`}>
                                   <span className="text-[8px] text-gray-400 font-bold px-1">{m.senderName}</span>
-                                  <div className={`p-2 rounded-xl text-[10px] leading-normal text-right shadow-xs ${isAdmin ? 'bg-amber-50 text-brand-dark rounded-tr-none' : 'bg-[#041B4D] text-white rounded-tl-none'}`}>
+                                  <div className={`p-2 rounded-xl text-[10px] leading-normal text-right shadow-xs ${isAdmin ? 'bg-amber-50 text-brand-dark rounded-tr-none' : 'bg-[#0B1B3F] text-white rounded-tl-none'}`}>
                                     {m.message}
                                   </div>
                                 </div>
@@ -937,8 +937,8 @@ export default function ProfileView({
                           <div className="bg-amber-500/10 p-2 rounded-xl text-[9px] font-bold">
                             <span>⚙️ ممرر محاكاة الطالب:</span>
                             <div className="flex gap-2 mt-1">
-                              <button type="button" onClick={() => setSupportSenderRole('self')} className={`px-2 py-0.5 rounded ${supportSenderRole==='self'?'bg-[#041B4D] text-white':'bg-white text-gray-700'}`}>أنا المشرف</button>
-                              <button type="button" onClick={() => setSupportSenderRole('simulated_ahmed')} className={`px-2 py-0.5 rounded ${supportSenderRole==='simulated_ahmed'?'bg-[#041B4D] text-white':'bg-white text-gray-700'}`}>أنا الطالب أحمد</button>
+                              <button type="button" onClick={() => setSupportSenderRole('self')} className={`px-2 py-0.5 rounded ${supportSenderRole==='self'?'bg-[#0B1B3F] text-white':'bg-white text-gray-700'}`}>أنا المشرف</button>
+                              <button type="button" onClick={() => setSupportSenderRole('simulated_ahmed')} className={`px-2 py-0.5 rounded ${supportSenderRole==='simulated_ahmed'?'bg-[#0B1B3F] text-white':'bg-white text-gray-700'}`}>أنا الطالب أحمد</button>
                             </div>
                           </div>
                         )}
@@ -984,14 +984,14 @@ export default function ProfileView({
               {/* About educational portal */}
               {activeSubSection === 'about' && (
                 <div className="space-y-4 text-right">
-                  <h4 className="font-extrabold text-xs text-[#041B4D] dark:text-brand-gold border-r-4 border-gray-400 pr-2">
+                  <h4 className="font-extrabold text-xs text-[#0B1B3F] dark:text-brand-gold border-r-4 border-gray-400 pr-2">
                     عن منصة بن عون التعليمية الشاملة
                   </h4>
                   <div className="text-[11px] text-gray-650 dark:text-gray-300 leading-relaxed space-y-2.5">
                     <p>
                       نحن نقدم لك بيئة دراسية متكاملة تهدف إلى تمهيد طريق التميز الأكاديمي والتحصيل الجامعي الرائد. جميع المقررات والاختبارات تم إعدادها وتدقيقها بالكامل من قبل كبار الأكاديميين ذوي الخبرة الطويلة.
                     </p>
-                    <div className="p-3 bg-brand-gold/10 rounded-xl space-y-1 text-[#041B4D] dark:text-brand-gold">
+                    <div className="p-3 bg-brand-gold/10 rounded-xl space-y-1 text-[#0B1B3F] dark:text-brand-gold">
                       <div>إصدار المنصة الأكاديمي: <span className="font-mono">v4.2.0-Stable</span></div>
                       <div>الترخيص والمزامنة: <span className="font-black">فوري عبر Firebase</span></div>
                       <div>حقوق الطبع والتحول الأكاديمي محفوظة © 2026</div>
@@ -1094,7 +1094,7 @@ export default function ProfileView({
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="flex-1 py-2 bg-[#041B4D] hover:bg-[#071B3B] text-white rounded-xl text-[11px] font-bold"
+                  className="flex-1 py-2 bg-[#0B1B3F] hover:bg-[#071B3B] text-white rounded-xl text-[11px] font-bold"
                 >
                   {isSaving ? 'جاري الحفظ الآمن...' : 'حفظ التحديثات'}
                 </button>

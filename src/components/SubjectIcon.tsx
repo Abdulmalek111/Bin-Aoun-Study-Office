@@ -47,7 +47,7 @@ export default function SubjectIcon({ type, className = '', size = 20 }: Subject
         };
       case 'russian':
         return {
-          bg: 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400',
+          bg: 'bg-white border border-gray-150 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400 dark:border-transparent',
           icon: Languages,
         };
       case 'sports':
