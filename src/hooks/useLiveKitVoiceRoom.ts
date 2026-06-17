@@ -224,6 +224,20 @@ export function useLiveKitVoiceRoom(roomId: string | undefined) {
       roomRef.current = lkRoom;
 
       // Subscribe to relevant LiveKit events
+      lkRoom.on(RoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === 'audio') {
+          if (isDeafenedRef.current) {
+            try {
+              if ('setVolume' in track) {
+                (track as any).setVolume(0);
+              }
+            } catch (err) {
+              console.warn('[useLiveKitVoiceRoom] Failed to mute track on subscription:', err);
+            }
+          }
+        }
+      });
+
       lkRoom.on(RoomEvent.Connected, () => {
         console.log('[useLiveKitVoiceRoom] Connected to LiveKit Room');
         setSocketStatus('connected');
@@ -402,19 +416,80 @@ export function useLiveKitVoiceRoom(roomId: string | undefined) {
     }
   }, [roomId, leaveRoom]);
 
+  // 1. Physically and strictly enforce mute state on local audio tracks and browser capture APIs
+  useEffect(() => {
+    const enforceMuteState = async () => {
+      if (!roomRef.current) return;
+      const localParticipant = roomRef.current.localParticipant;
+      if (!localParticipant) return;
+
+      try {
+        if (isMuted) {
+          // Tell LiveKit to disable the microphone
+          await localParticipant.setMicrophoneEnabled(false);
+          // And physically disable any active local audio tracks to avoid leaks
+          localParticipant.audioTrackPublications.forEach(pub => {
+            if (pub.track) {
+              pub.track.mediaStreamTrack.enabled = false;
+              try {
+                (pub.track as any).mute?.();
+              } catch (e) {}
+            }
+          });
+          setMicrophoneStatus('مكتوم / Muted');
+        } else {
+          // Tell LiveKit to enable the microphone
+          if (joined) {
+            await localParticipant.setMicrophoneEnabled(true);
+            localParticipant.audioTrackPublications.forEach(pub => {
+              if (pub.track) {
+                pub.track.mediaStreamTrack.enabled = true;
+                try {
+                  (pub.track as any).unmute?.();
+                } catch (e) {}
+              }
+            });
+            setMicrophoneStatus('نشط / Active');
+          }
+        }
+      } catch (e) {
+        console.warn('[useLiveKitVoiceRoom] Error enforcing mute state:', e);
+      }
+    };
+
+    enforceMuteState();
+  }, [isMuted, joined]);
+
+  // 2. DOM-level deafen guard that periodically silences new audio tags
+  useEffect(() => {
+    const enforceDeafenState = () => {
+      try {
+        const audioElements = document.querySelectorAll('audio');
+        audioElements.forEach((audio) => {
+          if (isDeafened) {
+            audio.muted = true;
+            audio.volume = 0;
+          } else {
+            audio.muted = false;
+            audio.volume = 1;
+          }
+        });
+      } catch (e) {
+        console.warn('[useLiveKitVoiceRoom] DOM audio elements control error:', e);
+      }
+    };
+
+    enforceDeafenState();
+
+    // Setup an observer interval to catch newly rendered/active <audio> elements
+    const intervalId = setInterval(enforceDeafenState, 500);
+    return () => clearInterval(intervalId);
+  }, [isDeafened]);
+
   // Voice rooms state controls updates
   const toggleMute = useCallback(async () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
-
-    if (roomRef.current?.localParticipant) {
-      try {
-        await roomRef.current.localParticipant.setMicrophoneEnabled(!nextMuted);
-        setMicrophoneStatus(!nextMuted ? 'نشط / Active' : 'مكتوم / Muted');
-      } catch (err) {
-        console.error('[useLiveKitVoiceRoom] Failed to toggle mic track:', err);
-      }
-    }
 
     if (roomId && auth.currentUser) {
       const myUid = auth.currentUser.uid;
@@ -562,6 +637,8 @@ export function useLiveKitVoiceRoom(roomId: string | undefined) {
     liveKitToken,
     liveKitUrl,
 
-    tokenDiagnostics
+    tokenDiagnostics,
+
+    roomInstance: roomRef.current
   };
 }

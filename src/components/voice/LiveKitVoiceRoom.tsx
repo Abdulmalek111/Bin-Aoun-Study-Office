@@ -52,7 +52,8 @@ export default function LiveKitVoiceRoom({
     liveKitToken,
     liveKitUrl,
 
-    tokenDiagnostics
+    tokenDiagnostics,
+    roomInstance
   } = useLiveKitVoiceRoom(room.id);
 
   // Auto-connect room on mount
@@ -285,8 +286,9 @@ export default function LiveKitVoiceRoom({
       )}
 
       {/* 7. Active Joined Room Screen with LiveKit wrappers */}
-      {joined && liveKitToken && liveKitUrl && (
+      {joined && liveKitToken && liveKitUrl && roomInstance && (
         <LiveKitRoom
+          room={roomInstance}
           token={liveKitToken}
           serverUrl={liveKitUrl}
           connect={true}
