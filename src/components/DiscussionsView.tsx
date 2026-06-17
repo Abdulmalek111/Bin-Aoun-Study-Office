@@ -299,39 +299,39 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
     <div className="space-y-6 flex flex-col h-full text-right" dir="rtl">
       
       {/* 🌟 Tab Selector switcher for Written Forums vs Discord Voice Rooms */}
-      <div className="flex items-center gap-2 p-1.5 bg-[#FAF6EE] border border-[#E9E2D2] rounded-2xl shrink-0 select-none">
+      <div className="flex items-center gap-1.5 sm:gap-2 p-1 bg-[#FAF6EE] border border-[#E9E2D2] rounded-2xl shrink-0 select-none">
         <button
           onClick={() => {
             setActiveSection('written');
             setJoinedRoom(null); // safely leave/disconnect if any
           }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all duration-300 cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-300 cursor-pointer ${
             activeSection === 'written'
-              ? 'bg-[#D4A947] text-[#1F1A13] font-extrabold shadow-sm'
+              ? 'bg-[#D4A947] text-[#1F1A13] font-black shadow-sm'
               : 'text-[#837667] hover:text-[#2D251A] hover:bg-[#F3EFE6]'
           }`}
         >
-          <MessageCircle size={15} className="text-[#2D251A]" />
-          <span>حلقة النقاش المكتوبة 💬</span>
+          <MessageCircle size={13} className="text-[#2D251A] shrink-0" />
+          <span className="truncate">حلقات النقاش المكتوبة 💬</span>
         </button>
 
         <button
           onClick={() => setActiveSection('voice')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all duration-300 cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-300 cursor-pointer ${
             activeSection === 'voice'
-              ? 'bg-[#D4A947] text-[#1F1A13] font-extrabold shadow-sm'
+              ? 'bg-[#D4A947] text-[#1F1A13] font-black shadow-sm'
               : 'text-[#837667] hover:text-[#2D251A] hover:bg-[#F3EFE6]'
           }`}
         >
-          <MessageSquare size={15} className="text-[#2D251A]" />
-          <span>المدرّجات الصوتية الذهبية 🎙️</span>
+          <MessageSquare size={13} className="text-[#2D251A] shrink-0" />
+          <span className="truncate">المدرّجات الصوتية 🎙️</span>
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Right Sidebar - Column span 4 on large screens, active items tracker and navigation channels */}
-        <div className="lg:col-span-4 order-1 lg:order-2 space-y-4">
+        {/* Right Sidebar - Column span 4 on large screens, hidden on mobile for seamless feed view */}
+        <div className="hidden lg:block lg:col-span-4 space-y-4">
           
           <div className="bg-[#FFFDF9] border border-[#E9E2D2] rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-2 pb-3 border-b border-[#FAF6EE]">
@@ -426,21 +426,61 @@ export default function DiscussionsView({ subjects, user }: DiscussionsViewProps
           </div>
         </div>
 
-        {/* Left Primary Content Column - Column span 8 on large screens */}
-        <div className="lg:col-span-8 order-2 lg:order-1 space-y-4">
+        {/* Left Primary Content Column - Spans full width on mobile, and col-span-8 on desktop */}
+        <div className="w-full lg:col-span-8 space-y-4">
           
           {activeSection === 'written' ? (
-            <div className="space-y-4">
+            <div className="space-y-4 animate-fade-in">
               
               {/* Header Profile description */}
-              <div className="bg-[#FFFDF9] border border-[#E9E2D2] rounded-3xl p-5 shadow-sm">
-                <h1 className="text-lg font-black text-[#2D251A] tracking-tight flex items-center gap-2">
+              <div className="bg-[#FFFDF9] border border-[#E9E2D2] rounded-3xl p-4 sm:p-5 shadow-sm">
+                <h1 className="text-base sm:text-lg font-black text-[#2D251A] tracking-tight flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#D4A947]"></span>
                   <span>مجالس المذاكرة والحلقات المكتوبة</span>
                 </h1>
                 <p className="text-xs text-[#837667] mt-1.5 font-bold leading-relaxed">
                   تصفح واطرح الاستفسارات للمواد والامتحانات. تم تنقية المظهر بالكامل من اللون الأزرق واستبداله بألوان دافئة مستوحاة من الشعار.
                 </p>
+              </div>
+
+              {/* 📱 Mobile Horizontal Channels Scroll (Active on mobile viewports only) */}
+              <div className="lg:hidden flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-0.5 select-none" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <button
+                  onClick={() => setSelectedSubjectId('all')}
+                  className={`whitespace-nowrap px-4 py-2.5 rounded-2xl text-[11px] font-black transition-all flex items-center gap-1.5 border shrink-0 cursor-pointer ${
+                    selectedSubjectId === 'all'
+                      ? 'bg-[#1F1A13] text-[#D4A947] border-[#1F1A13] shadow-sm'
+                      : 'bg-white text-[#4E4333] border-[#E9E2D2] hover:bg-[#FAF6EE]'
+                  }`}
+                >
+                  <MessageCircle size={13} className={selectedSubjectId === 'all' ? 'text-[#D4A947]' : 'text-[#C59C4B]'} />
+                  <span>كل القنوات</span>
+                  <span className="bg-[#FAF6EE] text-[#7C5F2B] text-[9px] font-bold px-1.5 py-0.5 rounded-md font-mono border border-[#E9E2D2]/40">
+                    {messages.length}
+                  </span>
+                </button>
+
+                {subjects.map((sub) => {
+                  const subCount = messages.filter(m => m.subjectId === sub.id).length;
+                  const isSelected = selectedSubjectId === sub.id;
+                  return (
+                    <button
+                      key={sub.id}
+                      onClick={() => setSelectedSubjectId(sub.id)}
+                      className={`whitespace-nowrap px-4 py-2.5 rounded-2xl text-[11px] font-black transition-all flex items-center gap-1.5 border shrink-0 cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#1F1A13] text-[#D4A947] border-[#1F1A13] shadow-sm'
+                          : 'bg-white text-[#4E4333] border-[#E9E2D2] hover:bg-[#FAF6EE]'
+                      }`}
+                    >
+                      <SubjectIcon type={sub.iconType} size={11} className="!p-0.5 opacity-90 inline-block" />
+                      <span>{sub.nameAr}</span>
+                      <span className="bg-[#FAF6EE] text-[#7C5F2B] text-[9px] font-bold px-1.5 py-0.5 rounded-md font-mono border border-[#E9E2D2]/40">
+                        {subCount}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Minimal Luxurious Search bar */}

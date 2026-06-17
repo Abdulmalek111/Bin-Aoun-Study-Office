@@ -83,7 +83,7 @@ export default function LiveKitVoiceRoom({
         <div className="text-right space-y-1">
           <div className="flex items-center gap-2 text-right">
             <h3 className="font-black text-lg md:text-xl text-brand-dark leading-tight flex items-center gap-2">
-              حلقة النقاش الصوتي (LiveKit): <span className="text-brand-blue font-extrabold">{room.name}</span>
+              حلقة النقاش الصوتي (LiveKit): <span className="text-[#C59C4B] font-extrabold">{room.name}</span>
             </h3>
             {room.isLocked ? (
               <span title="مغلقة بكلمة سر"><Lock size={16} className="text-amber-500 fill-amber-500/10" /></span>

@@ -362,7 +362,7 @@ export default function VoiceRoomList({
 
                 {/* Name description */}
                 <div className="text-right space-y-1 select-text">
-                  <h3 className="font-black text-sm text-brand-dark truncate leading-tight group-hover:text-brand-blue transition-colors">
+                  <h3 className="font-black text-sm text-brand-dark truncate leading-tight group-hover:text-[#C59C4B] transition-colors">
                     {room.name}
                   </h3>
                   <p className="text-[10px] text-gray-400 line-clamp-2 leading-relaxed">
@@ -510,7 +510,7 @@ export default function VoiceRoomList({
                         onClick={() => handleToggleRole(role)}
                         className={`px-3 py-1.5 border rounded-xl text-[10px] font-black cursor-pointer transition-all ${
                           isChecked 
-                            ? 'bg-brand-blue/10 border-brand-blue text-brand-blue' 
+                            ? 'bg-[#D4A947]/10 border-[#D4A947] text-[#8C6D23]' 
                             : 'bg-white border-gray-200 text-gray-500 hover:text-brand-dark'
                         }`}
                       >
